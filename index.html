@@ -1853,20 +1853,20 @@ var OrderForm = function OrderForm(_ref4) {
       color: "var(--text2)",
       cursor: "pointer"
     }
-  }, "\uD83D\uDCE6 $", (tenant === null || tenant === void 0 ? void 0 : tenant.depositAmount) || 10, " Box Deposit (credited at pickup)"))), f.insurance && /*#__PURE__*/React.createElement("div", {
+  }, "\uD83D\uDCE6 $", (tenant === null || tenant === void 0 ? void 0 : tenant.depositAmount) || 10, " Box Deposit (credited at pickup)"))), /*#__PURE__*/React.createElement("div", {
     className: "fg"
   }, /*#__PURE__*/React.createElement("label", {
     className: "fl"
-  }, "Declared Value ($) \u2014 for insurance calculation"), /*#__PURE__*/React.createElement("input", {
+  }, "Box Value ($) \u2014 declared value for records & insurance"), /*#__PURE__*/React.createElement("input", {
     className: "fi",
     type: "number",
     value: f.declaredValue,
     onChange: function onChange(e) {
       set("declaredValue", e.target.value);
-      autoPrice(null, null, null, true, e.target.value);
+      autoPrice(null, null, null, null, e.target.value);
     },
     placeholder: "500"
-  }), f.declaredValue && /*#__PURE__*/React.createElement("div", {
+  }), f.insurance && f.declaredValue && /*#__PURE__*/React.createElement("div", {
     className: "xs mut",
     style: {
       marginTop: 3
@@ -2152,9 +2152,9 @@ var OrderForm = function OrderForm(_ref4) {
       gap: 10,
       marginBottom: 12,
       padding: "8px 12px",
-      background: f.consigneeDangerZone ? "rgba(239,68,68,.1)" : "var(--bg3)",
+      background: f.consigneeDangerZone ? (f.zone && ZONE_CONFIG[f.zone] ? ZONE_CONFIG[f.zone].bg : "rgba(239,68,68,.1)") : "var(--bg3)",
       borderRadius: 8,
-      border: f.consigneeDangerZone ? "1px solid var(--red)" : "1px solid var(--border)"
+      border: f.consigneeDangerZone ? ("1px solid " + (f.zone && ZONE_CONFIG[f.zone] ? ZONE_CONFIG[f.zone].color : "var(--red)")) : "1px solid var(--border)"
     }
   }, /*#__PURE__*/React.createElement("input", {
     type: "checkbox",
@@ -2166,13 +2166,13 @@ var OrderForm = function OrderForm(_ref4) {
     style: {
       width: 16,
       height: 16,
-      accentColor: "var(--red)"
+      accentColor: f.zone && ZONE_CONFIG[f.zone] ? ZONE_CONFIG[f.zone].color : "var(--red)"
     }
   }), /*#__PURE__*/React.createElement("label", {
     htmlFor: "dz",
     style: {
       fontSize: 12.5,
-      color: f.consigneeDangerZone ? "var(--red)" : "var(--text3)",
+      color: f.consigneeDangerZone ? (f.zone && ZONE_CONFIG[f.zone] ? ZONE_CONFIG[f.zone].color : "var(--red)") : "var(--text3)",
       cursor: "pointer",
       fontWeight: f.consigneeDangerZone ? 700 : 400
     }
@@ -2866,7 +2866,21 @@ var OrderDetail = function OrderDetail(_ref22) {
     onClick: function onClick() {
       return onInvoice && onInvoice(order);
     }
-  }, "\uD83E\uDDFE Invoice"))));
+  }, "\uD83E\uDDFE Invoice"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-green btn-sm",
+    onClick: function onClick() {
+      var ph = (order.whatsapp || order.phone || "").replace(/\D/g, "");
+      var msg = "Hi " + (order.name || "").split(" ")[0] + "! Your shipment " + order.id + " is on its way to " + order.destination + ". Questions? Reply here. — Casabe Xpress";
+      window.open("https://wa.me/" + ph + "?text=" + encodeURIComponent(msg), "_blank");
+    }
+  }, "💬 WhatsApp"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-ghost btn-sm",
+    onClick: function onClick() {
+      var ph = (order.whatsapp || order.phone || "").replace(/[^0-9+]/g, "");
+      var msg = "Hi " + (order.name || "").split(" ")[0] + "! Your shipment " + order.id + " update from Casabe Xpress. Questions? Call or text us back.";
+      window.open("sms:" + ph + "?body=" + encodeURIComponent(msg));
+    }
+  }, "📱 SMS"))));
 };
 
 /* ════════════════════════════════════════════
@@ -4831,7 +4845,11 @@ var InvoiceModal = function InvoiceModal(_ref48) {
       textAlign: "right",
       fontWeight: 600
     }
-  }, "$", boxBase.toFixed(2))), order.insurance && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", null, "Insurance"), /*#__PURE__*/React.createElement("td", {
+  }, "$", boxBase.toFixed(2))), order.declaredValue ? /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", null, "Declared Value"), /*#__PURE__*/React.createElement("td", {
+    style: {
+      textAlign: "right"
+    }
+  }, "$", parseFloat(order.declaredValue).toFixed(2))) : null, order.insurance && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", null, "Insurance (", insRate, "%)"), /*#__PURE__*/React.createElement("td", {
     style: {
       textAlign: "right"
     }
@@ -7135,7 +7153,21 @@ var TrackingConfirmModal = function TrackingConfirmModal(_ref70) {
     onClick: function onClick() {
       return onInvoice && onInvoice(order);
     }
-  }, "\uD83E\uDDFE Invoice"))));
+  }, "\uD83E\uDDFE Invoice"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-green btn-sm",
+    onClick: function onClick() {
+      var ph = (order.whatsapp || order.phone || "").replace(/\D/g, "");
+      var msg = "Hi " + (order.name || "").split(" ")[0] + "! Your shipment " + order.id + " is on its way to " + order.destination + ". Questions? Reply here. — Casabe Xpress";
+      window.open("https://wa.me/" + ph + "?text=" + encodeURIComponent(msg), "_blank");
+    }
+  }, "💬 WhatsApp"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-ghost btn-sm",
+    onClick: function onClick() {
+      var ph = (order.whatsapp || order.phone || "").replace(/[^0-9+]/g, "");
+      var msg = "Hi " + (order.name || "").split(" ")[0] + "! Your shipment " + order.id + " update from Casabe Xpress. Questions? Call or text us back.";
+      window.open("sms:" + ph + "?body=" + encodeURIComponent(msg));
+    }
+  }, "📱 SMS"))));
 };
 
 /* ════════════════════════════════════════════
@@ -10260,6 +10292,103 @@ var NewShipmentModal = function NewShipmentModal(_ref93ns) {
   )));
 };
 
+
+var EditShipmentModal = function EditShipmentModal(_ref_esm) {
+  var shipment = _ref_esm.shipment,
+    onSave = _ref_esm.onSave,
+    onClose = _ref_esm.onClose;
+  var _useState_esm1 = useState(shipment.name || shipment.id),
+    _useState_esm2 = _slicedToArray(_useState_esm1, 2),
+    name = _useState_esm2[0], setName = _useState_esm2[1];
+  var _useState_esm3 = useState(shipment.date || ""),
+    _useState_esm4 = _slicedToArray(_useState_esm3, 2),
+    date = _useState_esm4[0], setDate = _useState_esm4[1];
+  var _useState_esm5 = useState(shipment.destination || ""),
+    _useState_esm6 = _slicedToArray(_useState_esm5, 2),
+    destination = _useState_esm6[0], setDestination = _useState_esm6[1];
+  var _useState_esm7 = useState(shipment.eta || ""),
+    _useState_esm8 = _slicedToArray(_useState_esm7, 2),
+    eta = _useState_esm8[0], setEta = _useState_esm8[1];
+  var _useState_esm9 = useState(shipment.status || "open"),
+    _useState_esm10 = _slicedToArray(_useState_esm9, 2),
+    status = _useState_esm10[0], setStatus = _useState_esm10[1];
+  var _useState_esm11 = useState(shipment.notes || ""),
+    _useState_esm12 = _slicedToArray(_useState_esm11, 2),
+    notes = _useState_esm12[0], setNotes = _useState_esm12[1];
+  return /*#__PURE__*/React.createElement("div", {
+    className: "overlay",
+    onClick: function onClick(e) { return e.target === e.currentTarget && onClose(); }
+  }, /*#__PURE__*/React.createElement("div", { className: "modal fu" },
+    /*#__PURE__*/React.createElement("div", { className: "modal-title" }, "\u270F Edit Shipment"),
+    /*#__PURE__*/React.createElement("div", { className: "fg" },
+      /*#__PURE__*/React.createElement("label", { className: "fl" }, "Shipment Name"),
+      /*#__PURE__*/React.createElement("input", {
+        className: "fi", value: name,
+        onChange: function onChange(e) { return setName(e.target.value); }
+      })
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "fr" },
+      /*#__PURE__*/React.createElement("div", { className: "fg" },
+        /*#__PURE__*/React.createElement("label", { className: "fl" }, "Date"),
+        /*#__PURE__*/React.createElement("input", {
+          className: "fi", type: "date", value: date,
+          onChange: function onChange(e) { return setDate(e.target.value); }
+        })
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "fg" },
+        /*#__PURE__*/React.createElement("label", { className: "fl" }, "Est. Arrival"),
+        /*#__PURE__*/React.createElement("input", {
+          className: "fi", type: "date", value: eta,
+          onChange: function onChange(e) { return setEta(e.target.value); }
+        })
+      )
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "fr" },
+      /*#__PURE__*/React.createElement("div", { className: "fg" },
+        /*#__PURE__*/React.createElement("label", { className: "fl" }, "Destination"),
+        /*#__PURE__*/React.createElement("select", {
+          className: "fi", value: destination,
+          onChange: function onChange(e) { return setDestination(e.target.value); }
+        }, DESTINATIONS.map(function(d) {
+          return /*#__PURE__*/React.createElement("option", { key: d }, d);
+        }))
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "fg" },
+        /*#__PURE__*/React.createElement("label", { className: "fl" }, "Status"),
+        /*#__PURE__*/React.createElement("select", {
+          className: "fi", value: status,
+          onChange: function onChange(e) { return setStatus(e.target.value); }
+        }, STATUS_MODEL.shipment.map(function(s) {
+          return /*#__PURE__*/React.createElement("option", { key: s.key, value: s.key }, s.label);
+        }))
+      )
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "fg" },
+      /*#__PURE__*/React.createElement("label", { className: "fl" }, "Notes"),
+      /*#__PURE__*/React.createElement("textarea", {
+        className: "fi", rows: 2, value: notes,
+        onChange: function onChange(e) { return setNotes(e.target.value); },
+        placeholder: "Optional notes..."
+      })
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 18 } },
+      /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost", onClick: onClose }, "Cancel"),
+      /*#__PURE__*/React.createElement("button", {
+        className: "btn btn-primary mla",
+        disabled: !name.trim(),
+        onClick: function onClick() {
+          onSave(Object.assign({}, shipment, {
+            name: name.trim(), date: date,
+            destination: destination, eta: eta,
+            status: status, notes: notes
+          }));
+          onClose();
+        }
+      }, "\u2713 Save Changes")
+    )
+  ));
+};
+
 var ShipmentsPage = function ShipmentsPage(_ref94) {
   var shipments = _ref94.shipments,
     orders = _ref94.orders,
@@ -10267,7 +10396,10 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     onLockBatch = _ref94.onLockBatch,
     onBulkStatusUpdate = _ref94.onBulkStatusUpdate,
     onBulkAssignShipment = _ref94.onBulkAssignShipment,
-    onGenerateDocs = _ref94.onGenerateDocs;
+    onGenerateDocs = _ref94.onGenerateDocs,
+    onSelectOrder = _ref94.onSelectOrder,
+    onUpdateShipment = _ref94.onUpdateShipment,
+    notify = _ref94.notify;
   var t = useT();
   var _useState47 = useState(null),
     _useState48 = _slicedToArray(_useState47, 2),
@@ -10301,6 +10433,38 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     _useState60b = _slicedToArray(_useState59b, 2),
     bulkAssignShipment = _useState60b[0],
     setBulkAssignShipment = _useState60b[1];
+  var _useState61e = useState(false),
+    _useState62e = _slicedToArray(_useState61e, 2),
+    showExpenses = _useState62e[0],
+    setShowExpenses = _useState62e[1];
+  var _useState63e = useState(""),
+    _useState64e = _slicedToArray(_useState63e, 2),
+    expNewCat = _useState64e[0],
+    setExpNewCat = _useState64e[1];
+  var _useState65e = useState(""),
+    _useState66e = _slicedToArray(_useState65e, 2),
+    expNewDesc = _useState66e[0],
+    setExpNewDesc = _useState66e[1];
+  var _useState67e = useState(""),
+    _useState68e = _slicedToArray(_useState67e, 2),
+    expNewAmt = _useState68e[0],
+    setExpNewAmt = _useState68e[1];
+  var _useState69b = useState(false),
+    _useState70b = _slicedToArray(_useState69b, 2),
+    showBroadcast = _useState70b[0],
+    setShowBroadcast = _useState70b[1];
+  var _useState_es1 = useState(false),
+    _useState_es2 = _slicedToArray(_useState_es1, 2),
+    showEditShipment = _useState_es2[0],
+    setShowEditShipment = _useState_es2[1];
+  var _useState71b = useState("whatsapp"),
+    _useState72b = _slicedToArray(_useState71b, 2),
+    broadcastChannel = _useState72b[0],
+    setBroadcastChannel = _useState72b[1];
+  var _useState73b = useState(""),
+    _useState74b = _slicedToArray(_useState73b, 2),
+    broadcastMsg = _useState74b[0],
+    setBroadcastMsg = _useState74b[1];
   var filtered = filter === "all" ? shipments : shipments.filter(function (s) {
     return s.status === filter;
   });
@@ -10324,8 +10488,9 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
   if (selected) {
     var _SHIPMENT_STATUS$sele, _SHIPMENT_STATUS$sele2;
     var shpOrders = getOrdersInShipment(selected);
-    var profit = selected.revenue - selected.cost;
-    var margin = selected.revenue > 0 ? Math.round(profit / selected.revenue * 100) : 0;
+    var liveRevenue = shpOrders.reduce(function(s,o){return s+((o.payment&&o.payment.amount)||0);},0);
+    var profit = liveRevenue - selected.cost;
+    var margin = liveRevenue > 0 ? Math.round(profit / liveRevenue * 100) : 0;
     return /*#__PURE__*/React.createElement("div", {
       className: "fu"
     }, /*#__PURE__*/React.createElement("div", {
@@ -10343,9 +10508,23 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
       }
     }, selected.id), /*#__PURE__*/React.createElement("span", {
       className: "badge ".concat(((_SHIPMENT_STATUS$sele = SHIPMENT_STATUS[selected.status]) === null || _SHIPMENT_STATUS$sele === void 0 ? void 0 : _SHIPMENT_STATUS$sele.cls) || "bgr")
-    }, ((_SHIPMENT_STATUS$sele2 = SHIPMENT_STATUS[selected.status]) === null || _SHIPMENT_STATUS$sele2 === void 0 ? void 0 : _SHIPMENT_STATUS$sele2.label) || selected.status), /*#__PURE__*/React.createElement("div", {
+    }, ((_SHIPMENT_STATUS$sele2 = SHIPMENT_STATUS[selected.status]) === null || _SHIPMENT_STATUS$sele2 === void 0 ? void 0 : _SHIPMENT_STATUS$sele2.label) || selected.status),
+    /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-ghost btn-sm",
+      style: { marginLeft: 6 },
+      onClick: function onClick() { setShowEditShipment(true); }
+    }, "\u270F Edit"),
+    /*#__PURE__*/React.createElement("div", {
       className: "mla row g10"
-    }, showDocs && /*#__PURE__*/React.createElement(ShippingDocsModal, {
+    }, showEditShipment && /*#__PURE__*/React.createElement(EditShipmentModal, {
+      shipment: selected,
+      onClose: function onClose() { return setShowEditShipment(false); },
+      onSave: function onSave(updated) {
+        onUpdateShipment(updated);
+        setSelected(updated);
+        setShowEditShipment(false);
+      }
+    }), showDocs && /*#__PURE__*/React.createElement(ShippingDocsModal, {
       shipment: selected,
       orders: orders,
       onClose: function onClose() {
@@ -10415,13 +10594,13 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     }))), /*#__PURE__*/React.createElement("div", {
       className: "sg sg4 mb18"
     }, [{
-      l: "Total Boxes",
-      v: selected.totalBoxes,
+      l: "Orders",
+      v: shpOrders.length,
       i: "📦",
       c: "sc-a"
     }, {
       l: "Revenue",
-      v: "$".concat(selected.revenue.toLocaleString()),
+      v: "$".concat(shpOrders.reduce(function(s,o){return s+((o.payment&&o.payment.amount)||0);},0).toLocaleString()),
       i: "💰",
       c: "sc-g"
     }, {
@@ -10523,7 +10702,9 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
       return /*#__PURE__*/React.createElement("tr", {
         key: o.id
       }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-        className: "tamb"
+        className: "tamb",
+        style: {cursor:"pointer",textDecoration:"underline"},
+        onClick: function onClick(){return onSelectOrder && onSelectOrder(o);}
       }, o.id)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
         className: "tb"
       }, o.name), /*#__PURE__*/React.createElement("div", {
@@ -10709,7 +10890,246 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
         }
       }, "\u21AA Move " + shpOrders.length + " Orders")
     )
-  ))));
+  ))),
+  /*#__PURE__*/React.createElement("div", { className: "card", style: { marginTop: 12 } },
+    /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+      /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCB8 Expenses"),
+      /*#__PURE__*/React.createElement("span", { className: "mut xs", style: { marginLeft: "auto" } },
+        "Total: ",
+        /*#__PURE__*/React.createElement("strong", { style: { color: "var(--amber)" } },
+          "$", ((selected.expenses || []).reduce(function(s, e) { return s + (parseFloat(e.amount) || 0); }, 0)).toFixed(2)
+        )
+      ),
+      /*#__PURE__*/React.createElement("button", {
+        className: "btn btn-ghost btn-sm",
+        style: { marginLeft: 8 },
+        onClick: function onClick() { setShowExpenses(function(v) { return !v; }); }
+      }, showExpenses ? "\u25B4 Hide" : "\u25BE Manage"),
+      /*#__PURE__*/React.createElement("button", {
+        className: "btn btn-ghost btn-sm",
+        onClick: function onClick() {
+          var rows = (selected.expenses || []);
+          var total = rows.reduce(function(s,e){return s+(parseFloat(e.amount)||0);},0);
+          var ifrm = document.createElement("iframe");
+          ifrm.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:8.5in;height:11in";
+          document.body.appendChild(ifrm);
+          var doc = ifrm.contentDocument;
+          doc.open();
+          doc.write("<!DOCTYPE html><html><head><style>" +
+            "body{font-family:Arial,sans-serif;padding:0.5in;color:#000}" +
+            "h1{font-size:18pt;font-weight:900;margin-bottom:4pt}" +
+            ".sub{font-size:9pt;color:#555;margin-bottom:0.2in}" +
+            "table{width:100%;border-collapse:collapse;margin-bottom:0.2in}" +
+            "th{background:#000;color:#fff;padding:5pt 8pt;text-align:left;font-size:8pt;text-transform:uppercase;letter-spacing:0.05em}" +
+            "td{padding:6pt 8pt;font-size:9pt;border-bottom:1pt solid #e5e5e5}" +
+            ".total{font-weight:900;font-size:11pt;text-align:right;border-top:2pt solid #000;padding-top:6pt}" +
+            "</style></head><body>" +
+            "<h1>EXPENSE SHEET</h1>" +
+            "<div class='sub'>Shipment: " + (selected.name || selected.id) + " &nbsp;|&nbsp; Destination: " + selected.destination + " &nbsp;|&nbsp; Date: " + (selected.date || "") + "</div>" +
+            "<table><thead><tr><th>Category</th><th>Description</th><th style='text-align:right'>Amount</th></tr></thead><tbody>" +
+            rows.map(function(e){
+              return "<tr><td>" + e.category + "</td><td>" + (e.description||"—") + "</td><td style='text-align:right'>$" + parseFloat(e.amount||0).toFixed(2) + "</td></tr>";
+            }).join("") +
+            "</tbody></table>" +
+            "<div class='total'>TOTAL EXPENSES: $" + total.toFixed(2) + "</div>" +
+            "</body></html>");
+          doc.close();
+          ifrm.contentWindow.focus();
+          ifrm.contentWindow.print();
+          ifrm.addEventListener("afterprint", function(){ document.body.removeChild(ifrm); });
+          setTimeout(function(){ if(document.body.contains(ifrm)) document.body.removeChild(ifrm); }, 8000);
+        }
+      }, "\uD83D\uDDA8 Print")
+    ),
+    showExpenses && /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+      (selected.expenses || []).length === 0
+        ? /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginBottom: 10 } }, "No expenses yet. Add one below.")
+        : /*#__PURE__*/React.createElement("div", { className: "tbl", style: { marginBottom: 12 } },
+            /*#__PURE__*/React.createElement("table", null,
+              /*#__PURE__*/React.createElement("thead", null,
+                /*#__PURE__*/React.createElement("tr", null,
+                  /*#__PURE__*/React.createElement("th", null, "Category"),
+                  /*#__PURE__*/React.createElement("th", null, "Description"),
+                  /*#__PURE__*/React.createElement("th", null, "Amount"),
+                  /*#__PURE__*/React.createElement("th", null, "")
+                )
+              ),
+              /*#__PURE__*/React.createElement("tbody", null,
+                (selected.expenses || []).map(function(exp, idx) {
+                  return /*#__PURE__*/React.createElement("tr", { key: idx },
+                    /*#__PURE__*/React.createElement("td", null, exp.category),
+                    /*#__PURE__*/React.createElement("td", { className: "mut" }, exp.description || "—"),
+                    /*#__PURE__*/React.createElement("td", null, "$", parseFloat(exp.amount||0).toFixed(2)),
+                    /*#__PURE__*/React.createElement("td", null,
+                      /*#__PURE__*/React.createElement("button", {
+                        className: "btn btn-red btn-xs",
+                        onClick: function onClick() {
+                          var newExps = (selected.expenses || []).filter(function(_,i){return i!==idx;});
+                          var newCost = newExps.reduce(function(s,e){return s+(parseFloat(e.amount)||0);},0);
+                          var updated = Object.assign({}, selected, { expenses: newExps, cost: newCost });
+                          onUpdateShipment(updated);
+                        }
+                      }, "✕")
+                    )
+                  );
+                })
+              )
+            )
+          ),
+      /*#__PURE__*/React.createElement("div", { className: "fr3", style: { gap: 8, alignItems: "flex-end" } },
+        /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginBottom: 0 } },
+          /*#__PURE__*/React.createElement("label", { className: "fl" }, "Category"),
+          /*#__PURE__*/React.createElement("select", {
+            className: "fi",
+            value: expNewCat,
+            onChange: function onChange(e) { return setExpNewCat(e.target.value); }
+          },
+            /*#__PURE__*/React.createElement("option", { value: "" }, "— Select —"),
+            ["Workers","Gas","Tolls","Car Maintenance","Food","Other"].map(function(c){
+              return /*#__PURE__*/React.createElement("option", { key: c, value: c }, c);
+            })
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginBottom: 0 } },
+          /*#__PURE__*/React.createElement("label", { className: "fl" }, "Description"),
+          /*#__PURE__*/React.createElement("input", {
+            className: "fi",
+            placeholder: "Optional detail",
+            value: expNewDesc,
+            onChange: function onChange(e) { return setExpNewDesc(e.target.value); }
+          })
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginBottom: 0 } },
+          /*#__PURE__*/React.createElement("label", { className: "fl" }, "Amount ($)"),
+          /*#__PURE__*/React.createElement("input", {
+            className: "fi",
+            type: "number",
+            placeholder: "0.00",
+            value: expNewAmt,
+            onChange: function onChange(e) { return setExpNewAmt(e.target.value); }
+          })
+        ),
+        /*#__PURE__*/React.createElement("button", {
+          className: "btn btn-primary",
+          disabled: !expNewCat || !expNewAmt,
+          onClick: function onClick() {
+            if (!expNewCat || !expNewAmt) return;
+            var newExp = { category: expNewCat, description: expNewDesc, amount: parseFloat(expNewAmt) };
+            var newExps = (selected.expenses || []).concat([newExp]);
+            var newCost = newExps.reduce(function(s,e){return s+(parseFloat(e.amount)||0);},0);
+            var updated = Object.assign({}, selected, { expenses: newExps, cost: newCost });
+            onUpdateShipment(updated);
+            setExpNewCat(""); setExpNewDesc(""); setExpNewAmt("");
+          }
+        }, "+ Add")
+      )
+    )
+  ),
+  /*#__PURE__*/React.createElement("div", { className: "card", style: { marginTop: 12 } },
+    /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+      /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCE3 Broadcast to Senders"),
+      /*#__PURE__*/React.createElement("span", { className: "mut xs", style: { marginLeft: "auto" } },
+        shpOrders.length + " customer" + (shpOrders.length !== 1 ? "s" : "")
+      ),
+      /*#__PURE__*/React.createElement("button", {
+        className: "btn btn-ghost btn-sm",
+        style: { marginLeft: 8 },
+        onClick: function onClick() { setShowBroadcast(function(v) { return !v; }); }
+      }, showBroadcast ? "\u25B4 Hide" : "\u25BE Compose")
+    ),
+    showBroadcast && /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+      shpOrders.length === 0
+        ? /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "No orders in this shipment yet.")
+        : /*#__PURE__*/React.createElement(React.Fragment, null,
+            /*#__PURE__*/React.createElement("div", { className: "fg" },
+              /*#__PURE__*/React.createElement("label", { className: "fl" }, "Channel"),
+              /*#__PURE__*/React.createElement("div", { className: "row g6", style: { marginTop: 4 } },
+                ["whatsapp", "sms"].map(function(ch) {
+                  return /*#__PURE__*/React.createElement("button", {
+                    key: ch,
+                    className: "btn btn-sm " + (broadcastChannel === ch ? "btn-primary" : "btn-ghost"),
+                    onClick: function onClick() {
+                      setBroadcastChannel(ch);
+                      if (!broadcastMsg) {
+                        setBroadcastMsg(
+                          "Hi [Name]! \uD83D\uDEA2 Your shipment " + (selected.name || selected.id) +
+                          " heading to " + selected.destination +
+                          " is now *" + (selected.status || "open").replace(/_/g," ") + "*." +
+                          (selected.eta ? " Est. arrival: " + selected.eta + "." : "") +
+                          " Questions? Reply here. \u2014 Casabe Xpress"
+                        );
+                      }
+                    }
+                  }, ch === "whatsapp" ? "\uD83D\uDCAC WhatsApp" : "\uD83D\uDCF1 SMS");
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fg" },
+              /*#__PURE__*/React.createElement("label", { className: "fl" }, "Message"),
+              /*#__PURE__*/React.createElement("textarea", {
+                className: "fi",
+                rows: 4,
+                value: broadcastMsg,
+                onChange: function onChange(e) { return setBroadcastMsg(e.target.value); },
+                placeholder: "Type your message... Use [Name] to personalize per customer."
+              }),
+              /*#__PURE__*/React.createElement("div", { className: "xs mut", style: { marginTop: 3 } },
+                "Tip: [Name] will be replaced with each customer\u2019s first name."
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "card", style: { background: "var(--bg3)", marginBottom: 12 } },
+              /*#__PURE__*/React.createElement("div", { className: "card-hd", style: { padding: "8px 12px" } },
+                /*#__PURE__*/React.createElement("span", { className: "xs mut" }, "Will send to " + shpOrders.length + " customer" + (shpOrders.length !== 1 ? "s" : "") + ":")
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "card-bd", style: { padding: "8px 12px", maxHeight: 120, overflowY: "auto" } },
+                shpOrders.map(function(o) {
+                  var ph = (o.whatsapp || o.phone || "").replace(/\D/g,"");
+                  return /*#__PURE__*/React.createElement("div", {
+                    key: o.id,
+                    className: "row g6",
+                    style: { padding: "3px 0", borderBottom: "1px solid var(--border)", fontSize: 11.5 }
+                  },
+                    /*#__PURE__*/React.createElement("span", { className: "tb", style: { flex: 1 } }, o.name),
+                    /*#__PURE__*/React.createElement("span", { className: "mut" }, ph || "no phone"),
+                    /*#__PURE__*/React.createElement("span", { className: "tamb", style: { fontSize: 10 } }, o.id)
+                  );
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "row g10" },
+              /*#__PURE__*/React.createElement("button", {
+                className: "btn btn-ghost btn-sm",
+                onClick: function onClick() { setBroadcastMsg(""); setBroadcastChannel("whatsapp"); }
+              }, "Clear"),
+              /*#__PURE__*/React.createElement("div", { className: "mla" }),
+              /*#__PURE__*/React.createElement("button", {
+                className: "btn " + (broadcastChannel === "whatsapp" ? "btn-green" : "btn-blue") + " btn-sm",
+                disabled: !broadcastMsg.trim() || shpOrders.length === 0,
+                onClick: function onClick() {
+                  if (!broadcastMsg.trim()) return;
+                  var sent = 0;
+                  shpOrders.forEach(function(o) {
+                    var ph = (o.whatsapp || o.phone || "").replace(/\D/g,"");
+                    if (!ph) return;
+                    var firstName = (o.name || "").split(" ")[0];
+                    var personalised = broadcastMsg.replace(/\[Name\]/gi, firstName);
+                    if (broadcastChannel === "whatsapp") {
+                      window.open("https://wa.me/" + ph + "?text=" + encodeURIComponent(personalised), "_blank");
+                    } else {
+                      window.open("sms:" + ph + "?body=" + encodeURIComponent(personalised));
+                    }
+                    sent++;
+                  });
+                  notify("\uD83D\uDCE8 Opened " + sent + " " + broadcastChannel + " window" + (sent !== 1 ? "s" : "") + " \u2014 " + (shpOrders.length - sent) + " skipped (no phone)");
+                }
+              }, broadcastChannel === "whatsapp"
+                ? "\uD83D\uDCAC Send to All (" + shpOrders.length + ")"
+                : "\uD83D\uDCF1 SMS All (" + shpOrders.length + ")"
+              )
+            )
+          )
+    )
+  ));
   }
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
@@ -10721,7 +11141,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     i: "🗃️",
     c: "sc-a"
   }, {
-    l: "Total Boxes",
+    l: "Total Orders",
     v: totalBoxes,
     i: "📦",
     c: "sc-b"
@@ -10772,6 +11192,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     onSave: function onSave(newShipment) {
       onCreateBatch(newShipment);
       setShowNewShipment(false);
+      setSelected(newShipment);
     }
   }), /*#__PURE__*/React.createElement("div", {
     className: "row g10 mb8",
@@ -10797,8 +11218,11 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     }
   }, filtered.map(function (shp) {
     var _SHIPMENT_STATUS$shp$, _SHIPMENT_STATUS$shp$2;
-    var profit = shp.revenue - shp.cost;
-    var margin = shp.revenue > 0 ? Math.round(profit / shp.revenue * 100) : 0;
+    var shpLiveOrders = orders.filter(function(o) { return shp.orderIds.includes(o.id); });
+    var shpLiveRevenue = shpLiveOrders.reduce(function(s,o){return s+((o.payment&&o.payment.amount)||0);},0);
+    var shpLiveBoxes = shpLiveOrders.length;
+    var profit = shpLiveRevenue - shp.cost;
+    var margin = shpLiveRevenue > 0 ? Math.round(profit / shpLiveRevenue * 100) : 0;
     return /*#__PURE__*/React.createElement("div", {
       key: shp.id,
       style: {
@@ -10852,7 +11276,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
         gap: 8,
         textAlign: "center"
       }
-    }, [["Boxes", shp.totalBoxes], ["Revenue", "$".concat(shp.revenue)], ["Cost", "$".concat(shp.cost)], ["Margin", "".concat(margin, "%")]].map(function (_ref99) {
+    }, [["Orders", shpLiveBoxes], ["Revenue", "$".concat(shpLiveRevenue.toLocaleString())], ["Cost", "$".concat(shp.cost)], ["Margin", "".concat(margin, "%")]].map(function (_ref99) {
       var _ref100 = _slicedToArray(_ref99, 2),
         k = _ref100[0],
         v = _ref100[1];
@@ -17489,6 +17913,32 @@ setOrders(function (prev) {
       }
       return [order].concat(_toConsumableArray(prev));
     });
+    // Recalculate totals for both old and new shipment (handles reassignment, removal, and update)
+    var affectedShipIds = [];
+    if (oldShipId) affectedShipIds.push(oldShipId);
+    if (newShipId && newShipId !== oldShipId) affectedShipIds.push(newShipId);
+    // Also include current shipmentId if not already covered (plain save, no reassign)
+    if (order.shipmentId && !affectedShipIds.includes(order.shipmentId)) affectedShipIds.push(order.shipmentId);
+    if (affectedShipIds.length > 0) {
+      setShipments(function(prev) {
+        // Build a merged order list reflecting the just-saved order
+        var allOrders = orders.map(function(o) { return o.id === order.id ? order : o; });
+        if (!allOrders.find(function(o) { return o.id === order.id; })) allOrders = [order].concat(allOrders);
+        return prev.map(function(shp) {
+          if (!affectedShipIds.includes(shp.id)) return shp;
+          // Use the updated orderIds already computed by the membership block above
+          var currentShp = prev.find(function(s) { return s.id === shp.id; }) || shp;
+          var shpOrds = allOrders.filter(function(o) { return currentShp.orderIds.includes(o.id); });
+          var newRev = shpOrds.reduce(function(s,o){return s+((o.payment&&o.payment.amount)||0);},0);
+          var updated = Object.assign({}, currentShp, { revenue: newRev, totalBoxes: shpOrds.length });
+          if (session && session.tenantId) {
+            _db.init(session.tenantId);
+            _db.upsert("shipments", shp.id, updated).catch(function(){});
+          }
+          return updated;
+        });
+      });
+    }
     // Persist to Supabase
     if (session && session.tenantId) {
       _db.init(session.tenantId);
@@ -17682,7 +18132,7 @@ setOrders(function (prev) {
               var remainingOrders = orders.filter(function(o) { return remainingIds.includes(o.id); });
               updated = Object.assign({}, s, {
                 orderIds: remainingIds,
-                totalBoxes: remainingOrders.reduce(function(sum, o) { return sum + (parseInt(o.boxCount) || 1); }, 0),
+                totalBoxes: remainingOrders.length,
                 revenue: remainingOrders.reduce(function(sum, o) { return sum + ((o.payment && o.payment.amount) || 0); }, 0)
               });
             } else if (s.id === toId) {
@@ -17695,7 +18145,7 @@ setOrders(function (prev) {
               });
               updated = Object.assign({}, s, {
                 orderIds: merged,
-                totalBoxes: mergedOrders.reduce(function(sum, o) { return sum + (parseInt(o.boxCount) || 1); }, 0),
+                totalBoxes: mergedOrders.length,
                 revenue: mergedOrders.reduce(function(sum, o) { return sum + ((o.payment && o.payment.amount) || 0); }, 0)
               });
             } else {
@@ -17763,6 +18213,22 @@ setOrders(function (prev) {
             return updated;
           });
         });
+      },
+      onSelectOrder: function onSelectOrder(o) {
+        setSelectedOrder(o);
+        setPage("orders");
+      },
+      notify: notify,
+      onUpdateShipment: function onUpdateShipment(updated) {
+        setShipments(function(prev) {
+          return prev.map(function(s) { return s.id === updated.id ? updated : s; });
+        });
+        if (session && session.tenantId) {
+          _db.init(session.tenantId);
+          _db.upsert("shipments", updated.id, updated).catch(function() {
+            notify("\u26A0 Expense saved locally but failed to sync");
+          });
+        }
       }
     });
     if (page === "routes") return /*#__PURE__*/React.createElement(RoutesPage, {
@@ -17840,7 +18306,9 @@ setOrders(function (prev) {
       return /*#__PURE__*/React.createElement("tr", {
         key: o.id
       }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-        className: "tamb"
+        className: "tamb",
+        style: {cursor:"pointer",textDecoration:"underline"},
+        onClick: function onClick(){return onSelectOrder && onSelectOrder(o);}
       }, o.id)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
         className: "tb"
       }, o.name)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
@@ -17918,7 +18386,9 @@ setOrders(function (prev) {
       return /*#__PURE__*/React.createElement("tr", {
         key: o.id
       }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-        className: "tamb"
+        className: "tamb",
+        style: {cursor:"pointer",textDecoration:"underline"},
+        onClick: function onClick(){return onSelectOrder && onSelectOrder(o);}
       }, o.id)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
         className: "tb"
       }, o.name)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Sbadge, {
@@ -18256,6 +18726,20 @@ setOrders(function (prev) {
         _db.upsert("orders", o.id, _posUpdated);
       }
       notify("💵 " + o.name + " — " + (meth === "pending" ? "Promise to pay logged" : meth === "affirm" ? "Affirm/Klarna — paid in full" : "$" + parseFloat(amt).toFixed(2) + " " + meth + " received"));
+      // Recalculate shipment revenue after payment
+      if (o.shipmentId) {
+        setShipments(function(prev) {
+          return prev.map(function(shp) {
+            if (shp.id !== o.shipmentId) return shp;
+            var shpOrds = orders.map(function(ord) {
+              if (ord.id !== o.id || !_posUpdated) return ord;
+              return _posUpdated;
+            }).filter(function(ord) { return shp.orderIds.includes(ord.id); });
+            var newRev = shpOrds.reduce(function(s,ord){return s+((ord.payment&&ord.payment.amount)||0);},0);
+            return Object.assign({}, shp, { revenue: newRev });
+          });
+        });
+      }
     },
     onReceipt: function onReceipt(o) {
       var _o$payment;
