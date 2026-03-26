@@ -200,7 +200,7 @@ var ITEM_TYPES = {
     icon: "📫"
   }
 };
-var DESTINATIONS = ["Costa Rica", "Guatemala", "Honduras", "El Salvador", "Nicaragua", "Panama", "Belize"];
+var DESTINATIONS = ["Guatemala", "Costa Rica", "Honduras", "El Salvador", "Nicaragua", "Panama", "Belize"];
 var BOX_TYPES = ["Small", "Medium", "Large", "Freight", "Unknown"];
 /* ════════════════════════════════════════════
    PRICING TABLE (admin-configurable)
@@ -216,8 +216,8 @@ var DEFAULT_PRICING = {
     surchargeName: ""
   },
   "Guatemala": {
-    Small: 75,
-    Medium: 120,
+    Small: 200,
+    Medium: 250,
     Large: 185,
     Freight: 320,
     Electronics: 250,
@@ -1385,7 +1385,7 @@ var EMPTY_ORDER = {
   forwardedAt: "",
   itemType: "household",
   boxType: "Unknown",
-  destination: "Costa Rica",
+  destination: "Guatemala",
   status: "order_placed",
   office: "Casabe NY (HQ)",
   assignedDriver: "",
@@ -1495,7 +1495,8 @@ var OrderForm = function OrderForm(_ref4) {
     }
     var baseId = f.id || genId((tenant === null || tenant === void 0 ? void 0 : tenant.prefix) || "CC");
     // RISK #12: Stamp price at creation so future pricing changes don't affect this order
-    var zone = getZone(f.destination) || getZone(f.destinationDept) || null;
+    // Zone: honour what the form already has (set by gtDept selector), only fall back to country-level if not set
+    var zone = f.zone || (f.gtDept ? (function(){var d=GT_DEPARTMENTS.find(function(d){return d.dept===f.gtDept;});return d?d.zone:null;})() : null) || getZone(f.destination) || null;
     var count = parseInt(f.boxCount) || 1;
     // Build sub-tracking for multi-box
     var boxes = count > 1 ? Array.from({
@@ -1703,9 +1704,11 @@ var OrderForm = function OrderForm(_ref4) {
       autoPrice(null, e.target.value);
     }
   }, BOX_TYPES.map(function (b) {
+    var BOX_DISPLAY = {"Small": "Small Box — 18x18x28 (DISH)", "Medium": "Medium Box — 24x26x24 (74)"};
     return /*#__PURE__*/React.createElement("option", {
-      key: b
-    }, b);
+      key: b,
+      value: b
+    }, BOX_DISPLAY[b] || b);
   }))), /*#__PURE__*/React.createElement("div", {
     className: "fg"
   }, /*#__PURE__*/React.createElement("label", {
@@ -16353,14 +16356,23 @@ var CustomerSearch = function CustomerSearch(_ref121) {
       setShow(false);
       return;
     }
-    var lower = val.toLowerCase();
+    var lower = val.toLowerCase().trim();
     // Deduplicate by phone — keep most recent
     var seen = new Map();
+    var isNumeric = /^[0-9]+$/.test(val.replace(/[^0-9]/g, "")) && val.replace(/[^0-9]/g, "").length > 0 && !/[a-z]/i.test(val);
     orders.filter(function (o) {
       return o.id !== currentId;
     }).forEach(function (o) {
       var _o$name, _o$phone;
-      var match = ((_o$name = o.name) === null || _o$name === void 0 ? void 0 : _o$name.toLowerCase().includes(lower)) || ((_o$phone = o.phone) === null || _o$phone === void 0 ? void 0 : _o$phone.replace(/[^0-9]/g, "").includes(val.replace(/[^0-9]/g, "")));
+      var nameMatch = false;
+      if (!isNumeric && (_o$name = o.name) !== null && _o$name !== void 0 && _o$name.toLowerCase) {
+        var normalized = o.name.toLowerCase().trim();
+        // Match if full name starts with typed value OR any space-separated token starts with typed value
+        var tokens = normalized.split(/\s+/);
+        nameMatch = normalized.startsWith(lower) || tokens.some(function(tok){ return tok.startsWith(lower); });
+      }
+      var phoneMatch = isNumeric && (_o$phone = o.phone) !== null && _o$phone !== void 0 && _o$phone.replace(/[^0-9]/g, "").includes(val.replace(/[^0-9]/g, ""));
+      var match = nameMatch || phoneMatch;
       if (match) {
         var _o$phone2;
         var key = ((_o$phone2 = o.phone) === null || _o$phone2 === void 0 ? void 0 : _o$phone2.replace(/[^0-9]/g, "")) || o.name;
@@ -17813,18 +17825,21 @@ function AppShell(_ref130) {
       _db.loadAll("shipments"),
       _db.loadAll("claims"),
       _db.loadAll("receipts"),
-      _db.loadSettings("main")
+      _db.loadSettings("main"),
+      _db.loadSettings("pricing")
     ]).then(function(results) {
       var dbOrders    = results[0];
       var dbShipments = results[1];
       var dbClaims    = results[2];
       var dbReceipts  = results[3];
       var dbTenant    = results[4];
+      var dbPricing   = results[5];
       if (dbOrders.length    > 0) setOrders(dbOrders);
       if (dbShipments.length > 0) setShipments(dbShipments);
       if (dbClaims.length    > 0) setClaims(dbClaims);
       if (dbReceipts.length  > 0) setReceipts(dbReceipts);
       if (dbTenant)               setTenant(dbTenant);
+      if (dbPricing)              setPricing(dbPricing);
     }).catch(function(e) {
       console.error("[db] initial data load failed:", e);
       if (e && e.message && e.message.startsWith("db:404")) {
@@ -18096,7 +18111,13 @@ setOrders(function (prev) {
     });
     if (page === "pricing") return /*#__PURE__*/React.createElement(PricingAdminPage, {
       pricing: pricing,
-      onUpdate: setPricing
+      onUpdate: function(newPricing) {
+        setPricing(newPricing);
+        if (session && session.tenantId) {
+          _db.init(session.tenantId);
+          _db.saveSettings("pricing", newPricing);
+        }
+      }
     });
     if (page === "notifications") return /*#__PURE__*/React.createElement(CampaignsPage, {
       orders: orders
