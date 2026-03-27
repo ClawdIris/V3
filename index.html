@@ -155,7 +155,7 @@ var te = function te(key, lang) {
 /* ════════════════════════════════════════════
    STYLES
 ════════════════════════════════════════════ */
-var CSS = "\n@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');\n*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}\n:root{\n  --bg:#07090F;--bg2:#0C1120;--bg3:#111827;--bg4:#1A2235;\n  --border:#1C2840;--border2:#243252;\n  --amber:#F59E0B;--amber2:#FCD34D;--amberdim:rgba(245,158,11,0.1);\n  --blue:#3B82F6;--bluedim:rgba(59,130,246,0.1);\n  --green:#10B981;--greendim:rgba(16,185,129,0.1);\n  --red:#EF4444;--reddim:rgba(239,68,68,0.1);\n  --purple:#8B5CF6;--purpledim:rgba(139,92,246,0.1);\n  --teal:#14B8A6;--tealdim:rgba(20,184,166,0.1);\n  --text:#E2E8F0;--text2:#94A3B8;--text3:#475569;--text4:#334155;\n}\nbody{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13px}\n::-webkit-scrollbar{width:3px;height:3px}\n::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}\n\n/* Layout */\n.shell{display:flex;height:100vh;overflow:hidden}\n.sidebar{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}\n.main{flex:1;display:flex;flex-direction:column;overflow:hidden}\n.topbar{height:52px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:10px;background:var(--bg);flex-shrink:0}\n.page{flex:1;overflow-y:auto;padding:20px}\n\n/* Logo */\n.logo{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}\n.logo-mark{width:32px;height:32px;background:linear-gradient(135deg,var(--amber),#D97706);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--bg);flex-shrink:0}\n.logo-name{font-family:'Syne',sans-serif;font-weight:700;font-size:13.5px;line-height:1.2}\n.logo-tag{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em}\n\n/* Sidebar nav */\n.nav-grp{padding:12px 0 4px}\n.nav-grp-label{padding:0 16px 4px;font-size:9.5px;font-weight:600;color:var(--text4);text-transform:uppercase;letter-spacing:.1em}\n.nav-item{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;color:var(--text3);font-size:12.5px;font-weight:500;transition:.12s;border-left:2px solid transparent;white-space:nowrap}\n.nav-item:hover{color:var(--text2);background:rgba(255,255,255,.02)}\n.nav-item.on{color:var(--amber);background:var(--amberdim);border-left-color:var(--amber)}\n.nav-ico{font-size:13px;width:16px;text-align:center;flex-shrink:0}\n.nav-badge{margin-left:auto;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:8px}\n.nb-red{background:var(--red);color:#fff}\n.nb-amber{background:var(--amberdim);color:var(--amber)}\n.nb-blue{background:var(--bluedim);color:var(--blue)}\n.nb-green{background:var(--greendim);color:var(--green)}\n\n.sb-foot{margin-top:auto;border-top:1px solid var(--border);padding:12px 16px}\n.av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}\n.uname{font-size:12px;font-weight:600;color:var(--text2)}\n.urole{font-size:10px;color:var(--text3)}\n\n/* Role switcher */\n.role-sw{display:flex;gap:2px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:3px}\n.rsw-btn{padding:4px 9px;border-radius:5px;font-size:10.5px;font-weight:700;cursor:pointer;border:none;font-family:'IBM Plex Sans',sans-serif;transition:.12s;color:var(--text3);background:transparent;letter-spacing:.02em}\n.rsw-btn.on{background:var(--amber);color:var(--bg)}\n.rsw-btn:hover:not(.on){color:var(--text2)}\n\n/* Buttons */\n.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:.12s;font-family:'IBM Plex Sans',sans-serif;white-space:nowrap}\n.btn-primary{background:var(--amber);color:var(--bg)}\n.btn-primary:hover{background:var(--amber2)}\n.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}\n.btn-ghost:hover{background:rgba(255,255,255,.03);border-color:var(--border2);color:var(--text)}\n.btn-green{background:var(--greendim);color:var(--green);border:1px solid rgba(16,185,129,.25)}\n.btn-red{background:var(--reddim);color:var(--red);border:1px solid rgba(239,68,68,.2)}\n.btn-blue{background:var(--bluedim);color:var(--blue);border:1px solid rgba(59,130,246,.2)}\n.btn-purple{background:var(--purpledim);color:var(--purple);border:1px solid rgba(139,92,246,.2)}\n.btn-sm{padding:4px 9px;font-size:11px}\n.btn-xs{padding:2px 7px;font-size:10.5px}\n\n/* Search */\n.srch{display:flex;align-items:center;gap:7px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:0 10px;height:32px}\n.srch input{background:transparent;border:none;outline:none;color:var(--text);font-size:12px;font-family:'IBM Plex Sans',sans-serif;width:180px}\n.srch input::placeholder{color:var(--text4)}\n\n/* Cards */\n.card{background:var(--bg2);border:1px solid var(--border);border-radius:11px}\n.card-hd{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}\n.card-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text)}\n.card-sub{font-size:11px;color:var(--text3);margin-top:2px}\n.card-bd{padding:16px}\n\n/* Stat cards */\n.sg{display:grid;gap:12px;margin-bottom:18px}\n.sg4{grid-template-columns:repeat(4,1fr)}\n.sg3{grid-template-columns:repeat(3,1fr)}\n.sg2{grid-template-columns:repeat(2,1fr)}\n.sc{background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:14px 16px;position:relative;overflow:hidden}\n.sc::after{content:'';position:absolute;top:-12px;right:-12px;width:60px;height:60px;border-radius:50%;opacity:.07}\n.sc-a::after{background:var(--amber)}\n.sc-b::after{background:var(--blue)}\n.sc-g::after{background:var(--green)}\n.sc-p::after{background:var(--purple)}\n.sc-r::after{background:var(--red)}\n.sc-t::after{background:var(--teal)}\n.sc-lbl{font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}\n.sc-val{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--text);line-height:1;margin-bottom:4px}\n.sc-delta{font-size:11px;font-weight:600}\n.delta-u{color:var(--green)}\n.delta-d{color:var(--red)}\n.delta-n{color:var(--text3)}\n.sc-ico{position:absolute;top:14px;right:14px;font-size:17px;opacity:.4}\n\n/* Grid layouts */\n.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}\n.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}\n.g21{display:grid;grid-template-columns:2fr 1fr;gap:12px}\n.g12{display:grid;grid-template-columns:1fr 2fr;gap:12px}\n.g31{display:grid;grid-template-columns:3fr 1fr;gap:12px}\n.mb12{margin-bottom:12px}\n.mb18{margin-bottom:18px}\n\n/* Table */\n.tbl{overflow-x:auto}\ntable{width:100%;border-collapse:collapse}\nthead th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border);white-space:nowrap}\ntbody tr{border-bottom:1px solid rgba(28,40,64,.6);transition:.1s;cursor:pointer}\ntbody tr:last-child{border-bottom:none}\ntbody tr:hover{background:rgba(255,255,255,.012)}\ntbody td{padding:10px 12px;font-size:12.5px;color:var(--text2);vertical-align:middle}\n.tb{font-weight:600;color:var(--text)}\n.tamb{color:var(--amber);font-weight:700;font-family:'IBM Plex Mono',monospace;font-size:11.5px}\n\n/* Badges */\n.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap}\n.badge::before{content:'';width:4px;height:4px;border-radius:50%;flex-shrink:0}\n.bg{background:var(--greendim);color:var(--green)}.bg::before{background:var(--green)}\n.ba{background:var(--amberdim);color:var(--amber)}.ba::before{background:var(--amber)}\n.br{background:var(--reddim);color:var(--red)}.br::before{background:var(--red)}\n.bb{background:var(--bluedim);color:var(--blue)}.bb::before{background:var(--blue)}\n.bp{background:var(--purpledim);color:var(--purple)}.bp::before{background:var(--purple)}\n.bt{background:var(--tealdim);color:var(--teal)}.bt::before{background:var(--teal)}\n.bgr{background:rgba(100,116,139,.1);color:#64748B}.bgr::before{background:#64748B}\n\n/* Chips */\n.chips{display:flex;flex-wrap:wrap;gap:5px}\n.chip{padding:3px 11px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text3);transition:.12s;font-family:'IBM Plex Sans',sans-serif}\n.chip:hover{color:var(--text2);border-color:var(--border2)}\n.chip.on{background:var(--amberdim);border-color:rgba(245,158,11,.35);color:var(--amber)}\n\n/* Form */\n.fg{margin-bottom:12px}\n.fl{font-size:10.5px;font-weight:700;color:var(--text3);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.05em}\n.fi{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:7px 10px;color:var(--text);font-size:12.5px;font-family:'IBM Plex Sans',sans-serif;outline:none;transition:.12s}\n.fi:focus{border-color:var(--amber)}\n.fi::placeholder{color:var(--text4)}\nselect.fi option{background:var(--bg)}\n.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}\n.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}\n\n/* Tabs */\n.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:16px}\n.tab{padding:8px 14px;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.12s}\n.tab.on{color:var(--amber);border-bottom-color:var(--amber)}\n.tab:hover:not(.on){color:var(--text2)}\n\n/* Overlay / Modal */\n.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}\n.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:560px;max-height:90vh;overflow-y:auto}\n.modal-lg{width:700px}\n.modal-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--text);margin-bottom:18px}\n.modal-section{font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;margin:14px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border)}\n\n/* Progress */\n.prog{background:var(--border);border-radius:3px;height:4px;overflow:hidden}\n.prog-fill{height:100%;border-radius:3px;transition:width .5s}\n\n/* Timeline */\n.tl{padding-left:20px;position:relative}\n.tl::before{content:'';position:absolute;left:6px;top:5px;bottom:5px;width:1px;background:var(--border)}\n.tl-step{position:relative;padding-bottom:16px}\n.tl-step:last-child{padding-bottom:0}\n.tl-dot{position:absolute;left:-17px;top:2px;width:12px;height:12px;border-radius:50%;border:2px solid var(--border);background:var(--bg)}\n.tl-dot.done{background:var(--green);border-color:var(--green)}\n.tl-dot.cur{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,158,11,.2)}\n.tl-lbl{font-size:12.5px;font-weight:600}\n.tl-desc{font-size:11px;color:var(--text3);margin-top:2px}\n.tl-time{font-size:10px;color:var(--text4);margin-top:2px;font-family:'IBM Plex Mono',monospace}\n\n/* Activity */\n.act{display:flex;gap:9px;padding:9px 0;border-bottom:1px solid rgba(28,40,64,.5)}\n.act:last-child{border-bottom:none}\n.act-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;flex-shrink:0}\n.act-txt{font-size:12px;color:var(--text3);line-height:1.5}\n.act-txt strong{color:var(--text2);font-weight:600}\n.act-time{font-size:10px;color:var(--text4);margin-top:1px;font-family:'IBM Plex Mono',monospace}\n\n/* Label print */\n.label-card{background:white;color:#111;border-radius:10px;padding:18px;font-family:'IBM Plex Mono',monospace}\n.label-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:10px}\n.label-co{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:#111}\n.label-id{font-size:22px;font-weight:700;letter-spacing:.1em;color:#111}\n.label-row{display:flex;gap:20px;margin-bottom:8px}\n.label-field{flex:1}\n.label-field-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-bottom:2px}\n.label-field-val{font-size:13px;font-weight:700;color:#111}\n.label-barcode{text-align:center;margin-top:10px;border-top:1px solid #ddd;padding-top:10px;font-size:9px;letter-spacing:.2em;color:#333}\n\n/* Route card */\n.route-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:13px;margin-bottom:9px}\n.route-card.pickup{border-left:3px solid var(--amber)}\n.route-card.dropoff{border-left:3px solid var(--blue)}\n.route-card.done{border-left:3px solid var(--green);opacity:.6}\n\n/* Automation trigger */\n.trigger-card{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:8px}\n.trigger-arrow{color:var(--amber);font-weight:700;margin:0 6px}\n\n/* Office role indicator */\n.role-pill{padding:6px 12px;border-radius:7px;margin:10px 16px;font-size:11px;font-weight:700}\n\n/* Alerts */\n.alert{border-radius:8px;padding:9px 13px;font-size:12px;margin-bottom:12px;display:flex;align-items:flex-start;gap:7px;line-height:1.5}\n.alert-a{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);color:#D97706}\n.alert-g{background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);color:#059669}\n.alert-r{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);color:#DC2626}\n.alert-b{background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);color:#2563EB}\n\n/* Map placeholder */\n.map-ph{background:var(--bg);border:1px solid var(--border);border-radius:8px;height:140px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}\n.map-grid{position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,rgba(28,40,64,.5) 0,rgba(28,40,64,.5) 1px,transparent 1px,transparent 26px),repeating-linear-gradient(90deg,rgba(28,40,64,.5) 0,rgba(28,40,64,.5) 1px,transparent 1px,transparent 26px)}\n.map-pin{position:absolute;font-size:16px;animation:pp 2s ease-in-out infinite}\n@keyframes pp{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}\n\n/* Sparkline */\n.spark{display:flex;align-items:flex-end;gap:2px;height:32px}\n.spb{flex:1;border-radius:2px 2px 0 0;min-width:5px;opacity:.65;transition:.2s}\n.spb:hover{opacity:1}\n\n/* Utils */\n.row{display:flex;align-items:center}\n.g6{gap:6px}\n.g10{gap:10px}\n.g14{gap:14px}\n.mla{margin-left:auto}\n.mut{color:var(--text3);font-size:11.5px}\n.xs{font-size:10.5px}\n.mono{font-family:'IBM Plex Mono',monospace}\n.divider{height:1px;background:var(--border);margin:12px 0}\n.tag{display:inline-block;background:var(--amberdim);color:var(--amber);font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px}\n.tag-b{background:var(--bluedim);color:var(--blue)}\n.tag-g{background:var(--greendim);color:var(--green)}\n.tag-p{background:var(--purpledim);color:var(--purple)}\n.nd::after{content:'';position:absolute;top:-2px;right:-2px;width:7px;height:7px;background:var(--red);border-radius:50%;border:2px solid var(--bg)}\n.nd{position:relative}\n.topbar-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;flex:1}\n@keyframes fu{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}\n.fu{animation:fu .25s ease both}\n\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   PRINT STYLES \u2014 Label (4\xD76 thermal) + Receipt\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n@media print {\n  /* \u2500\u2500 Hide the entire app \u2500\u2500 */\n  body > #root > * { display:none !important; }\n\n  /* \u2500\u2500 Show ONLY the active print target \u2500\u2500 */\n  body.printing-manifest .manifest-printout { display:block !important; position:static !important; }\n  body.printing-manifest { background:#fff !important; }\n  body.printing-manifest .manifest-printout * { box-sizing:border-box; }\n  body.printing-manifest .manifest-printout table { border-collapse:collapse; width:100%; }\n  body.printing-manifest .manifest-printout th, .manifest-printout td { border:1px solid #ccc; padding:4px 6px; font-size:9.5pt; }\n  body.printing-manifest .manifest-printout .zone-header { color:#fff; padding:5px 10px; font-weight:700; font-size:11pt; }\n  @media print { .btn, .overlay, .modal-footer, button { display:none !important; } }\n  body.printing-invoice .invoice-printout { display:flex !important; position:static !important; }\n  body.printing-invoice { background:#fff !important; }\n  .invoice-printout {\n    display:none;\n    position:fixed !important;\n    top:0; left:0; right:0; bottom:0;\n    padding:0.35in 0.45in;\n    background:#fff !important;\n    font-family:\"IBM Plex Sans\",Arial,sans-serif;\n    color:#000 !important;\n    box-sizing:border-box;\n    font-size:10pt;\n    flex-direction:column;\n  }\n  .inv-header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:0.1in; border-bottom:2pt solid #000; margin-bottom:0.12in; flex-shrink:0; }\n  .inv-co-name { font-family:\"Syne\",Arial,sans-serif; font-size:18pt; font-weight:900; letter-spacing:0.04em; color:#000; line-height:1; }\n  .inv-co-tag  { font-size:7.5pt; font-weight:600; text-transform:uppercase; letter-spacing:0.12em; color:#555; margin-top:3pt; }\n  .inv-meta    { text-align:right; font-size:9pt; color:#333; line-height:1.65; }\n  .inv-meta strong { color:#000; font-size:10pt; }\n  .inv-tracking-row { border:1.5pt solid #000; border-radius:3pt; text-align:center; padding:0.08in 0.1in 0.06in; margin-bottom:0.1in; flex-shrink:0; }\n  .inv-tracking-num { font-family:\"IBM Plex Mono\",monospace; font-size:22pt; font-weight:800; letter-spacing:0.05em; color:#000; line-height:1; }\n  .inv-tracking-lbl { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:#888; margin-top:2pt; }\n  .inv-parties { margin-bottom:0.12in; flex-shrink:0; }\n  .inv-party   { padding:0.07in 0.1in; border:1pt solid #ddd; border-radius:3pt; margin-bottom:0.07in; }\n  .inv-party-lbl  { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#888; margin-bottom:3pt; }\n  .inv-party-name { font-size:11pt; font-weight:700; color:#000; }\n  .inv-party-line { font-size:9pt; color:#444; line-height:1.5; }\n  .inv-table  { width:100%; border-collapse:collapse; margin-bottom:0.1in; flex-shrink:0; }\n  .inv-table th { background:#000; color:#fff; padding:5pt 8pt; text-align:left; font-size:8pt; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; }\n  .inv-table td { padding:6pt 8pt; font-size:9pt; border-bottom:1pt solid #e5e5e5; vertical-align:top; }\n  .inv-table tr:last-child td { border-bottom:none; }\n  .inv-totals { width:2.3in; margin-left:auto; border:1.5pt solid #000; margin-bottom:0.1in; flex-shrink:0; }\n  .inv-totals td { padding:4pt 8pt; font-size:9.5pt; }\n  .inv-totals .inv-grand { background:#000; color:#fff; font-weight:700; font-size:11pt; }\n  .inv-terms  { flex:1; font-size:7pt; color:#444; line-height:1.5; overflow:hidden; margin-bottom:0.08in; }\n  .inv-terms-title { font-weight:700; font-size:7.5pt; color:#000; margin-bottom:2pt; text-transform:uppercase; letter-spacing:0.06em; }\n  .inv-bottom { flex-shrink:0; border-top:1.5pt solid #000; padding-top:0.08in; }\n  .inv-footer { font-size:7.5pt; color:#555; display:flex; justify-content:space-between; margin-bottom:0.08in; }\n  .inv-barcode-wrap { text-align:center; }\n  .inv-barcode-id { font-family:\"IBM Plex Mono\",monospace; font-size:8pt; letter-spacing:0.15em; color:#333; margin-top:3pt; }\n    body.printing-label  .label-printout { display:block !important; position:static !important; }\n  body.printing-receipt .receipt-printout { display:block !important; position:static !important; }\n\n  /* \u2500\u2500 Generic reset for print \u2500\u2500 */\n  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }\n\n  /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n     SHIPPING LABEL \u2014 4in \xD7 6in thermal\n     Layout matches Casabe Xpress real label\n  \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n  .label-printout {\n    position:fixed !important;\n    top:0; left:0;\n    width:4in;\n    height:6in;\n    background:#fff !important;\n    font-family:'IBM Plex Sans',Arial,sans-serif;\n    color:#000 !important;\n    page-break-after:always;\n    display:none;\n    box-sizing:border-box;\n    overflow:hidden;\n    flex-direction:column;\n  }\n  /* \u2500 HEADER: logo left, tagline right \u2500 */\n  .lp-header {\n    display:flex;\n    justify-content:space-between;\n    align-items:center;\n    padding:0.1in 0.15in 0.08in;\n    border-bottom:1.5pt solid #000;\n  }\n  .lp-logo-img { height:0.32in; max-width:1.5in; object-fit:contain; }\n  .lp-co {\n    font-family:'Syne',Arial,sans-serif;\n    font-size:13pt;\n    font-weight:900;\n    letter-spacing:0.05em;\n    color:#000;\n    line-height:1;\n  }\n  .lp-tagline {\n    font-size:7pt;\n    font-weight:600;\n    text-transform:uppercase;\n    letter-spacing:0.09em;\n    color:#444;\n    text-align:right;\n  }\n\n  /* \u2500 TRACKING NUMBER \u2014 full-width oversized \u2500 */\n  .lp-tracking-box {\n    border-bottom:1.5pt solid #000;\n    text-align:center;\n    padding:0.06in 0.1in 0.04in;\n    line-height:1;\n  }\n  .lp-tracking-num {\n    font-family:'IBM Plex Mono',monospace;\n    font-size:17pt;\n    font-weight:800;\n    letter-spacing:1.5pt;\n    color:#000;\n    display:block;\n  }\n\n  /* \u2500 BOX COUNTER \u2500 */\n  .lp-counter {\n    text-align:center;\n    font-size:10pt;\n    font-weight:700;\n    color:#000;\n    padding:0.04in 0;\n    border-bottom:1.5pt solid #000;\n    letter-spacing:1pt;\n  }\n\n  /* \u2500 FROM / TO blocks \u2500 */\n  .lp-addr-row {\n    display:flex;\n    border-bottom:1pt solid #000;\n  }\n  .lp-from-col {\n    flex:1;\n    padding:0.07in 0.12in;\n    border-right:1pt solid #000;\n  }\n  .lp-to-col {\n    flex:1.1;\n    padding:0.07in 0.12in;\n  }\n  .lp-addr-lbl {\n    font-size:6pt;\n    font-weight:700;\n    text-transform:uppercase;\n    letter-spacing:0.1em;\n    color:#666;\n    margin-bottom:2pt;\n  }\n  .lp-addr-name {\n    font-size:10.5pt;\n    font-weight:700;\n    color:#000;\n    line-height:1.2;\n  }\n  .lp-addr-line {\n    font-size:8pt;\n    color:#222;\n    line-height:1.4;\n    margin-top:1pt;\n  }\n\n  /* \u2500 ZONE STRIPE \u2014 full-width solid color \u2500 */\n  .lp-zone-stripe {\n    height:0.22in;\n    width:100%;\n    display:flex;\n    align-items:center;\n    justify-content:center;\n    /* color set inline */\n  }\n  .lp-zone-label {\n    color:#fff;\n    font-weight:800;\n    font-size:7pt;\n    letter-spacing:1.5pt;\n    text-transform:uppercase;\n    text-shadow:0 1px 2px rgba(0,0,0,.4);\n  }\n\n  /* \u2500 OFFICE / DATE row \u2500 */\n  .lp-office-row {\n    display:flex;\n    justify-content:space-between;\n    align-items:center;\n    padding:0.04in 0.13in;\n    border-top:1pt solid #ddd;\n    border-bottom:1pt solid #000;\n    font-size:7.5pt;\n    color:#222;\n  }\n\n  /* \u2500 BARCODE section \u2500 */\n  .lp-barcode-wrap {\n    flex:1;\n    display:flex;\n    flex-direction:column;\n    align-items:center;\n    justify-content:center;\n    padding:0.08in 0.1in 0.05in;\n  }\n  .lp-barcode-id {\n    font-family:'IBM Plex Mono',monospace;\n    font-size:8pt;\n    letter-spacing:2pt;\n    color:#333;\n    margin-top:3pt;\n    text-align:center;\n  }\n\n  /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n     RECEIPT \u2014 8.5\xD711, all 3 copies\n  \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n  .receipt-printout {\n    position:fixed !important;\n    top:0; left:0; right:0; bottom:0;\n    padding:0.3in;\n    background:#fff !important;\n    font-family:'IBM Plex Sans',Arial,sans-serif;\n    color:#000 !important;\n    display:none;\n    box-sizing:border-box;\n  }\n  .rp-copies {\n    display:grid;\n    grid-template-columns:1fr 1fr 1fr;\n    gap:0.15in;\n    height:100%;\n  }\n  .rp-copy {\n    border:1.5pt solid #999;\n    border-radius:5pt;\n    padding:0.15in 0.12in;\n    position:relative;\n    overflow:hidden;\n    display:flex;\n    flex-direction:column;\n  }\n  .rp-copy.white  { border-color:#999;  background:#fff; }\n  .rp-copy.pink   { border-color:#F87171; background:#FFF5F5; }\n  .rp-copy.yellow { border-color:#F59E0B; background:#FFFBEB; }\n\n  .rp-copy-stripe {\n    position:absolute;\n    top:0; left:0; right:0;\n    height:5pt;\n  }\n  .white  .rp-copy-stripe { background:#999; }\n  .pink   .rp-copy-stripe { background:#F87171; }\n  .yellow .rp-copy-stripe { background:#F59E0B; }\n\n  .rp-header { text-align:center; padding:8pt 0 6pt; border-bottom:1pt dashed #bbb; margin-bottom:6pt; }\n  .rp-company { font-size:10pt; font-weight:900; letter-spacing:1pt; color:#000; font-family:'Syne',Arial,sans-serif; }\n  .rp-sub { font-size:7pt; color:#666; margin-top:1pt; }\n  .rp-receipt-id { font-family:monospace; font-size:12pt; font-weight:800; color:#000; margin:3pt 0 1pt; }\n  .rp-datetime { font-size:6.5pt; color:#888; }\n\n  .rp-copy-label {\n    position:absolute;\n    top:8pt; right:8pt;\n    font-size:6pt;\n    font-weight:800;\n    text-transform:uppercase;\n    letter-spacing:.08em;\n    padding:2pt 5pt;\n    border-radius:3pt;\n    background:rgba(0,0,0,.08);\n    color:#555;\n  }\n\n  .rp-fields { display:grid; grid-template-columns:1fr 1fr; gap:2pt 8pt; margin-bottom:6pt; }\n  .rp-field { font-size:7.5pt; line-height:1.4; }\n  .rp-field-k { color:#777; font-size:6.5pt; }\n  .rp-field-v { font-weight:700; color:#000; }\n\n  .rp-amount {\n    border-top:1pt dashed #bbb;\n    padding-top:6pt;\n    margin-top:auto;\n  }\n  .rp-amount-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2pt; }\n  .rp-amount-lbl { font-size:7.5pt; font-weight:700; color:#333; }\n  .rp-amount-val { font-size:14pt; font-weight:900; color:#059669; }\n  .rp-amount-method { font-size:6.5pt; color:#777; }\n\n  .rp-sig {\n    border-top:1pt dashed #bbb;\n    padding-top:5pt;\n    margin-top:6pt;\n    display:flex;\n    justify-content:space-between;\n    align-items:flex-end;\n  }\n  .rp-sig-img { height:22pt; max-width:1.4in; object-fit:contain; }\n  .rp-sig-line { font-size:6pt; color:#aaa; border-top:0.5pt solid #ccc; padding-top:2pt; width:1.4in; text-align:center; }\n  .rp-sig-date { font-size:6.5pt; color:#777; }\n\n  .rp-terms {\n    font-size:5.5pt;\n    color:#aaa;\n    margin-top:4pt;\n    line-height:1.4;\n    border-top:0.5pt solid #eee;\n    padding-top:3pt;\n  }\n}\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   MOBILE RESPONSIVE  (breakpoint 768px)\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n\n/* \u2500\u2500 Mobile header bar (replaces topbar + sidebar logo) \u2500\u2500 */\n.mob-hdr{display:none;height:56px;flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--border);align-items:center;padding:0 14px;gap:10px;position:sticky;top:0;z-index:150}\n.mob-logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--amber),#D97706);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}\n.mob-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.mob-pill{padding:4px 9px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.02em;white-space:nowrap}\n.mob-icon-btn{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;flex-shrink:0}\n\n/* \u2500\u2500 Bottom nav bar \u2500\u2500 */\n.mob-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--bg2);border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom,0px)}\n.mob-nav-row{display:flex;height:60px;align-items:stretch}\n.mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;cursor:pointer;color:var(--text4);font-size:9.5px;font-weight:700;font-family:'IBM Plex Sans',sans-serif;letter-spacing:.02em;transition:.12s;-webkit-tap-highlight-color:transparent}\n.mob-tab .ti{font-size:21px;line-height:1.1}\n.mob-tab.on{color:var(--amber)}\n.mob-tab.on .ti{transform:scale(1.1)}\n\n/* \u2500\u2500 \"More\" bottom sheet \u2500\u2500 */\n.mob-sheet-wrap{position:fixed;inset:0;z-index:300}\n.mob-sheet-bd{position:absolute;inset:0;background:rgba(0,0,0,.6)}\n.mob-sheet{position:absolute;bottom:0;left:0;right:0;background:var(--bg2);border-radius:20px 20px 0 0;padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 24px);max-height:82vh;overflow-y:auto}\n.mob-sheet-grip{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px}\n.mob-sheet-section{font-size:9.5px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;margin:14px 0 8px}\n.mob-sheet-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}\n.mob-sheet-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 6px;border-radius:12px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:10.5px;font-weight:600;color:var(--text2);font-family:'IBM Plex Sans',sans-serif;text-align:center;transition:.12s;-webkit-tap-highlight-color:transparent}\n.mob-sheet-btn.on{border-color:var(--amber);color:var(--amber);background:var(--amberdim)}\n.mob-sheet-btn .si{font-size:22px}\n.mob-view-row{display:flex;gap:6px;margin-bottom:2px}\n.mob-view-btn{flex:1;padding:9px 4px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:11px;font-weight:700;font-family:'IBM Plex Sans',sans-serif;color:var(--text3);text-align:center;transition:.12s}\n\n/* \u2500\u2500 Responsive overrides \u2500\u2500 */\n@media(max-width:768px){\n  /* Layout */\n  .sidebar{display:none!important}\n  .topbar{display:none!important}\n  .mob-hdr{display:flex}\n  .mob-nav{display:block}\n  .page{padding:14px 12px 80px!important}\n\n  /* Grids collapse */\n  .sg4{grid-template-columns:1fr 1fr!important}\n  .sg3{grid-template-columns:1fr 1fr!important}\n  .sg2{grid-template-columns:1fr!important}\n  .fr{grid-template-columns:1fr!important}\n\n  /* Tables scroll */\n  .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch}\n  table{min-width:540px}\n\n  /* Modals slide up from bottom */\n  .overlay{align-items:flex-end!important;padding:0!important}\n  .modal,.modal-lg{width:100%!important;max-width:100%!important;border-radius:20px 20px 0 0!important;max-height:91vh!important;padding:18px 16px!important}\n\n  /* Inputs: prevent iOS zoom */\n  .fi,input,select,textarea{font-size:16px!important}\n\n  /* Wrap button rows */\n  .row{flex-wrap:wrap}\n\n  /* Bigger tap targets */\n  .btn{min-height:36px}\n  .btn-sm{min-height:32px}\n\n  /* Toast above bottom nav */\n  .toast-mob{bottom:76px!important}\n\n  /* Card header wraps */\n  .card-hd{flex-wrap:wrap}\n\n  /* Hide desktop search in topbar */\n  .srch{display:none}\n\n  /* Role switcher hidden \u2014 handled by bottom sheet */\n  .role-sw{display:none}\n\n  /* Order action buttons stack */\n  .order-actions{flex-direction:column;align-items:stretch}\n  .order-actions .btn{justify-content:center}\n}\n\n@media(max-width:420px){\n  .sg4{grid-template-columns:1fr 1fr!important}\n  .mob-sheet-grid{grid-template-columns:repeat(2,1fr)}\n  .page{padding:10px 10px 80px!important}\n}\n.mix-bar-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(28,40,64,.6)}\n.mix-bar-row:last-child{border-bottom:none}\n.batch-card{background:linear-gradient(135deg,rgba(245,158,11,.07),rgba(245,158,11,.02));border:1px solid rgba(245,158,11,.2);border-radius:11px;padding:16px}\n.cust-hero{background:linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 60%,rgba(245,158,11,.04) 100%);border:1px solid var(--border);border-radius:13px;padding:22px;margin-bottom:16px;position:relative;overflow:hidden}\n.cust-hero::after{content:'\uD83C\uDF0E';position:absolute;right:22px;top:50%;transform:translateY(-50%);font-size:56px;opacity:.06}\n.payment-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}\n";
+var CSS = "\n@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');\n*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}\n:root{\n  --bg:#07090F;--bg2:#0C1120;--bg3:#111827;--bg4:#1A2235;\n  --border:#1C2840;--border2:#243252;\n  --amber:#F59E0B;--amber2:#FCD34D;--amberdim:rgba(245,158,11,0.1);\n  --blue:#3B82F6;--bluedim:rgba(59,130,246,0.1);\n  --green:#10B981;--greendim:rgba(16,185,129,0.1);\n  --red:#EF4444;--reddim:rgba(239,68,68,0.1);\n  --purple:#8B5CF6;--purpledim:rgba(139,92,246,0.1);\n  --teal:#14B8A6;--tealdim:rgba(20,184,166,0.1);\n  --text:#E2E8F0;--text2:#94A3B8;--text3:#475569;--text4:#334155;\n}\nbody{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13px}\n::-webkit-scrollbar{width:3px;height:3px}\n::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}\n\n/* Layout */\n.shell{display:flex;height:100vh;overflow:hidden}\n.sidebar{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}\n.main{flex:1;display:flex;flex-direction:column;overflow:hidden}\n.topbar{height:52px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:10px;background:var(--bg);flex-shrink:0}\n.page{flex:1;overflow-y:auto;padding:20px}\n\n/* Logo */\n.logo{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}\n.logo-mark{width:32px;height:32px;background:linear-gradient(135deg,var(--amber),#D97706);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--bg);flex-shrink:0}\n.logo-name{font-family:'Syne',sans-serif;font-weight:700;font-size:13.5px;line-height:1.2}\n.logo-tag{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em}\n\n/* Sidebar nav */\n.nav-grp{padding:12px 0 4px}\n.nav-grp-label{padding:0 16px 4px;font-size:9.5px;font-weight:600;color:var(--text4);text-transform:uppercase;letter-spacing:.1em}\n.nav-item{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;color:var(--text3);font-size:12.5px;font-weight:500;transition:.12s;border-left:2px solid transparent;white-space:nowrap}\n.nav-item:hover{color:var(--text2);background:rgba(255,255,255,.02)}\n.nav-item.on{color:var(--amber);background:var(--amberdim);border-left-color:var(--amber)}\n.nav-ico{font-size:13px;width:16px;text-align:center;flex-shrink:0}\n.nav-badge{margin-left:auto;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:8px}\n.nb-red{background:var(--red);color:#fff}\n.nb-amber{background:var(--amberdim);color:var(--amber)}\n.nb-blue{background:var(--bluedim);color:var(--blue)}\n.nb-green{background:var(--greendim);color:var(--green)}\n\n.sb-foot{margin-top:auto;border-top:1px solid var(--border);padding:12px 16px}\n.av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}\n.uname{font-size:12px;font-weight:600;color:var(--text2)}\n.urole{font-size:10px;color:var(--text3)}\n\n/* Role switcher */\n.role-sw{display:flex;gap:2px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:3px}\n.rsw-btn{padding:4px 9px;border-radius:5px;font-size:10.5px;font-weight:700;cursor:pointer;border:none;font-family:'IBM Plex Sans',sans-serif;transition:.12s;color:var(--text3);background:transparent;letter-spacing:.02em}\n.rsw-btn.on{background:var(--amber);color:var(--bg)}\n.rsw-btn:hover:not(.on){color:var(--text2)}\n\n/* Buttons */\n.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:.12s;font-family:'IBM Plex Sans',sans-serif;white-space:nowrap}\n.btn-primary{background:var(--amber);color:var(--bg)}\n.btn-primary:hover{background:var(--amber2)}\n.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}\n.btn-ghost:hover{background:rgba(255,255,255,.03);border-color:var(--border2);color:var(--text)}\n.btn-green{background:var(--greendim);color:var(--green);border:1px solid rgba(16,185,129,.25)}\n.btn-red{background:var(--reddim);color:var(--red);border:1px solid rgba(239,68,68,.2)}\n.btn-blue{background:var(--bluedim);color:var(--blue);border:1px solid rgba(59,130,246,.2)}\n.btn-purple{background:var(--purpledim);color:var(--purple);border:1px solid rgba(139,92,246,.2)}\n.btn-sm{padding:4px 9px;font-size:11px}\n.btn-xs{padding:2px 7px;font-size:10.5px}\n\n/* Search */\n.srch{display:flex;align-items:center;gap:7px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:0 10px;height:32px}\n.srch input{background:transparent;border:none;outline:none;color:var(--text);font-size:12px;font-family:'IBM Plex Sans',sans-serif;width:180px}\n.srch input::placeholder{color:var(--text4)}\n\n/* Cards */\n.card{background:var(--bg2);border:1px solid var(--border);border-radius:11px}\n.card-hd{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}\n.card-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text)}\n.card-sub{font-size:11px;color:var(--text3);margin-top:2px}\n.card-bd{padding:16px}\n\n/* Stat cards */\n.sg{display:grid;gap:12px;margin-bottom:18px}\n.sg4{grid-template-columns:repeat(4,1fr)}\n.sg3{grid-template-columns:repeat(3,1fr)}\n.sg2{grid-template-columns:repeat(2,1fr)}\n.sc{background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:14px 16px;position:relative;overflow:hidden}\n.sc::after{content:'';position:absolute;top:-12px;right:-12px;width:60px;height:60px;border-radius:50%;opacity:.07}\n.sc-a::after{background:var(--amber)}\n.sc-b::after{background:var(--blue)}\n.sc-g::after{background:var(--green)}\n.sc-p::after{background:var(--purple)}\n.sc-r::after{background:var(--red)}\n.sc-t::after{background:var(--teal)}\n.sc-lbl{font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}\n.sc-val{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--text);line-height:1;margin-bottom:4px}\n.sc-delta{font-size:11px;font-weight:600}\n.delta-u{color:var(--green)}\n.delta-d{color:var(--red)}\n.delta-n{color:var(--text3)}\n.sc-ico{position:absolute;top:14px;right:14px;font-size:17px;opacity:.4}\n\n/* Grid layouts */\n.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}\n.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}\n.g21{display:grid;grid-template-columns:2fr 1fr;gap:12px}\n.g12{display:grid;grid-template-columns:1fr 2fr;gap:12px}\n.g31{display:grid;grid-template-columns:3fr 1fr;gap:12px}\n.mb12{margin-bottom:12px}\n.mb18{margin-bottom:18px}\n\n/* Table */\n.tbl{overflow-x:auto}\ntable{width:100%;border-collapse:collapse}\nthead th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border);white-space:nowrap}\ntbody tr{border-bottom:1px solid rgba(28,40,64,.6);transition:.1s;cursor:pointer}\ntbody tr:last-child{border-bottom:none}\ntbody tr:hover{background:rgba(255,255,255,.012)}\ntbody td{padding:10px 12px;font-size:12.5px;color:var(--text2);vertical-align:middle}\n.tb{font-weight:600;color:var(--text)}\n.tamb{color:var(--amber);font-weight:700;font-family:'IBM Plex Mono',monospace;font-size:11.5px}\n\n/* Badges */\n.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap}\n.badge::before{content:'';width:4px;height:4px;border-radius:50%;flex-shrink:0}\n.bg{background:var(--greendim);color:var(--green)}.bg::before{background:var(--green)}\n.ba{background:var(--amberdim);color:var(--amber)}.ba::before{background:var(--amber)}\n.br{background:var(--reddim);color:var(--red)}.br::before{background:var(--red)}\n.bb{background:var(--bluedim);color:var(--blue)}.bb::before{background:var(--blue)}\n.bp{background:var(--purpledim);color:var(--purple)}.bp::before{background:var(--purple)}\n.bt{background:var(--tealdim);color:var(--teal)}.bt::before{background:var(--teal)}\n.bgr{background:rgba(100,116,139,.1);color:#64748B}.bgr::before{background:#64748B}\n\n/* Chips */\n.chips{display:flex;flex-wrap:wrap;gap:5px}\n.chip{padding:3px 11px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text3);transition:.12s;font-family:'IBM Plex Sans',sans-serif}\n.chip:hover{color:var(--text2);border-color:var(--border2)}\n.chip.on{background:var(--amberdim);border-color:rgba(245,158,11,.35);color:var(--amber)}\n\n/* Form */\n.fg{margin-bottom:12px}\n.fl{font-size:10.5px;font-weight:700;color:var(--text3);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.05em}\n.fi{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:7px 10px;color:var(--text);font-size:12.5px;font-family:'IBM Plex Sans',sans-serif;outline:none;transition:.12s}\n.fi:focus{border-color:var(--amber)}\n.fi::placeholder{color:var(--text4)}\nselect.fi option{background:var(--bg)}\n.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}\n.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}\n\n/* Tabs */\n.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:16px}\n.tab{padding:8px 14px;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.12s}\n.tab.on{color:var(--amber);border-bottom-color:var(--amber)}\n.tab:hover:not(.on){color:var(--text2)}\n\n/* Overlay / Modal */\n.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}\n.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:560px;max-height:90vh;overflow-y:auto}\n.modal-lg{width:700px}\n.modal-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--text);margin-bottom:18px}\n.modal-section{font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;margin:14px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border)}\n\n/* Progress */\n.prog{background:var(--border);border-radius:3px;height:4px;overflow:hidden}\n.prog-fill{height:100%;border-radius:3px;transition:width .5s}\n\n/* Timeline */\n.tl{padding-left:20px;position:relative}\n.tl::before{content:'';position:absolute;left:6px;top:5px;bottom:5px;width:1px;background:var(--border)}\n.tl-step{position:relative;padding-bottom:16px}\n.tl-step:last-child{padding-bottom:0}\n.tl-dot{position:absolute;left:-17px;top:2px;width:12px;height:12px;border-radius:50%;border:2px solid var(--border);background:var(--bg)}\n.tl-dot.done{background:var(--green);border-color:var(--green)}\n.tl-dot.cur{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,158,11,.2)}\n.tl-lbl{font-size:12.5px;font-weight:600}\n.tl-desc{font-size:11px;color:var(--text3);margin-top:2px}\n.tl-time{font-size:10px;color:var(--text4);margin-top:2px;font-family:'IBM Plex Mono',monospace}\n\n/* Activity */\n.act{display:flex;gap:9px;padding:9px 0;border-bottom:1px solid rgba(28,40,64,.5)}\n.act:last-child{border-bottom:none}\n.act-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;flex-shrink:0}\n.act-txt{font-size:12px;color:var(--text3);line-height:1.5}\n.act-txt strong{color:var(--text2);font-weight:600}\n.act-time{font-size:10px;color:var(--text4);margin-top:1px;font-family:'IBM Plex Mono',monospace}\n\n/* Label print */\n.label-card{background:white;color:#111;border-radius:10px;padding:18px;font-family:'IBM Plex Mono',monospace}\n.label-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:10px}\n.label-co{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:#111}\n.label-id{font-size:22px;font-weight:700;letter-spacing:.1em;color:#111}\n.label-row{display:flex;gap:20px;margin-bottom:8px}\n.label-field{flex:1}\n.label-field-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-bottom:2px}\n.label-field-val{font-size:13px;font-weight:700;color:#111}\n.label-barcode{text-align:center;margin-top:10px;border-top:1px solid #ddd;padding-top:10px;font-size:9px;letter-spacing:.2em;color:#333}\n\n/* Route card */\n.route-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:13px;margin-bottom:9px}\n.route-card.pickup{border-left:3px solid var(--amber)}\n.route-card.dropoff{border-left:3px solid var(--blue)}\n.route-card.done{border-left:3px solid var(--green);opacity:.6}\n\n/* Automation trigger */\n.trigger-card{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:8px}\n.trigger-arrow{color:var(--amber);font-weight:700;margin:0 6px}\n\n/* Office role indicator */\n.role-pill{padding:6px 12px;border-radius:7px;margin:10px 16px;font-size:11px;font-weight:700}\n\n/* Alerts */\n.alert{border-radius:8px;padding:9px 13px;font-size:12px;margin-bottom:12px;display:flex;align-items:flex-start;gap:7px;line-height:1.5}\n.alert-a{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);color:#D97706}\n.alert-g{background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);color:#059669}\n.alert-r{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);color:#DC2626}\n.alert-b{background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);color:#2563EB}\n\n/* Map placeholder */\n.map-ph{background:var(--bg);border:1px solid var(--border);border-radius:8px;height:140px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}\n.map-grid{position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,rgba(28,40,64,.5) 0,rgba(28,40,64,.5) 1px,transparent 1px,transparent 26px),repeating-linear-gradient(90deg,rgba(28,40,64,.5) 0,rgba(28,40,64,.5) 1px,transparent 1px,transparent 26px)}\n.map-pin{position:absolute;font-size:16px;animation:pp 2s ease-in-out infinite}\n@keyframes pp{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}\n\n/* Sparkline */\n.spark{display:flex;align-items:flex-end;gap:2px;height:32px}\n.spb{flex:1;border-radius:2px 2px 0 0;min-width:5px;opacity:.65;transition:.2s}\n.spb:hover{opacity:1}\n\n/* Utils */\n.row{display:flex;align-items:center}\n.g6{gap:6px}\n.g10{gap:10px}\n.g14{gap:14px}\n.mla{margin-left:auto}\n.mut{color:var(--text3);font-size:11.5px}\n.xs{font-size:10.5px}\n.mono{font-family:'IBM Plex Mono',monospace}\n.divider{height:1px;background:var(--border);margin:12px 0}\n.tag{display:inline-block;background:var(--amberdim);color:var(--amber);font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px}\n.tag-b{background:var(--bluedim);color:var(--blue)}\n.tag-g{background:var(--greendim);color:var(--green)}\n.tag-p{background:var(--purpledim);color:var(--purple)}\n.nd::after{content:'';position:absolute;top:-2px;right:-2px;width:7px;height:7px;background:var(--red);border-radius:50%;border:2px solid var(--bg)}\n.nd{position:relative}\n.topbar-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;flex:1}\n@keyframes fu{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}\n.fu{animation:fu .25s ease both}\n\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   PRINT STYLES \u2014 Label (4\xD76 thermal) + Receipt\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n@media print {\n  /* \u2500\u2500 Hide the entire app \u2500\u2500 */\n  body > #root > * { display:none !important; }\n\n  /* \u2500\u2500 Show ONLY the active print target \u2500\u2500 */\n  body.printing-manifest .manifest-printout { display:block !important; position:static !important; }\n  body.printing-manifest { background:#fff !important; }\n  body.printing-manifest .manifest-printout * { box-sizing:border-box; }\n  body.printing-manifest .manifest-printout table { border-collapse:collapse; width:100%; }\n  body.printing-manifest .manifest-printout th, .manifest-printout td { border:1px solid #ccc; padding:4px 6px; font-size:9.5pt; }\n  body.printing-manifest .manifest-printout .zone-header { color:#fff; padding:5px 10px; font-weight:700; font-size:11pt; }\n  @media print { .btn, .overlay, .modal-footer, button { display:none !important; } }\n  body.printing-invoice .invoice-printout { display:flex !important; position:static !important; }\n  body.printing-invoice { background:#fff !important; }\n  .invoice-printout {\n    display:none;\n    position:fixed !important;\n    top:0; left:0; right:0; bottom:0;\n    padding:0.35in 0.45in;\n    background:#fff !important;\n    font-family:\"IBM Plex Sans\",Arial,sans-serif;\n    color:#000 !important;\n    box-sizing:border-box;\n    font-size:10pt;\n    flex-direction:column;\n  }\n  .inv-header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:0.1in; border-bottom:2pt solid #000; margin-bottom:0.12in; flex-shrink:0; }\n  .inv-co-name { font-family:\"Syne\",Arial,sans-serif; font-size:18pt; font-weight:900; letter-spacing:0.04em; color:#000; line-height:1; }\n  .inv-co-tag  { font-size:7.5pt; font-weight:600; text-transform:uppercase; letter-spacing:0.12em; color:#555; margin-top:3pt; }\n  .inv-meta    { text-align:right; font-size:9pt; color:#333; line-height:1.65; }\n  .inv-meta strong { color:#000; font-size:10pt; }\n  .inv-tracking-row { border:1.5pt solid #000; border-radius:3pt; text-align:center; padding:0.08in 0.1in 0.06in; margin-bottom:0.1in; flex-shrink:0; }\n  .inv-tracking-num { font-family:\"IBM Plex Mono\",monospace; font-size:22pt; font-weight:800; letter-spacing:0.05em; color:#000; line-height:1; }\n  .inv-tracking-lbl { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:#888; margin-top:2pt; }\n  .inv-parties { margin-bottom:0.1in; flex-shrink:0; display:flex; gap:0.1in; }\n  .inv-party   { flex:1; padding:0.06in 0.1in; border:1pt solid #ddd; border-radius:3pt; }\n  .inv-party-lbl  { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#888; margin-bottom:3pt; }\n  .inv-party-name { font-size:11pt; font-weight:700; color:#000; }\n  .inv-party-line { font-size:9pt; color:#444; line-height:1.5; }\n  .inv-table  { width:100%; border-collapse:collapse; margin-bottom:0.1in; flex-shrink:0; }\n  .inv-table th { background:#000; color:#fff; padding:5pt 8pt; text-align:left; font-size:8pt; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; }\n  .inv-table td { padding:6pt 8pt; font-size:9pt; border-bottom:1pt solid #e5e5e5; vertical-align:top; }\n  .inv-table tr:last-child td { border-bottom:none; }\n  .inv-totals { width:2.3in; margin-left:auto; border:1.5pt solid #000; margin-bottom:0.1in; flex-shrink:0; }\n  .inv-totals td { padding:4pt 8pt; font-size:9.5pt; }\n  .inv-totals .inv-grand { background:#000; color:#fff; font-weight:700; font-size:11pt; }\n  .inv-terms  { flex:1; font-size:7pt; color:#444; line-height:1.5; overflow:hidden; margin-bottom:0.08in; }\n  .inv-terms-title { font-weight:700; font-size:7.5pt; color:#000; margin-bottom:2pt; text-transform:uppercase; letter-spacing:0.06em; }\n  .inv-bottom { flex-shrink:0; border-top:1.5pt solid #000; padding-top:0.08in; }\n  .inv-footer { font-size:7.5pt; color:#555; display:flex; justify-content:space-between; margin-bottom:0.08in; }\n  .inv-barcode-wrap { text-align:center; }\n  .inv-barcode-id { font-family:\"IBM Plex Mono\",monospace; font-size:8pt; letter-spacing:0.15em; color:#333; margin-top:3pt; }\n    body.printing-label  .label-printout { display:block !important; position:static !important; }\n  body.printing-receipt .receipt-printout { display:block !important; position:static !important; }\n\n  /* \u2500\u2500 Generic reset for print \u2500\u2500 */\n  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }\n\n  /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n     SHIPPING LABEL \u2014 4in \xD7 6in thermal\n     Layout matches Casabe Xpress real label\n  \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n  .label-printout {\n    position:fixed !important;\n    top:0; left:0;\n    width:4in;\n    height:6in;\n    background:#fff !important;\n    font-family:'IBM Plex Sans',Arial,sans-serif;\n    color:#000 !important;\n    page-break-after:always;\n    display:none;\n    box-sizing:border-box;\n    overflow:hidden;\n    flex-direction:column;\n  }\n  /* \u2500 HEADER: logo left, tagline right \u2500 */\n  .lp-header {\n    display:flex;\n    justify-content:space-between;\n    align-items:center;\n    padding:0.1in 0.15in 0.08in;\n    border-bottom:1.5pt solid #000;\n  }\n  .lp-logo-img { height:0.32in; max-width:1.5in; object-fit:contain; }\n  .lp-co {\n    font-family:'Syne',Arial,sans-serif;\n    font-size:13pt;\n    font-weight:900;\n    letter-spacing:0.05em;\n    color:#000;\n    line-height:1;\n  }\n  .lp-tagline {\n    font-size:7pt;\n    font-weight:600;\n    text-transform:uppercase;\n    letter-spacing:0.09em;\n    color:#444;\n    text-align:right;\n  }\n\n  /* \u2500 TRACKING NUMBER \u2014 full-width oversized \u2500 */\n  .lp-tracking-box {\n    border-bottom:1.5pt solid #000;\n    text-align:center;\n    padding:0.06in 0.1in 0.04in;\n    line-height:1;\n  }\n  .lp-tracking-num {\n    font-family:'IBM Plex Mono',monospace;\n    font-size:17pt;\n    font-weight:800;\n    letter-spacing:1.5pt;\n    color:#000;\n    display:block;\n  }\n\n  /* \u2500 BOX COUNTER \u2500 */\n  .lp-counter {\n    text-align:center;\n    font-size:10pt;\n    font-weight:700;\n    color:#000;\n    padding:0.04in 0;\n    border-bottom:1.5pt solid #000;\n    letter-spacing:1pt;\n  }\n\n  /* \u2500 FROM / TO blocks \u2500 */\n  .lp-addr-row {\n    display:flex;\n    border-bottom:1pt solid #000;\n  }\n  .lp-from-col {\n    flex:1;\n    padding:0.07in 0.12in;\n    border-right:1pt solid #000;\n  }\n  .lp-to-col {\n    flex:1.1;\n    padding:0.07in 0.12in;\n  }\n  .lp-addr-lbl {\n    font-size:6pt;\n    font-weight:700;\n    text-transform:uppercase;\n    letter-spacing:0.1em;\n    color:#666;\n    margin-bottom:2pt;\n  }\n  .lp-addr-name {\n    font-size:10.5pt;\n    font-weight:700;\n    color:#000;\n    line-height:1.2;\n  }\n  .lp-addr-line {\n    font-size:8pt;\n    color:#222;\n    line-height:1.4;\n    margin-top:1pt;\n  }\n\n  /* \u2500 ZONE STRIPE \u2014 full-width solid color \u2500 */\n  .lp-zone-stripe {\n    height:0.22in;\n    width:100%;\n    display:flex;\n    align-items:center;\n    justify-content:center;\n    /* color set inline */\n  }\n  .lp-zone-label {\n    color:#fff;\n    font-weight:800;\n    font-size:7pt;\n    letter-spacing:1.5pt;\n    text-transform:uppercase;\n    text-shadow:0 1px 2px rgba(0,0,0,.4);\n  }\n\n  /* \u2500 OFFICE / DATE row \u2500 */\n  .lp-office-row {\n    display:flex;\n    justify-content:space-between;\n    align-items:center;\n    padding:0.04in 0.13in;\n    border-top:1pt solid #ddd;\n    border-bottom:1pt solid #000;\n    font-size:7.5pt;\n    color:#222;\n  }\n\n  /* \u2500 BARCODE section \u2500 */\n  .lp-barcode-wrap {\n    flex:1;\n    display:flex;\n    flex-direction:column;\n    align-items:center;\n    justify-content:center;\n    padding:0.08in 0.1in 0.05in;\n  }\n  .lp-barcode-id {\n    font-family:'IBM Plex Mono',monospace;\n    font-size:8pt;\n    letter-spacing:2pt;\n    color:#333;\n    margin-top:3pt;\n    text-align:center;\n  }\n\n  /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n     RECEIPT \u2014 8.5\xD711, all 3 copies\n  \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n  .receipt-printout {\n    position:fixed !important;\n    top:0; left:0; right:0; bottom:0;\n    padding:0.3in;\n    background:#fff !important;\n    font-family:'IBM Plex Sans',Arial,sans-serif;\n    color:#000 !important;\n    display:none;\n    box-sizing:border-box;\n  }\n  .rp-copies {\n    display:grid;\n    grid-template-columns:1fr 1fr 1fr;\n    gap:0.15in;\n    height:100%;\n  }\n  .rp-copy {\n    border:1.5pt solid #999;\n    border-radius:5pt;\n    padding:0.15in 0.12in;\n    position:relative;\n    overflow:hidden;\n    display:flex;\n    flex-direction:column;\n  }\n  .rp-copy.white  { border-color:#999;  background:#fff; }\n  .rp-copy.pink   { border-color:#F87171; background:#FFF5F5; }\n  .rp-copy.yellow { border-color:#F59E0B; background:#FFFBEB; }\n\n  .rp-copy-stripe {\n    position:absolute;\n    top:0; left:0; right:0;\n    height:5pt;\n  }\n  .white  .rp-copy-stripe { background:#999; }\n  .pink   .rp-copy-stripe { background:#F87171; }\n  .yellow .rp-copy-stripe { background:#F59E0B; }\n\n  .rp-header { text-align:center; padding:8pt 0 6pt; border-bottom:1pt dashed #bbb; margin-bottom:6pt; }\n  .rp-company { font-size:10pt; font-weight:900; letter-spacing:1pt; color:#000; font-family:'Syne',Arial,sans-serif; }\n  .rp-sub { font-size:7pt; color:#666; margin-top:1pt; }\n  .rp-receipt-id { font-family:monospace; font-size:12pt; font-weight:800; color:#000; margin:3pt 0 1pt; }\n  .rp-datetime { font-size:6.5pt; color:#888; }\n\n  .rp-copy-label {\n    position:absolute;\n    top:8pt; right:8pt;\n    font-size:6pt;\n    font-weight:800;\n    text-transform:uppercase;\n    letter-spacing:.08em;\n    padding:2pt 5pt;\n    border-radius:3pt;\n    background:rgba(0,0,0,.08);\n    color:#555;\n  }\n\n  .rp-fields { display:grid; grid-template-columns:1fr 1fr; gap:2pt 8pt; margin-bottom:6pt; }\n  .rp-field { font-size:7.5pt; line-height:1.4; }\n  .rp-field-k { color:#777; font-size:6.5pt; }\n  .rp-field-v { font-weight:700; color:#000; }\n\n  .rp-amount {\n    border-top:1pt dashed #bbb;\n    padding-top:6pt;\n    margin-top:auto;\n  }\n  .rp-amount-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2pt; }\n  .rp-amount-lbl { font-size:7.5pt; font-weight:700; color:#333; }\n  .rp-amount-val { font-size:14pt; font-weight:900; color:#059669; }\n  .rp-amount-method { font-size:6.5pt; color:#777; }\n\n  .rp-sig {\n    border-top:1pt dashed #bbb;\n    padding-top:5pt;\n    margin-top:6pt;\n    display:flex;\n    justify-content:space-between;\n    align-items:flex-end;\n  }\n  .rp-sig-img { height:22pt; max-width:1.4in; object-fit:contain; }\n  .rp-sig-line { font-size:6pt; color:#aaa; border-top:0.5pt solid #ccc; padding-top:2pt; width:1.4in; text-align:center; }\n  .rp-sig-date { font-size:6.5pt; color:#777; }\n\n  .rp-terms {\n    font-size:5.5pt;\n    color:#aaa;\n    margin-top:4pt;\n    line-height:1.4;\n    border-top:0.5pt solid #eee;\n    padding-top:3pt;\n  }\n}\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   MOBILE RESPONSIVE  (breakpoint 768px)\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n\n/* \u2500\u2500 Mobile header bar (replaces topbar + sidebar logo) \u2500\u2500 */\n.mob-hdr{display:none;height:56px;flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--border);align-items:center;padding:0 14px;gap:10px;position:sticky;top:0;z-index:150}\n.mob-logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--amber),#D97706);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}\n.mob-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.mob-pill{padding:4px 9px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.02em;white-space:nowrap}\n.mob-icon-btn{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;flex-shrink:0}\n\n/* \u2500\u2500 Bottom nav bar \u2500\u2500 */\n.mob-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--bg2);border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom,0px)}\n.mob-nav-row{display:flex;height:60px;align-items:stretch}\n.mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;cursor:pointer;color:var(--text4);font-size:9.5px;font-weight:700;font-family:'IBM Plex Sans',sans-serif;letter-spacing:.02em;transition:.12s;-webkit-tap-highlight-color:transparent}\n.mob-tab .ti{font-size:21px;line-height:1.1}\n.mob-tab.on{color:var(--amber)}\n.mob-tab.on .ti{transform:scale(1.1)}\n\n/* \u2500\u2500 \"More\" bottom sheet \u2500\u2500 */\n.mob-sheet-wrap{position:fixed;inset:0;z-index:300}\n.mob-sheet-bd{position:absolute;inset:0;background:rgba(0,0,0,.6)}\n.mob-sheet{position:absolute;bottom:0;left:0;right:0;background:var(--bg2);border-radius:20px 20px 0 0;padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 24px);max-height:82vh;overflow-y:auto}\n.mob-sheet-grip{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px}\n.mob-sheet-section{font-size:9.5px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;margin:14px 0 8px}\n.mob-sheet-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}\n.mob-sheet-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 6px;border-radius:12px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:10.5px;font-weight:600;color:var(--text2);font-family:'IBM Plex Sans',sans-serif;text-align:center;transition:.12s;-webkit-tap-highlight-color:transparent}\n.mob-sheet-btn.on{border-color:var(--amber);color:var(--amber);background:var(--amberdim)}\n.mob-sheet-btn .si{font-size:22px}\n.mob-view-row{display:flex;gap:6px;margin-bottom:2px}\n.mob-view-btn{flex:1;padding:9px 4px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:11px;font-weight:700;font-family:'IBM Plex Sans',sans-serif;color:var(--text3);text-align:center;transition:.12s}\n\n/* \u2500\u2500 Responsive overrides \u2500\u2500 */\n@media(max-width:768px){\n  /* Layout */\n  .sidebar{display:none!important}\n  .topbar{display:none!important}\n  .mob-hdr{display:flex}\n  .mob-nav{display:block}\n  .page{padding:14px 12px 80px!important}\n\n  /* Grids collapse */\n  .sg4{grid-template-columns:1fr 1fr!important}\n  .sg3{grid-template-columns:1fr 1fr!important}\n  .sg2{grid-template-columns:1fr!important}\n  .fr{grid-template-columns:1fr!important}\n\n  /* Tables scroll */\n  .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch}\n  table{min-width:540px}\n\n  /* Modals slide up from bottom */\n  .overlay{align-items:flex-end!important;padding:0!important}\n  .modal,.modal-lg{width:100%!important;max-width:100%!important;border-radius:20px 20px 0 0!important;max-height:91vh!important;padding:18px 16px!important}\n\n  /* Inputs: prevent iOS zoom */\n  .fi,input,select,textarea{font-size:16px!important}\n\n  /* Wrap button rows */\n  .row{flex-wrap:wrap}\n\n  /* Bigger tap targets */\n  .btn{min-height:36px}\n  .btn-sm{min-height:32px}\n\n  /* Toast above bottom nav */\n  .toast-mob{bottom:76px!important}\n\n  /* Card header wraps */\n  .card-hd{flex-wrap:wrap}\n\n  /* Hide desktop search in topbar */\n  .srch{display:none}\n\n  /* Role switcher hidden \u2014 handled by bottom sheet */\n  .role-sw{display:none}\n\n  /* Order action buttons stack */\n  .order-actions{flex-direction:column;align-items:stretch}\n  .order-actions .btn{justify-content:center}\n}\n\n@media(max-width:420px){\n  .sg4{grid-template-columns:1fr 1fr!important}\n  .mob-sheet-grid{grid-template-columns:repeat(2,1fr)}\n  .page{padding:10px 10px 80px!important}\n}\n.mix-bar-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(28,40,64,.6)}\n.mix-bar-row:last-child{border-bottom:none}\n.batch-card{background:linear-gradient(135deg,rgba(245,158,11,.07),rgba(245,158,11,.02));border:1px solid rgba(245,158,11,.2);border-radius:11px;padding:16px}\n.cust-hero{background:linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 60%,rgba(245,158,11,.04) 100%);border:1px solid var(--border);border-radius:13px;padding:22px;margin-bottom:16px;position:relative;overflow:hidden}\n.cust-hero::after{content:'\uD83C\uDF0E';position:absolute;right:22px;top:50%;transform:translateY(-50%);font-size:56px;opacity:.06}\n.payment-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}\n";
 
 /* ════════════════════════════════════════════
    CONSTANTS & HELPERS
@@ -201,7 +201,15 @@ var ITEM_TYPES = {
   }
 };
 var DESTINATIONS = ["Guatemala", "Costa Rica", "Honduras", "El Salvador", "Nicaragua", "Panama", "Belize"];
-var BOX_TYPES = ["Small", "Medium", "Large", "Freight", "Unknown"];
+var BOX_CONFIG = [
+  {key:"Small",  code:"DISH", dims:"18x18x28", label:"(DISH) 18x18x28", active:true},
+  {key:"Medium", code:"74",   dims:"24x26x24", label:"(74) 24x26x24",   active:true},
+  {key:"Large",  code:"88",   dims:"34x26x28", label:"(88) 34x26x28",   active:true},
+  {key:"Freight",code:"FR",   dims:"",         label:"Freight",          active:true},
+  {key:"Unknown",code:"",     dims:"",         label:"Unknown",          active:true}
+];
+var BOX_TYPES = BOX_CONFIG.filter(function(b){return b.active;}).map(function(b){return b.key;});
+var getBoxLabel = function(key){ var b=BOX_CONFIG.find(function(x){return x.key===key;}); return b?b.label:key; };
 /* ════════════════════════════════════════════
    PRICING TABLE (admin-configurable)
 ════════════════════════════════════════════ */
@@ -217,8 +225,8 @@ var DEFAULT_PRICING = {
   },
   "Guatemala": {
     Small: 200,
-    Medium: 250,
-    Large: 185,
+    Medium: 260,
+    Large: 360,
     Freight: 320,
     Electronics: 250,
     surcharge: 0,
@@ -1383,7 +1391,7 @@ var EMPTY_ORDER = {
   forwardedFrom: "",
   // Partner company name
   forwardedAt: "",
-  itemType: "household",
+  description: "",
   boxType: "Unknown",
   destination: "Guatemala",
   status: "order_placed",
@@ -1406,11 +1414,10 @@ var EMPTY_ORDER = {
     commission: 0,
     commissionRate: 0
   },
-  notes: "",
   shipmentId: ""
 };
 var OrderForm = function OrderForm(_ref4) {
-  var _pricing$f$destinatio, _ITEM_TYPES$f$itemTyp;
+  var _pricing$f$destinatio;
   var _ref4$initial = _ref4.initial,
     initial = _ref4$initial === void 0 ? EMPTY_ORDER : _ref4$initial,
     onSave = _ref4.onSave,
@@ -1428,7 +1435,11 @@ var OrderForm = function OrderForm(_ref4) {
     _ref4$existingOrders = _ref4.existingOrders,
     existingOrders = _ref4$existingOrders === void 0 ? [] : _ref4$existingOrders,
     _ref4$shipmentsList = _ref4.shipmentsList,
-    shipmentsList = _ref4$shipmentsList === void 0 ? [] : _ref4$shipmentsList;
+    shipmentsList = _ref4$shipmentsList === void 0 ? [] : _ref4$shipmentsList,
+    _ref4$boxConfig = _ref4.boxConfig,
+    boxConfig = _ref4$boxConfig === void 0 ? BOX_CONFIG : _ref4$boxConfig,
+    _ref4$destinations = _ref4.destinations,
+    destinations = _ref4$destinations === void 0 ? DESTINATIONS : _ref4$destinations;
   var t = useT();
   var _useState = useState(_objectSpread(_objectSpread(_objectSpread({}, EMPTY_ORDER), initial), {}, {
       payment: _objectSpread(_objectSpread({}, EMPTY_ORDER.payment), initial.payment),
@@ -1459,6 +1470,10 @@ var OrderForm = function OrderForm(_ref4) {
   });
 
   // Auto-calculate price from pricing table
+  var _useStateOverride = useState(false),
+    _useStateOverride2 = _slicedToArray(_useStateOverride, 2),
+    priceOverridden = _useStateOverride2[0],
+    setPriceOverridden = _useStateOverride2[1];
   var calcPrice = function calcPrice(dest, boxType, count, hasInsurance, declVal) {
     var row = pricing[dest];
     if (!row) return 0;
@@ -1474,7 +1489,7 @@ var OrderForm = function OrderForm(_ref4) {
   // Auto price when key fields change
   var autoPrice = function autoPrice(dest, boxType, count, ins, declVal) {
     var amt = calcPrice(dest || f.destination, boxType || f.boxType, count || f.boxCount, ins !== undefined ? ins : f.insurance, declVal !== undefined ? declVal : f.declaredValue);
-    if (amt > 0) setPay("amount", amt);
+    if (amt > 0 && !priceOverridden) setPay("amount", amt);
   };
   var save = function save() {
     var _OFFICE_COMMISSIONS$f;
@@ -1703,12 +1718,11 @@ var OrderForm = function OrderForm(_ref4) {
       set("boxType", e.target.value);
       autoPrice(null, e.target.value);
     }
-  }, BOX_TYPES.map(function (b) {
-    var BOX_DISPLAY = {"Small": "Small Box — 18x18x28 (DISH)", "Medium": "Medium Box — 24x26x24 (74)"};
+  }, boxConfig.filter(function(b){return b.active;}).map(function (b) {
     return /*#__PURE__*/React.createElement("option", {
-      key: b,
-      value: b
-    }, BOX_DISPLAY[b] || b);
+      key: b.key,
+      value: b.key
+    }, b.label);
   }))), /*#__PURE__*/React.createElement("div", {
     className: "fg"
   }, /*#__PURE__*/React.createElement("label", {
@@ -1738,7 +1752,7 @@ var OrderForm = function OrderForm(_ref4) {
       set("zone", getZone(e.target.value) || null);
       if (e.target.value !== "Guatemala") set("gtDept", "");
     }
-  }, DESTINATIONS.map(function (d) {
+  }, destinations.map(function (d) {
     return /*#__PURE__*/React.createElement("option", {
       key: d
     }, d);
@@ -2005,11 +2019,12 @@ var OrderForm = function OrderForm(_ref4) {
     className: "fg"
   }, /*#__PURE__*/React.createElement("label", {
     className: "fl"
-  }, "Amount Charged ($)"), /*#__PURE__*/React.createElement("input", {
+  }, "Amount Charged ($)", priceOverridden ? /*#__PURE__*/React.createElement("span", {style:{fontSize:10,color:"var(--amber)",marginLeft:6,fontWeight:600}}, "Manual") : null, priceOverridden ? /*#__PURE__*/React.createElement("span", {style:{fontSize:10,color:"var(--blue)",cursor:"pointer",marginLeft:4,textDecoration:"underline"},onClick:function(){var amt=calcPrice(f.destination,f.boxType,parseInt(f.boxCount)||1,f.insurance,f.declaredValue);setPay("amount",amt);setPriceOverridden(false);}}, "Reset") : null), /*#__PURE__*/React.createElement("input", {
     className: "fi",
     type: "number",
     value: f.payment.amount,
     onChange: function onChange(e) {
+      setPriceOverridden(true);
       return setPay("amount", e.target.value);
     },
     placeholder: "185"
@@ -2045,32 +2060,18 @@ var OrderForm = function OrderForm(_ref4) {
     }
   }, "$", Math.max(0, (parseFloat(f.payment.amount) || 0) - (parseFloat(f.payment.paid) || 0)).toFixed(2))))), /*#__PURE__*/React.createElement("div", {
     className: "modal-section"
-  }, t("Item Type", "Tipo de Artículo")), /*#__PURE__*/React.createElement("div", {
-    className: "fr",
-    style: {
-      flexWrap: "wrap",
-      gap: 8,
-      marginBottom: 12
-    }
-  }, Object.entries(ITEM_TYPES).map(function (_ref15) {
-    var _ref16 = _slicedToArray(_ref15, 2),
-      k = _ref16[0],
-      v = _ref16[1];
-    return /*#__PURE__*/React.createElement("button", {
-      key: k,
-      className: "chip ".concat(f.itemType === k ? "on" : ""),
-      onClick: function onClick() {
-        return set("itemType", k);
-      },
-      style: {
-        gap: 5
-      }
-    }, v.icon, " ", v.label);
-  })), ((_ITEM_TYPES$f$itemTyp = ITEM_TYPES[f.itemType]) === null || _ITEM_TYPES$f$itemTyp === void 0 ? void 0 : _ITEM_TYPES$f$itemTyp.taxable) && /*#__PURE__*/React.createElement("div", {
-    className: "alert alert-a mb12"
-  }, "\uD83D\uDCFA ", /*#__PURE__*/React.createElement("strong", null, "Electronics/TV"), " \u2014 May be subject to customs duties at destination. Ensure customer declares correct value."), /*#__PURE__*/React.createElement("div", {
+  }, "Description"), /*#__PURE__*/React.createElement("div", {
+    className: "fg"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    className: "fi",
+    rows: 3,
+    value: f.description || "",
+    onChange: function onChange(e) { return set("description", e.target.value); },
+    placeholder: "Contents, special instructions, fragile items, time preferences...",
+    style: { resize: "none" }
+  })), /*#__PURE__*/React.createElement("div", {
     className: "modal-section"
-  }, t("Consignee (Receiving Party)", "Consignatario (Destinatario)")), /*#__PURE__*/React.createElement(ConsigneeSearch, {
+  }, t("Consignee (Receiving Party)", "Consignatario (Receptor)")), /*#__PURE__*/React.createElement(ConsigneeSearch, {
     orders: existingOrders,
     currentId: f.id,
     onFill: function onFill(d) {
@@ -2144,7 +2145,7 @@ var OrderForm = function OrderForm(_ref4) {
     onChange: function onChange(e) {
       return set("consigneeCountry", e.target.value);
     }
-  }, DESTINATIONS.map(function (d) {
+  }, destinations.map(function (d) {
     return /*#__PURE__*/React.createElement("option", {
       key: d
     }, d);
@@ -2189,21 +2190,6 @@ var OrderForm = function OrderForm(_ref4) {
       fontSize: 12.5
     }
   }, ZONE_CONFIG[f.zone].emoji, " ", /*#__PURE__*/React.createElement("strong", null, ZONE_CONFIG[f.zone].label, " Zone"), " \u2014 ", ZONE_CONFIG[f.zone].days, " delivery \xB7 Label border will print in ", ZONE_CONFIG[f.zone].label.toLowerCase()), /*#__PURE__*/React.createElement("div", {
-    className: "modal-section"
-  }, t("Notes", "Notas")), /*#__PURE__*/React.createElement("div", {
-    className: "fg"
-  }, /*#__PURE__*/React.createElement("textarea", {
-    className: "fi",
-    rows: 2,
-    value: f.notes,
-    onChange: function onChange(e) {
-      return set("notes", e.target.value);
-    },
-    placeholder: "Time preferences, special instructions, fragile items...",
-    style: {
-      resize: "none"
-    }
-  })), /*#__PURE__*/React.createElement("div", {
     className: "row g10",
     style: {
       marginTop: 4
@@ -2647,7 +2633,38 @@ var LabelModal = function LabelModal(_ref20) {
   }, "Close"), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary mla",
     onClick: function onClick() {
-      return doPrint("printing-label");
+      var allLabels = document.querySelectorAll(".label-printout");
+      if (!allLabels.length) { doPrint("printing-label"); return; }
+      var labelsHtml = Array.from(allLabels).map(function(el){return el.outerHTML;}).join("");
+      var LCSS = "*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}"+
+        "@page{size:4in 6in;margin:0}"+
+        "body{font-family:'IBM Plex Sans',Arial,sans-serif;background:#fff}"+
+        ".label-printout{display:flex!important;flex-direction:column;width:4in;height:6in;background:#fff;overflow:hidden;page-break-after:always;box-sizing:border-box}"+
+        ".lp-header{display:flex;justify-content:space-between;align-items:center;padding:0.1in 0.15in 0.08in;border-bottom:1.5pt solid #000}"+
+        ".lp-co{font-family:'Syne',Arial,sans-serif;font-size:13pt;font-weight:900;letter-spacing:0.05em;color:#000;line-height:1}"+
+        ".lp-tagline{font-size:7pt;font-weight:600;text-transform:uppercase;letter-spacing:0.09em;color:#444;text-align:right}"+
+        ".lp-tracking-box{border-bottom:1.5pt solid #000;text-align:center;padding:0.06in 0.1in 0.04in;line-height:1}"+
+        ".lp-tracking-num{font-family:'IBM Plex Mono',monospace;font-size:17pt;font-weight:800;letter-spacing:1.5pt;color:#000;display:block}"+
+        ".lp-counter{text-align:center;font-size:10pt;font-weight:700;color:#000;padding:0.04in 0;border-bottom:1.5pt solid #000;letter-spacing:1pt}"+
+        ".lp-addr-row{display:flex;border-bottom:1pt solid #000}"+
+        ".lp-from-col{flex:1;padding:0.07in 0.12in;border-right:1pt solid #000}"+
+        ".lp-to-col{flex:1.1;padding:0.07in 0.12in}"+
+        ".lp-addr-lbl{font-size:6pt;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#666;margin-bottom:2pt}"+
+        ".lp-addr-name{font-size:10.5pt;font-weight:700;color:#000;line-height:1.2}"+
+        ".lp-addr-line{font-size:8pt;color:#222;line-height:1.4;margin-top:1pt}"+
+        ".lp-zone-stripe{height:0.22in;width:100%;display:flex;align-items:center;justify-content:center}"+
+        ".lp-zone-label{color:#fff;font-weight:800;font-size:7pt;letter-spacing:1.5pt;text-transform:uppercase;text-shadow:0 1px 2px rgba(0,0,0,.4)}"+
+        ".lp-office-row{display:flex;justify-content:space-between;align-items:center;padding:0.04in 0.13in;border-top:1pt solid #ddd;border-bottom:1pt solid #000;font-size:7.5pt;color:#222}"+
+        ".lp-barcode-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0.08in 0.1in 0.05in}"+
+        ".lp-barcode-id{font-family:'IBM Plex Mono',monospace;font-size:8pt;letter-spacing:2pt;color:#333;margin-top:3pt;text-align:center}"+
+        "svg{display:block;margin:0 auto}";
+      var win = window.open("","_blank","width=400,height=620");
+      if (!win) { doPrint("printing-label"); return; }
+      win.document.open();
+      win.document.write("<!DOCTYPE html><html><head><meta charset='UTF-8'><title> </title><link href='https://fonts.googleapis.com/css2?family=Syne:wght@700;900&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@400;700&display=swap' rel='stylesheet'><style>"+LCSS+"</style></head><body>"+labelsHtml+"</body></html>");
+      win.document.close();
+      win.focus();
+      setTimeout(function(){ win.print(); }, 800);
     }
   }, "\uD83D\uDDA8 Print ", totalBoxes > 1 ? "".concat(totalBoxes, " Labels") : "Label")))));
 };
@@ -4729,7 +4746,7 @@ var InvoiceModal = function InvoiceModal(_ref48) {
   var boxDims = (tenant === null || tenant === void 0 || (_tenant$boxSizes = tenant.boxSizes) === null || _tenant$boxSizes === void 0 || (_tenant$boxSizes = _tenant$boxSizes.find(function (b) {
     return b.label === order.boxType;
   })) === null || _tenant$boxSizes === void 0 ? void 0 : _tenant$boxSizes.dims) || "";
-  var itemDesc = order.itemType || "General merchandise";
+  var itemDesc = order.description || order.itemType || "General merchandise";
   var invoiceDate = order.createdAt || today();
   var customTerms = (_sender$invoiceTerms = sender.invoiceTerms) === null || _sender$invoiceTerms === void 0 ? void 0 : _sender$invoiceTerms.trim();
   var DEFAULT_TERMS = [{
@@ -4823,7 +4840,7 @@ var InvoiceModal = function InvoiceModal(_ref48) {
       width: "13%",
       textAlign: "right"
     }
-  }, "Amount"))), /*#__PURE__*/React.createElement("tbody", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", null, order.boxCount || 1), /*#__PURE__*/React.createElement("td", null, order.boxType, boxDims ? " \u2014 ".concat(boxDims) : ""), /*#__PURE__*/React.createElement("td", null, "$", (order.boxCount || 1) > 0 ? (boxBase / (order.boxCount || 1)).toFixed(2) : boxBase.toFixed(2)), /*#__PURE__*/React.createElement("td", null, itemDesc, order.notes ? " \xB7 ".concat(order.notes) : ""), /*#__PURE__*/React.createElement("td", {
+  }, "Amount"))), /*#__PURE__*/React.createElement("tbody", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", null, order.boxCount || 1), /*#__PURE__*/React.createElement("td", null, order.boxType, boxDims ? " \u2014 ".concat(boxDims) : ""), /*#__PURE__*/React.createElement("td", null, "$", (order.boxCount || 1) > 0 ? (boxBase / (order.boxCount || 1)).toFixed(2) : boxBase.toFixed(2)), /*#__PURE__*/React.createElement("td", null, itemDesc), /*#__PURE__*/React.createElement("td", {
     style: {
       textAlign: "right"
     }
@@ -5128,7 +5145,7 @@ var InvoiceModal = function InvoiceModal(_ref48) {
       padding: "5px 6px",
       color: "#444"
     }
-  }, itemDesc, order.notes ? " \xB7 ".concat(order.notes) : ""), /*#__PURE__*/React.createElement("td", {
+  }, itemDesc), /*#__PURE__*/React.createElement("td", {
     style: {
       padding: "5px 6px",
       textAlign: "right"
@@ -5221,13 +5238,13 @@ var InvoiceModal = function InvoiceModal(_ref48) {
       var el = document.querySelector(".invoice-printout");
       if (!el) { alert("Invoice not ready. Please try again."); return; }
       var html = el.outerHTML;
-      var INV_CSS = "*{box-sizing:border-box;margin:0;padding:0}body{font-family:\"IBM Plex Sans\",Arial,sans-serif;background:#fff;color:#000;font-size:10pt;padding:0.35in 0.45in}.invoice-printout{display:flex!important;flex-direction:column}.inv-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:0.1in;border-bottom:2pt solid #000;margin-bottom:0.12in;flex-shrink:0}.inv-co-name{font-family:\"Syne\",Arial,sans-serif;font-size:18pt;font-weight:900;letter-spacing:0.04em;color:#000;line-height:1}.inv-co-tag{font-size:7.5pt;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:#555;margin-top:3pt}.inv-meta{text-align:right;font-size:9pt;color:#333;line-height:1.65}.inv-meta strong{color:#000;font-size:10pt}.inv-tracking-row{border:1.5pt solid #000;border-radius:3pt;text-align:center;padding:0.08in 0.1in 0.06in;margin-bottom:0.1in;flex-shrink:0}.inv-tracking-num{font-family:\"IBM Plex Mono\",monospace;font-size:22pt;font-weight:800;letter-spacing:0.05em;color:#000;line-height:1}.inv-tracking-lbl{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#888;margin-top:2pt}.inv-parties{margin-bottom:0.12in;flex-shrink:0}.inv-party{padding:0.07in 0.1in;border:1pt solid #ddd;border-radius:3pt;margin-bottom:0.07in}.inv-party-lbl{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#888;margin-bottom:3pt}.inv-party-name{font-size:11pt;font-weight:700;color:#000}.inv-party-line{font-size:9pt;color:#444;line-height:1.5}.inv-table{width:100%;border-collapse:collapse;margin-bottom:0.1in;flex-shrink:0}.inv-table th{background:#000;color:#fff;padding:5pt 8pt;text-align:left;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:0.06em}.inv-table td{padding:6pt 8pt;font-size:9pt;border-bottom:1pt solid #e5e5e5;vertical-align:top}.inv-table tr:last-child td{border-bottom:none}.inv-totals{width:2.3in;margin-left:auto;border:1.5pt solid #000;margin-bottom:0.1in;flex-shrink:0}.inv-totals td{padding:4pt 8pt;font-size:9.5pt}.inv-totals .inv-grand{background:#000;color:#fff;font-weight:700;font-size:11pt}.inv-terms{flex:1;font-size:7pt;color:#444;line-height:1.5;overflow:hidden;margin-bottom:0.08in}.inv-terms-title{font-weight:700;font-size:7.5pt;color:#000;margin-bottom:2pt;text-transform:uppercase;letter-spacing:0.06em}.inv-bottom{flex-shrink:0;border-top:1.5pt solid #000;padding-top:0.08in}.inv-footer{font-size:7.5pt;color:#555;display:flex;justify-content:space-between;margin-bottom:0.08in}.inv-barcode-wrap{text-align:center}.inv-barcode-id{font-family:\"IBM Plex Mono\",monospace;font-size:8pt;letter-spacing:0.15em;color:#333;margin-top:3pt}svg{display:block;margin:0 auto}@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}";
+      var INV_CSS = "*{box-sizing:border-box;margin:0;padding:0}body{font-family:\"IBM Plex Sans\",Arial,sans-serif;background:#fff;color:#000;font-size:10pt;padding:0.35in 0.45in}.invoice-printout{display:flex!important;flex-direction:column}.inv-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:0.1in;border-bottom:2pt solid #000;margin-bottom:0.12in;flex-shrink:0}.inv-co-name{font-family:\"Syne\",Arial,sans-serif;font-size:18pt;font-weight:900;letter-spacing:0.04em;color:#000;line-height:1}.inv-co-tag{font-size:7.5pt;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:#555;margin-top:3pt}.inv-meta{text-align:right;font-size:9pt;color:#333;line-height:1.65}.inv-meta strong{color:#000;font-size:10pt}.inv-tracking-row{border:1.5pt solid #000;border-radius:3pt;text-align:center;padding:0.08in 0.1in 0.06in;margin-bottom:0.1in;flex-shrink:0}.inv-tracking-num{font-family:\"IBM Plex Mono\",monospace;font-size:22pt;font-weight:800;letter-spacing:0.05em;color:#000;line-height:1}.inv-tracking-lbl{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#888;margin-top:2pt}.inv-parties{margin-bottom:0.1in;flex-shrink:0;display:flex;gap:0.1in}.inv-party{flex:1;padding:0.06in 0.1in;border:1pt solid #ddd;border-radius:3pt}.inv-party-lbl{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#888;margin-bottom:3pt}.inv-party-name{font-size:10.5pt;font-weight:700;color:#000}.inv-party-line{font-size:8.5pt;color:#444;line-height:1.45}.inv-table{width:100%;border-collapse:collapse;margin-bottom:0.1in;flex-shrink:0}.inv-table th{background:#000;color:#fff;padding:5pt 8pt;text-align:left;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:0.06em}.inv-table td{padding:6pt 8pt;font-size:9pt;border-bottom:1pt solid #e5e5e5;vertical-align:top}.inv-table tr:last-child td{border-bottom:none}.inv-totals{width:2.3in;margin-left:auto;border:1.5pt solid #000;margin-bottom:0.1in;flex-shrink:0}.inv-totals td{padding:4pt 8pt;font-size:9.5pt}.inv-totals .inv-grand{background:#000;color:#fff;font-weight:700;font-size:11pt}.inv-terms{flex:1;font-size:7pt;color:#444;line-height:1.5;overflow:hidden;margin-bottom:0.08in}.inv-terms-title{font-weight:700;font-size:7.5pt;color:#000;margin-bottom:2pt;text-transform:uppercase;letter-spacing:0.06em}.inv-bottom{flex-shrink:0;border-top:1.5pt solid #000;padding-top:0.08in}.inv-footer{font-size:7.5pt;color:#555;display:flex;justify-content:space-between;margin-bottom:0.08in}.inv-barcode-wrap{text-align:center}.inv-barcode-id{font-family:\"IBM Plex Mono\",monospace;font-size:8pt;letter-spacing:0.15em;color:#333;margin-top:3pt}svg{display:block;margin:0 auto}@page{size:letter;margin:0}body{padding:0.35in 0.45in}@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}}";
       var ifrm = document.createElement("iframe");
       ifrm.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;opacity:0";
       document.body.appendChild(ifrm);
       var idoc = ifrm.contentDocument || ifrm.contentWindow.document;
       idoc.open();
-      idoc.write("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title>Invoice</title><link href=\"https://fonts.googleapis.com/css2?family=Syne:wght@700;900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;700&display=swap\" rel=\"stylesheet\"><style>" + INV_CSS + "</style></head><body>" + html + "</body></html>");
+      idoc.write("<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><title> </title><link href=\"https://fonts.googleapis.com/css2?family=Syne:wght@700;900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;700&display=swap\" rel=\"stylesheet\"><style>" + INV_CSS + "</style></head><body>" + html + "</body></html>");
       idoc.close();
       var doClean = function() { try { document.body.removeChild(ifrm); } catch(e) {} };
       ifrm.contentWindow.addEventListener("afterprint", doClean);
@@ -5239,7 +5256,9 @@ var InvoiceModal = function InvoiceModal(_ref48) {
 };
 var HQOverview = function HQOverview(_ref51) {
   var _boxMix$find;
-  var orders = _ref51.orders;
+  var orders = _ref51.orders,
+    _ref51$destinations = _ref51.destinations,
+    destinations = _ref51$destinations === void 0 ? DESTINATIONS : _ref51$destinations;
   var t = useT();
   var total = orders.length;
   var revenue = orders.reduce(function (s, o) {
@@ -5273,7 +5292,7 @@ var HQOverview = function HQOverview(_ref51) {
       pct: total > 0 ? Math.round(c / total * 100) : 0
     };
   });
-  var byDest = DESTINATIONS.map(function (d) {
+  var byDest = destinations.map(function (d) {
     var c = orders.filter(function (o) {
       return o.destination === d;
     }).length;
@@ -10264,7 +10283,7 @@ var NewShipmentModal = function NewShipmentModal(_ref93ns) {
         className: "fi",
         value: destination,
         onChange: function onChange(e) { return setDestination(e.target.value); }
-      }, DESTINATIONS.map(function(d) {
+      }, destinations.map(function(d) {
         return /*#__PURE__*/React.createElement("option", { key: d }, d);
       }))
     ),
@@ -10299,7 +10318,9 @@ var NewShipmentModal = function NewShipmentModal(_ref93ns) {
 var EditShipmentModal = function EditShipmentModal(_ref_esm) {
   var shipment = _ref_esm.shipment,
     onSave = _ref_esm.onSave,
-    onClose = _ref_esm.onClose;
+    onClose = _ref_esm.onClose,
+    _ref_esm$destinations = _ref_esm.destinations,
+    destinations = _ref_esm$destinations === void 0 ? DESTINATIONS : _ref_esm$destinations;
   var _useState_esm1 = useState(shipment.name || shipment.id),
     _useState_esm2 = _slicedToArray(_useState_esm1, 2),
     name = _useState_esm2[0], setName = _useState_esm2[1];
@@ -10352,7 +10373,7 @@ var EditShipmentModal = function EditShipmentModal(_ref_esm) {
         /*#__PURE__*/React.createElement("select", {
           className: "fi", value: destination,
           onChange: function onChange(e) { return setDestination(e.target.value); }
-        }, DESTINATIONS.map(function(d) {
+        }, destinations.map(function(d) {
           return /*#__PURE__*/React.createElement("option", { key: d }, d);
         }))
       ),
@@ -10392,6 +10413,77 @@ var EditShipmentModal = function EditShipmentModal(_ref_esm) {
   ));
 };
 
+var ExpenseLineAdder = function ExpenseLineAdder(props) {
+  var onAdd = props.onAdd, boxUnitCosts = props.boxUnitCosts, boxConfig = props.boxConfig;
+  var EXP_TYPES = [
+    {key:"driver_pay",label:"Driver Pay"},
+    {key:"helper",label:"Helper"},
+    {key:"gas",label:"Gas"},
+    {key:"food",label:"Food"},
+    {key:"boxes",label:"Box Purchase"},
+    {key:"other",label:"Other"}
+  ];
+  var _st1 = useState("driver_pay"), _st2 = _slicedToArray(_st1,2), lineType = _st2[0], setLineType = _st2[1];
+  var _st3 = useState(""), _st4 = _slicedToArray(_st3,2), lineDesc = _st4[0], setLineDesc = _st4[1];
+  var _st5 = useState(""), _st6 = _slicedToArray(_st5,2), lineAmt = _st6[0], setLineAmt = _st6[1];
+  var _st7 = useState("Small"), _st8 = _slicedToArray(_st7,2), lineBox = _st8[0], setLineBox = _st8[1];
+  var _st9 = useState(""), _st10 = _slicedToArray(_st9,2), lineQty = _st10[0], setLineQty = _st10[1];
+  var isBoxes = lineType === "boxes";
+  React.useEffect(function(){
+    if (isBoxes && lineQty) {
+      var unit = (boxUnitCosts || {})[lineBox] || 0;
+      setLineAmt((unit * (parseInt(lineQty)||0)).toFixed(2));
+    }
+  }, [lineBox, lineQty, isBoxes]);
+  var unitCost = (boxUnitCosts || {})[lineBox] || 0;
+  var lineTotal = isBoxes ? (unitCost * (parseInt(lineQty)||0)) : (parseFloat(lineAmt)||0);
+  return /*#__PURE__*/React.createElement("div", { style:{background:"var(--bg3)",borderRadius:8,padding:12,marginBottom:12} },
+    /*#__PURE__*/React.createElement("div", { className:"modal-section", style:{marginTop:0} }, "Add Line Item"),
+    /*#__PURE__*/React.createElement("div", { className:"fr3", style:{marginBottom:8} },
+      /*#__PURE__*/React.createElement("div", { className:"fg" },
+        /*#__PURE__*/React.createElement("label", { className:"fl" }, "Type"),
+        /*#__PURE__*/React.createElement("select", { className:"fi", value:lineType, onChange:function(e){ setLineType(e.target.value); setLineAmt(""); setLineQty(""); } },
+          EXP_TYPES.map(function(t){ return /*#__PURE__*/React.createElement("option", {key:t.key,value:t.key}, t.label); })
+        )
+      ),
+      isBoxes
+        ? /*#__PURE__*/React.createElement("div", { className:"fg" },
+            /*#__PURE__*/React.createElement("label", { className:"fl" }, "Box Size"),
+            /*#__PURE__*/React.createElement("select", { className:"fi", value:lineBox, onChange:function(e){ setLineBox(e.target.value); } },
+              (boxConfig||[]).filter(function(b){ return b.active && (boxUnitCosts||{})[b.key]; }).map(function(b){
+                return /*#__PURE__*/React.createElement("option", {key:b.key,value:b.key}, b.label, " ($", ((boxUnitCosts||{})[b.key]||0).toFixed(2), "/ea)");
+              })
+            )
+          )
+        : /*#__PURE__*/React.createElement("div", { className:"fg" },
+            /*#__PURE__*/React.createElement("label", { className:"fl" }, "Description"),
+            /*#__PURE__*/React.createElement("input", { className:"fi", value:lineDesc, onChange:function(e){ setLineDesc(e.target.value); }, placeholder:"Details..." })
+          ),
+      isBoxes
+        ? /*#__PURE__*/React.createElement("div", { className:"fg" },
+            /*#__PURE__*/React.createElement("label", { className:"fl" }, "Qty"),
+            /*#__PURE__*/React.createElement("input", { className:"fi", type:"number", min:"1", value:lineQty, onChange:function(e){ setLineQty(e.target.value); }, placeholder:"10" })
+          )
+        : /*#__PURE__*/React.createElement("div", { className:"fg" },
+            /*#__PURE__*/React.createElement("label", { className:"fl" }, "Amount ($)"),
+            /*#__PURE__*/React.createElement("input", { className:"fi", type:"number", value:lineAmt, onChange:function(e){ setLineAmt(e.target.value); }, placeholder:"0.00" })
+          )
+    ),
+    isBoxes && lineQty && /*#__PURE__*/React.createElement("div", { className:"mut xs", style:{marginBottom:8} },
+      "Unit: $", unitCost.toFixed(2), " \xD7 ", parseInt(lineQty)||0, " = $", lineTotal.toFixed(2)
+    ),
+    /*#__PURE__*/React.createElement("button", {
+      className:"btn btn-primary btn-sm",
+      disabled: isBoxes ? !(lineQty && parseInt(lineQty) > 0) : !(lineAmt && parseFloat(lineAmt) > 0),
+      onClick: function(){
+        var typeLabel = (EXP_TYPES.find(function(t){ return t.key === lineType; })||{}).label || lineType;
+        onAdd({type:typeLabel, description:isBoxes?"":lineDesc, boxType:isBoxes?lineBox:"", qty:isBoxes?parseInt(lineQty):null, unitCost:isBoxes?unitCost:null, amount:lineTotal});
+        setLineDesc(""); setLineAmt(""); setLineQty("");
+      }
+    }, "+ Add Item")
+  );
+};
+
 var ShipmentsPage = function ShipmentsPage(_ref94) {
   var shipments = _ref94.shipments,
     orders = _ref94.orders,
@@ -10402,7 +10494,11 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     onGenerateDocs = _ref94.onGenerateDocs,
     onSelectOrder = _ref94.onSelectOrder,
     onUpdateShipment = _ref94.onUpdateShipment,
-    notify = _ref94.notify;
+    notify = _ref94.notify,
+    _ref94$boxConfig = _ref94.boxConfig,
+    boxConfig = _ref94$boxConfig === void 0 ? BOX_CONFIG : _ref94$boxConfig,
+    _ref94$destinations = _ref94.destinations,
+    destinations = _ref94$destinations === void 0 ? DESTINATIONS : _ref94$destinations;
   var t = useT();
   var _useState47 = useState(null),
     _useState48 = _slicedToArray(_useState47, 2),
@@ -10440,18 +10536,19 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     _useState62e = _slicedToArray(_useState61e, 2),
     showExpenses = _useState62e[0],
     setShowExpenses = _useState62e[1];
-  var _useState63e = useState(""),
-    _useState64e = _slicedToArray(_useState63e, 2),
-    expNewCat = _useState64e[0],
-    setExpNewCat = _useState64e[1];
-  var _useState65e = useState(""),
-    _useState66e = _slicedToArray(_useState65e, 2),
-    expNewDesc = _useState66e[0],
-    setExpNewDesc = _useState66e[1];
-  var _useState67e = useState(""),
-    _useState68e = _slicedToArray(_useState67e, 2),
-    expNewAmt = _useState68e[0],
-    setExpNewAmt = _useState68e[1];
+  var _useStateNewExpForm = useState(false),
+    _useStateNewExpForm2 = _slicedToArray(_useStateNewExpForm, 2),
+    showNewExpForm = _useStateNewExpForm2[0],
+    setShowNewExpForm = _useStateNewExpForm2[1];
+  var _useStateExpViewId = useState(null),
+    _useStateExpViewId2 = _slicedToArray(_useStateExpViewId, 2),
+    viewingExpFormId = _useStateExpViewId2[0],
+    setViewingExpFormId = _useStateExpViewId2[1];
+  var _useStateNewExpFormData = useState({fromDate:"",toDate:"",items:[]}),
+    _useStateNewExpFormData2 = _slicedToArray(_useStateNewExpFormData, 2),
+    newExpFormData = _useStateNewExpFormData2[0],
+    setNewExpFormData = _useStateNewExpFormData2[1];
+  var BOX_UNIT_COSTS = {"Small":3.20,"Medium":10.00,"Large":12.25};
   var _useState69b = useState(false),
     _useState70b = _slicedToArray(_useState69b, 2),
     showBroadcast = _useState70b[0],
@@ -10521,6 +10618,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
       className: "mla row g10"
     }, showEditShipment && /*#__PURE__*/React.createElement(EditShipmentModal, {
       shipment: selected,
+      destinations: destinations,
       onClose: function onClose() { return setShowEditShipment(false); },
       onSave: function onSave(updated) {
         onUpdateShipment(updated);
@@ -10898,137 +10996,206 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     /*#__PURE__*/React.createElement("div", { className: "card-hd" },
       /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCB8 Expenses"),
       /*#__PURE__*/React.createElement("span", { className: "mut xs", style: { marginLeft: "auto" } },
-        "Total: ",
-        /*#__PURE__*/React.createElement("strong", { style: { color: "var(--amber)" } },
-          "$", ((selected.expenses || []).reduce(function(s, e) { return s + (parseFloat(e.amount) || 0); }, 0)).toFixed(2)
-        )
+        "Total: $", ((selected.expenseForms || []).reduce(function(s, ef){ return s + (ef.total || 0); }, 0)).toFixed(2)
       ),
       /*#__PURE__*/React.createElement("button", {
-        className: "btn btn-ghost btn-sm",
-        style: { marginLeft: 8 },
-        onClick: function onClick() { setShowExpenses(function(v) { return !v; }); }
-      }, showExpenses ? "\u25B4 Hide" : "\u25BE Manage"),
+        className: "btn btn-ghost btn-sm", style: { marginLeft: 8 },
+        onClick: function() { setShowExpenses(function(v){ return !v; }); }
+      }, showExpenses ? "\u25B4 Hide" : "\u25BE History"),
       /*#__PURE__*/React.createElement("button", {
-        className: "btn btn-ghost btn-sm",
-        onClick: function onClick() {
-          var rows = (selected.expenses || []);
-          var total = rows.reduce(function(s,e){return s+(parseFloat(e.amount)||0);},0);
-          var ifrm = document.createElement("iframe");
-          ifrm.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:8.5in;height:11in";
-          document.body.appendChild(ifrm);
-          var doc = ifrm.contentDocument;
-          doc.open();
-          doc.write("<!DOCTYPE html><html><head><style>" +
-            "body{font-family:Arial,sans-serif;padding:0.5in;color:#000}" +
-            "h1{font-size:18pt;font-weight:900;margin-bottom:4pt}" +
-            ".sub{font-size:9pt;color:#555;margin-bottom:0.2in}" +
-            "table{width:100%;border-collapse:collapse;margin-bottom:0.2in}" +
-            "th{background:#000;color:#fff;padding:5pt 8pt;text-align:left;font-size:8pt;text-transform:uppercase;letter-spacing:0.05em}" +
-            "td{padding:6pt 8pt;font-size:9pt;border-bottom:1pt solid #e5e5e5}" +
-            ".total{font-weight:900;font-size:11pt;text-align:right;border-top:2pt solid #000;padding-top:6pt}" +
-            "</style></head><body>" +
-            "<h1>EXPENSE SHEET</h1>" +
-            "<div class='sub'>Shipment: " + (selected.name || selected.id) + " &nbsp;|&nbsp; Destination: " + selected.destination + " &nbsp;|&nbsp; Date: " + (selected.date || "") + "</div>" +
-            "<table><thead><tr><th>Category</th><th>Description</th><th style='text-align:right'>Amount</th></tr></thead><tbody>" +
-            rows.map(function(e){
-              return "<tr><td>" + e.category + "</td><td>" + (e.description||"—") + "</td><td style='text-align:right'>$" + parseFloat(e.amount||0).toFixed(2) + "</td></tr>";
-            }).join("") +
-            "</tbody></table>" +
-            "<div class='total'>TOTAL EXPENSES: $" + total.toFixed(2) + "</div>" +
-            "</body></html>");
-          doc.close();
-          ifrm.contentWindow.focus();
-          ifrm.contentWindow.print();
-          ifrm.addEventListener("afterprint", function(){ document.body.removeChild(ifrm); });
-          setTimeout(function(){ if(document.body.contains(ifrm)) document.body.removeChild(ifrm); }, 8000);
-        }
-      }, "\uD83D\uDDA8 Print")
+        className: "btn btn-primary btn-sm", style: { marginLeft: 4 },
+        onClick: function() { setShowNewExpForm(true); setNewExpFormData({fromDate:"",toDate:"",items:[]}); }
+      }, "+ New Form")
     ),
-    showExpenses && /*#__PURE__*/React.createElement("div", { className: "card-bd" },
-      (selected.expenses || []).length === 0
-        ? /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginBottom: 10 } }, "No expenses yet. Add one below.")
-        : /*#__PURE__*/React.createElement("div", { className: "tbl", style: { marginBottom: 12 } },
+    showExpenses && (selected.expenseForms || []).length === 0
+      ? /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+          /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "No expense forms yet.")
+        )
+      : showExpenses && /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+          /*#__PURE__*/React.createElement("div", { className: "tbl" },
             /*#__PURE__*/React.createElement("table", null,
               /*#__PURE__*/React.createElement("thead", null,
                 /*#__PURE__*/React.createElement("tr", null,
-                  /*#__PURE__*/React.createElement("th", null, "Category"),
+                  /*#__PURE__*/React.createElement("th", null, "ID"),
+                  /*#__PURE__*/React.createElement("th", null, "Period"),
+                  /*#__PURE__*/React.createElement("th", null, "Items"),
+                  /*#__PURE__*/React.createElement("th", null, "Total"),
+                  /*#__PURE__*/React.createElement("th", null, "")
+                )
+              ),
+              /*#__PURE__*/React.createElement("tbody", null,
+                (selected.expenseForms || []).map(function(ef) {
+                  return /*#__PURE__*/React.createElement("tr", { key: ef.id },
+                    /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tamb" }, ef.id)),
+                    /*#__PURE__*/React.createElement("td", null, ef.fromDate, " \u2014 ", ef.toDate),
+                    /*#__PURE__*/React.createElement("td", null, (ef.items || []).length),
+                    /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, "$", (ef.total || 0).toFixed(2))),
+                    /*#__PURE__*/React.createElement("td", null,
+                      /*#__PURE__*/React.createElement("button", {
+                        className: "btn btn-ghost btn-xs",
+                        onClick: function(e){ e.stopPropagation(); setViewingExpFormId(ef.id); }
+                      }, "View/Print"),
+                      " ",
+                      /*#__PURE__*/React.createElement("button", {
+                        className: "btn btn-red btn-xs",
+                        onClick: function(e){
+                          e.stopPropagation();
+                          if (!window.confirm("Delete this expense form?")) return;
+                          var newForms = (selected.expenseForms || []).filter(function(x){ return x.id !== ef.id; });
+                          var newCost = newForms.reduce(function(s,x){ return s + (x.total || 0); }, 0);
+                          onUpdateShipment(Object.assign({}, selected, { expenseForms: newForms, cost: newCost }));
+                        }
+                      }, "Del")
+                    )
+                  );
+                })
+              )
+            )
+          )
+        ),
+    viewingExpFormId && (selected.expenseForms || []).find(function(ef){ return ef.id === viewingExpFormId; }) &&
+      /*#__PURE__*/React.createElement("div", { className: "overlay", onClick: function(e){ if(e.target===e.currentTarget) setViewingExpFormId(null); } },
+        /*#__PURE__*/React.createElement("div", { className: "modal modal-lg fu" }, (function(){
+          var ef = (selected.expenseForms || []).find(function(x){ return x.id === viewingExpFormId; });
+          return /*#__PURE__*/React.createElement(React.Fragment, null,
+            /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginBottom: 16 } },
+              /*#__PURE__*/React.createElement("span", { className: "modal-title", style: { margin: 0 } }, "\uD83D\uDCB8 ", ef.id),
+              /*#__PURE__*/React.createElement("button", { className: "btn btn-primary btn-sm", onClick: function(){
+                var rows = (ef.items||[]).map(function(it){ return "<tr><td>"+(it.type||"")+"</td><td>"+(it.description||it.boxType||"\u2014")+"</td><td>"+(it.qty||"")+"</td><td style='text-align:right'>$"+parseFloat(it.amount||0).toFixed(2)+"</td></tr>"; }).join("");
+                var ifrm = document.createElement("iframe");
+                ifrm.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:8.5in;height:11in";
+                document.body.appendChild(ifrm);
+                var doc = ifrm.contentDocument;
+                doc.open();
+                doc.write("<!DOCTYPE html><html><head><style>@page{margin:0.5in}body{font-family:Arial,sans-serif;color:#000}h1{font-size:16pt;font-weight:900;margin-bottom:4pt}.sub{font-size:9pt;color:#555;margin-bottom:0.2in}table{width:100%;border-collapse:collapse}th{background:#000;color:#fff;padding:5pt 8pt;font-size:8pt;text-align:left;text-transform:uppercase}td{padding:6pt 8pt;font-size:9pt;border-bottom:1pt solid #e5e5e5}.total-row{font-weight:900;font-size:12pt;text-align:right;border-top:2pt solid #000;padding-top:8pt;margin-top:4pt}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}</style></head><body>"+
+                  "<h1>CASABE XPRESS \u2014 EXPENSE SHEET</h1>"+
+                  "<div class='sub'>Shipment: "+(selected.name||selected.id)+" &nbsp;|&nbsp; Destination: "+selected.destination+" &nbsp;|&nbsp; Period: "+ef.fromDate+" to "+ef.toDate+"</div>"+
+                  "<table><thead><tr><th>Type</th><th>Description</th><th>Qty</th><th style='text-align:right'>Amount</th></tr></thead><tbody>"+rows+"</tbody></table>"+
+                  "<div class='total-row'>TOTAL: $"+parseFloat(ef.total||0).toFixed(2)+"</div>"+
+                  "</body></html>");
+                doc.close();
+                ifrm.contentWindow.focus();
+                ifrm.contentWindow.print();
+                ifrm.addEventListener("afterprint", function(){ document.body.removeChild(ifrm); });
+                setTimeout(function(){ if(document.body.contains(ifrm)) document.body.removeChild(ifrm); }, 8000);
+              }}, "\uD83D\uDDA8 Print"),
+              /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm mla", onClick: function(){ setViewingExpFormId(null); } }, "Close")
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginBottom: 8 } }, "Period: ", ef.fromDate, " \u2014 ", ef.toDate),
+            /*#__PURE__*/React.createElement("div", { className: "tbl" },
+              /*#__PURE__*/React.createElement("table", null,
+                /*#__PURE__*/React.createElement("thead", null,
+                  /*#__PURE__*/React.createElement("tr", null,
+                    /*#__PURE__*/React.createElement("th", null, "Type"),
+                    /*#__PURE__*/React.createElement("th", null, "Description"),
+                    /*#__PURE__*/React.createElement("th", null, "Qty"),
+                    /*#__PURE__*/React.createElement("th", null, "Amount")
+                  )
+                ),
+                /*#__PURE__*/React.createElement("tbody", null,
+                  (ef.items||[]).map(function(it, idx){
+                    return /*#__PURE__*/React.createElement("tr", { key: idx },
+                      /*#__PURE__*/React.createElement("td", null, it.type||""),
+                      /*#__PURE__*/React.createElement("td", null, it.description||it.boxType||"\u2014"),
+                      /*#__PURE__*/React.createElement("td", null, it.qty||""),
+                      /*#__PURE__*/React.createElement("td", null, "$", parseFloat(it.amount||0).toFixed(2))
+                    );
+                  })
+                )
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { style: { textAlign:"right", marginTop:12, fontWeight:700, fontSize:14 } },
+              "TOTAL: $", parseFloat(ef.total||0).toFixed(2)
+            )
+          );
+        })())
+      ),
+    showNewExpForm &&
+      /*#__PURE__*/React.createElement("div", { className: "overlay", onClick: function(e){ if(e.target===e.currentTarget) setShowNewExpForm(false); } },
+        /*#__PURE__*/React.createElement("div", { className: "modal modal-lg fu" },
+          /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginBottom: 16 } },
+            /*#__PURE__*/React.createElement("span", { className: "modal-title", style: { margin: 0 } }, "\uD83D\uDCB8 New Expense Form"),
+            /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm mla", onClick: function(){ setShowNewExpForm(false); } }, "Cancel")
+          ),
+          /*#__PURE__*/React.createElement("div", { className: "fr", style: { marginBottom: 12 } },
+            /*#__PURE__*/React.createElement("div", { className: "fg" },
+              /*#__PURE__*/React.createElement("label", { className: "fl" }, "Period Start"),
+              /*#__PURE__*/React.createElement("input", { className: "fi", type: "date", value: newExpFormData.fromDate,
+                onChange: function(e){ setNewExpFormData(function(p){ return Object.assign({},p,{fromDate:e.target.value}); }); }
+              })
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fg" },
+              /*#__PURE__*/React.createElement("label", { className: "fl" }, "Period End"),
+              /*#__PURE__*/React.createElement("input", { className: "fi", type: "date", value: newExpFormData.toDate,
+                onChange: function(e){ setNewExpFormData(function(p){ return Object.assign({},p,{toDate:e.target.value}); }); }
+              })
+            )
+          ),
+          /*#__PURE__*/React.createElement("div", { className: "modal-section" }, "Line Items"),
+          (newExpFormData.items||[]).length > 0 && /*#__PURE__*/React.createElement("div", { className: "tbl", style: { marginBottom: 12 } },
+            /*#__PURE__*/React.createElement("table", null,
+              /*#__PURE__*/React.createElement("thead", null,
+                /*#__PURE__*/React.createElement("tr", null,
+                  /*#__PURE__*/React.createElement("th", null, "Type"),
                   /*#__PURE__*/React.createElement("th", null, "Description"),
+                  /*#__PURE__*/React.createElement("th", null, "Qty"),
                   /*#__PURE__*/React.createElement("th", null, "Amount"),
                   /*#__PURE__*/React.createElement("th", null, "")
                 )
               ),
               /*#__PURE__*/React.createElement("tbody", null,
-                (selected.expenses || []).map(function(exp, idx) {
+                (newExpFormData.items||[]).map(function(it, idx){
                   return /*#__PURE__*/React.createElement("tr", { key: idx },
-                    /*#__PURE__*/React.createElement("td", null, exp.category),
-                    /*#__PURE__*/React.createElement("td", { className: "mut" }, exp.description || "—"),
-                    /*#__PURE__*/React.createElement("td", null, "$", parseFloat(exp.amount||0).toFixed(2)),
+                    /*#__PURE__*/React.createElement("td", null, it.type),
+                    /*#__PURE__*/React.createElement("td", null, it.description||it.boxType||""),
+                    /*#__PURE__*/React.createElement("td", null, it.qty||""),
+                    /*#__PURE__*/React.createElement("td", null, "$", parseFloat(it.amount||0).toFixed(2)),
                     /*#__PURE__*/React.createElement("td", null,
-                      /*#__PURE__*/React.createElement("button", {
-                        className: "btn btn-red btn-xs",
-                        onClick: function onClick() {
-                          var newExps = (selected.expenses || []).filter(function(_,i){return i!==idx;});
-                          var newCost = newExps.reduce(function(s,e){return s+(parseFloat(e.amount)||0);},0);
-                          var updated = Object.assign({}, selected, { expenses: newExps, cost: newCost });
-                          onUpdateShipment(updated);
+                      /*#__PURE__*/React.createElement("button", { className: "btn btn-red btn-xs",
+                        onClick: function(){
+                          setNewExpFormData(function(p){
+                            var its = p.items.filter(function(_,j){ return j !== idx; });
+                            return Object.assign({},p,{items:its});
+                          });
                         }
-                      }, "✕")
+                      }, "\xD7")
                     )
                   );
                 })
               )
             )
           ),
-      /*#__PURE__*/React.createElement("div", { className: "fr3", style: { gap: 8, alignItems: "flex-end" } },
-        /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginBottom: 0 } },
-          /*#__PURE__*/React.createElement("label", { className: "fl" }, "Category"),
-          /*#__PURE__*/React.createElement("select", {
-            className: "fi",
-            value: expNewCat,
-            onChange: function onChange(e) { return setExpNewCat(e.target.value); }
-          },
-            /*#__PURE__*/React.createElement("option", { value: "" }, "— Select —"),
-            ["Workers","Gas","Tolls","Car Maintenance","Food","Other"].map(function(c){
-              return /*#__PURE__*/React.createElement("option", { key: c, value: c }, c);
-            })
+          /*#__PURE__*/React.createElement(ExpenseLineAdder, {
+            onAdd: function(item){ setNewExpFormData(function(p){ return Object.assign({},p,{items:(p.items||[]).concat([item])}); }); },
+            boxUnitCosts: BOX_UNIT_COSTS,
+            boxConfig: boxConfig
+          }),
+          /*#__PURE__*/React.createElement("div", { style: { textAlign:"right", marginTop:8, fontWeight:700, fontSize:13, color:"var(--amber)" } },
+            "Form Total: $", ((newExpFormData.items||[]).reduce(function(s,it){ return s + (parseFloat(it.amount)||0); },0)).toFixed(2)
+          ),
+          /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 16, justifyContent: "flex-end" } },
+            /*#__PURE__*/React.createElement("button", {
+              className: "btn btn-primary",
+              disabled: !(newExpFormData.fromDate && newExpFormData.toDate && (newExpFormData.items||[]).length > 0),
+              onClick: function(){
+                var total = (newExpFormData.items||[]).reduce(function(s,it){ return s + (parseFloat(it.amount)||0); }, 0);
+                var newForm = Object.assign({}, newExpFormData, {
+                  id: "EXP-" + String(((selected.expenseForms||[]).length + 1)).padStart(3,"0"),
+                  createdAt: new Date().toISOString().slice(0,10),
+                  total: total
+                });
+                var newForms = (selected.expenseForms||[]).concat([newForm]);
+                var newCost = newForms.reduce(function(s,ef){ return s + (ef.total||0); }, 0);
+                onUpdateShipment(Object.assign({}, selected, { expenseForms: newForms, cost: newCost }));
+                setShowNewExpForm(false);
+                setNewExpFormData({fromDate:"",toDate:"",items:[]});
+              }
+            }, "\u2713 Submit Expense Form")
           )
-        ),
-        /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginBottom: 0 } },
-          /*#__PURE__*/React.createElement("label", { className: "fl" }, "Description"),
-          /*#__PURE__*/React.createElement("input", {
-            className: "fi",
-            placeholder: "Optional detail",
-            value: expNewDesc,
-            onChange: function onChange(e) { return setExpNewDesc(e.target.value); }
-          })
-        ),
-        /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginBottom: 0 } },
-          /*#__PURE__*/React.createElement("label", { className: "fl" }, "Amount ($)"),
-          /*#__PURE__*/React.createElement("input", {
-            className: "fi",
-            type: "number",
-            placeholder: "0.00",
-            value: expNewAmt,
-            onChange: function onChange(e) { return setExpNewAmt(e.target.value); }
-          })
-        ),
-        /*#__PURE__*/React.createElement("button", {
-          className: "btn btn-primary",
-          disabled: !expNewCat || !expNewAmt,
-          onClick: function onClick() {
-            if (!expNewCat || !expNewAmt) return;
-            var newExp = { category: expNewCat, description: expNewDesc, amount: parseFloat(expNewAmt) };
-            var newExps = (selected.expenses || []).concat([newExp]);
-            var newCost = newExps.reduce(function(s,e){return s+(parseFloat(e.amount)||0);},0);
-            var updated = Object.assign({}, selected, { expenses: newExps, cost: newCost });
-            onUpdateShipment(updated);
-            setExpNewCat(""); setExpNewDesc(""); setExpNewAmt("");
-          }
-        }, "+ Add")
+        )
       )
-    )
-  ),
-  /*#__PURE__*/React.createElement("div", { className: "card", style: { marginTop: 12 } },
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "card", style: { marginTop: 12 } },
     /*#__PURE__*/React.createElement("div", { className: "card-hd" },
       /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCE3 Broadcast to Senders"),
       /*#__PURE__*/React.createElement("span", { className: "mut xs", style: { marginLeft: "auto" } },
@@ -12155,7 +12322,13 @@ var ClaimsPage = function ClaimsPage(_ref106) {
 ════════════════════════════════════════════ */
 var PricingAdminPage = function PricingAdminPage(_ref107) {
   var pricing = _ref107.pricing,
-    onUpdate = _ref107.onUpdate;
+    onUpdate = _ref107.onUpdate,
+    onUpdateBoxConfig = _ref107.onUpdateBoxConfig,
+    onUpdateDestinations = _ref107.onUpdateDestinations,
+    _ref107$initialBoxConfig = _ref107.initialBoxConfig,
+    initialBoxConfig = _ref107$initialBoxConfig === void 0 ? BOX_CONFIG : _ref107$initialBoxConfig,
+    _ref107$initialDestinations = _ref107.initialDestinations,
+    initialDestinations = _ref107$initialDestinations === void 0 ? DESTINATIONS : _ref107$initialDestinations;
   var t = useT();
   var _useState67 = useState(JSON.parse(JSON.stringify(pricing))),
     _useState68 = _slicedToArray(_useState67, 2),
@@ -12185,12 +12358,34 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
       })));
     });
   };
+  var _useStateBoxCfg = useState(JSON.parse(JSON.stringify(initialBoxConfig))),
+    _useStateBoxCfg2 = _slicedToArray(_useStateBoxCfg, 2),
+    editBoxCfg = _useStateBoxCfg2[0],
+    setEditBoxCfg = _useStateBoxCfg2[1];
+  var _useStateDests = useState([].concat(initialDestinations)),
+    _useStateDests2 = _slicedToArray(_useStateDests, 2),
+    editDests = _useStateDests2[0],
+    setEditDests = _useStateDests2[1];
+  var _useStateNewDest = useState(""),
+    _useStateNewDest2 = _slicedToArray(_useStateNewDest, 2),
+    newDest = _useStateNewDest2[0],
+    setNewDest = _useStateNewDest2[1];
   var handleSave = function handleSave() {
     onUpdate(editPricing);
     setSaved(true);
     setTimeout(function () {
       return setSaved(false);
     }, 2000);
+  };
+  var handleSaveBoxTypes = function handleSaveBoxTypes() {
+    if (onUpdateBoxConfig) onUpdateBoxConfig(editBoxCfg);
+    setSaved(true);
+    setTimeout(function(){ return setSaved(false); }, 2000);
+  };
+  var handleSaveDests = function handleSaveDests() {
+    if (onUpdateDestinations) onUpdateDestinations(editDests);
+    setSaved(true);
+    setTimeout(function(){ return setSaved(false); }, 2000);
   };
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
@@ -12211,7 +12406,13 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     onClick: function onClick() {
       return setTab("whatsapp");
     }
-  }, "\uD83D\uDCAC Notifications")), tab === "pricing" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, "\uD83D\uDCAC Notifications"), /*#__PURE__*/React.createElement("div", {
+    className: "tab ".concat(tab === "boxtypes" ? "on" : ""),
+    onClick: function onClick() { return setTab("boxtypes"); }
+  }, "\uD83D\uDCE6 Box Types"), /*#__PURE__*/React.createElement("div", {
+    className: "tab ".concat(tab === "destinations" ? "on" : ""),
+    onClick: function onClick() { return setTab("destinations"); }
+  }, "\uD83C\uDF0E Destinations")), tab === "pricing" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "alert alert-b mb12"
   }, "\uD83D\uDCB2 Set your base price per destination + box size. Add a distance surcharge for destinations further from the ocean port. Prices auto-fill on new orders."), /*#__PURE__*/React.createElement("div", {
     className: "card"
@@ -12228,7 +12429,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     onClick: handleSave
   }, "Save Changes"))), /*#__PURE__*/React.createElement("div", {
     className: "tbl"
-  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Destination"), /*#__PURE__*/React.createElement("th", null, "Small ($)"), /*#__PURE__*/React.createElement("th", null, "Medium ($)"), /*#__PURE__*/React.createElement("th", null, "Large ($)"), /*#__PURE__*/React.createElement("th", null, "Freight ($)"), /*#__PURE__*/React.createElement("th", null, "Distance Surcharge ($)"), /*#__PURE__*/React.createElement("th", null, "Surcharge Name"))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(editPricing).map(function (_ref108) {
+  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Destination"), /*#__PURE__*/React.createElement("th", null, "(DISH) 18x18x28 ($)"), /*#__PURE__*/React.createElement("th", null, "(74) 24x26x24 ($)"), /*#__PURE__*/React.createElement("th", null, "(88) 34x26x28 ($)"), /*#__PURE__*/React.createElement("th", null, "Freight ($)"), /*#__PURE__*/React.createElement("th", null, "Distance Surcharge ($)"), /*#__PURE__*/React.createElement("th", null, "Surcharge Name"))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(editPricing).map(function (_ref108) {
     var _ref109 = _slicedToArray(_ref108, 2),
       dest = _ref109[0],
       row = _ref109[1];
@@ -12880,7 +13081,118 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
     }, s.name)), /*#__PURE__*/React.createElement("span", {
       className: "xs mut mono"
     }, s.ts));
-  }))))));
+  }))
+  , tab === "boxtypes" && /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
+      "\uD83D\uDCE6 Manage box types. Changes update the order form and pricing matrix. Archiving hides a type from new orders but preserves historical records."
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "card" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Box Types"),
+        /*#__PURE__*/React.createElement("div", { className: "row g10" },
+          saved && /*#__PURE__*/React.createElement("span", { className: "badge bg" }, "\u2713 Saved"),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary btn-sm", onClick: handleSaveBoxTypes }, "Save Changes")
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+        /*#__PURE__*/React.createElement("div", { className: "tbl" },
+          /*#__PURE__*/React.createElement("table", null,
+            /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null,
+              /*#__PURE__*/React.createElement("th", null, "Key"),
+              /*#__PURE__*/React.createElement("th", null, "Display Label"),
+              /*#__PURE__*/React.createElement("th", null, "Code"),
+              /*#__PURE__*/React.createElement("th", null, "Dimensions"),
+              /*#__PURE__*/React.createElement("th", null, "Status"),
+              /*#__PURE__*/React.createElement("th", null, "")
+            )),
+            /*#__PURE__*/React.createElement("tbody", null,
+              editBoxCfg.map(function(box, bIdx) {
+                return /*#__PURE__*/React.createElement("tr", { key: box.key + bIdx },
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tamb" }, box.key)),
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: box.label,
+                    onChange: function(e){ var vi=bIdx; setEditBoxCfg(function(p){ return p.map(function(b,i){ return i===vi?Object.assign({},b,{label:e.target.value}):b; }); }); },
+                    style: { padding: "4px 8px", fontSize: 12 }
+                  })),
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: box.code,
+                    onChange: function(e){ var vi=bIdx; setEditBoxCfg(function(p){ return p.map(function(b,i){ return i===vi?Object.assign({},b,{code:e.target.value}):b; }); }); },
+                    style: { width: 70, padding: "4px 8px", fontSize: 12 }
+                  })),
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: box.dims,
+                    onChange: function(e){ var vi=bIdx; setEditBoxCfg(function(p){ return p.map(function(b,i){ return i===vi?Object.assign({},b,{dims:e.target.value}):b; }); }); },
+                    style: { width: 110, padding: "4px 8px", fontSize: 12 }
+                  })),
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
+                    className: "btn btn-sm " + (box.active ? "btn-green" : "btn-ghost"),
+                    onClick: function(){ var vi=bIdx; setEditBoxCfg(function(p){ return p.map(function(b,i){ return i===vi?Object.assign({},b,{active:!b.active}):b; }); }); }
+                  }, box.active ? "Active" : "Archived")),
+                  /*#__PURE__*/React.createElement("td", null,
+                    !["Small","Medium","Large","Freight","Unknown"].includes(box.key) &&
+                      /*#__PURE__*/React.createElement("button", { className: "btn btn-red btn-xs",
+                        onClick: function(){ var vi=bIdx; if(!window.confirm("Remove "+box.key+"?"))return; setEditBoxCfg(function(p){ return p.filter(function(_,i){ return i!==vi; }); }); }
+                      }, "Del")
+                  )
+                );
+              })
+            )
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 12 } },
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm",
+            onClick: function(){ var k="Custom"+Date.now().toString().slice(-4); setEditBoxCfg(function(p){ return p.concat([{key:k,code:"",dims:"",label:k,active:true}]); }); }
+          }, "+ Add Box Type")
+        )
+      )
+    )
+  )
+  , tab === "destinations" && /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
+      "\uD83C\uDF0E Manage shipping destinations. Adding a destination creates a row in the pricing matrix."
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "card" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Destinations"),
+        /*#__PURE__*/React.createElement("div", { className: "row g10" },
+          saved && /*#__PURE__*/React.createElement("span", { className: "badge bg" }, "\u2713 Saved"),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary btn-sm", onClick: handleSaveDests }, "Save Changes")
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+        /*#__PURE__*/React.createElement("div", { className: "tbl", style: { marginBottom: 12 } },
+          /*#__PURE__*/React.createElement("table", null,
+            /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null,
+              /*#__PURE__*/React.createElement("th", null, "Destination"),
+              /*#__PURE__*/React.createElement("th", null, "")
+            )),
+            /*#__PURE__*/React.createElement("tbody", null,
+              editDests.map(function(d, dIdx) {
+                return /*#__PURE__*/React.createElement("tr", { key: d + dIdx },
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: d,
+                    onChange: function(e){ var vi=dIdx; setEditDests(function(p){ return p.map(function(x,i){ return i===vi?e.target.value:x; }); }); },
+                    style: { padding: "4px 8px", fontSize: 12 }
+                  })),
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", { className: "btn btn-red btn-xs",
+                    onClick: function(){ var vi=dIdx; if(!window.confirm("Remove "+d+"?"))return; setEditDests(function(p){ return p.filter(function(_,i){ return i!==vi; }); }); }
+                  }, "Del"))
+                );
+              })
+            )
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "row g10" },
+          /*#__PURE__*/React.createElement("input", { className: "fi", value: newDest,
+            onChange: function(e){ setNewDest(e.target.value); },
+            placeholder: "New destination...",
+            style: { maxWidth: 220, padding: "4px 8px", fontSize: 12 }
+          }),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm",
+            disabled: !newDest.trim(),
+            onClick: function(){ if(!newDest.trim())return; setEditDests(function(p){ return p.concat([newDest.trim()]); }); setNewDest(""); }
+          }, "+ Add Destination")
+        )
+      )
+    )
+  )
+  ))));
 };
 
 /* ════════════════════════════════════════════
@@ -17638,6 +17950,14 @@ function AppShell(_ref130) {
     _useState126 = _slicedToArray(_useState125, 2),
     pricing = _useState126[0],
     setPricing = _useState126[1];
+  var _useStateAppBoxCfg = useState(JSON.parse(JSON.stringify(BOX_CONFIG))),
+    _useStateAppBoxCfg2 = _slicedToArray(_useStateAppBoxCfg, 2),
+    appBoxConfig = _useStateAppBoxCfg2[0],
+    setAppBoxConfig = _useStateAppBoxCfg2[1];
+  var _useStateAppDests = useState([].concat(DESTINATIONS)),
+    _useStateAppDests2 = _slicedToArray(_useStateAppDests, 2),
+    appDestinations = _useStateAppDests2[0],
+    setAppDestinations = _useStateAppDests2[1];
   var _useState127 = useState(session.roleKey || "hq"),
     _useState128 = _slicedToArray(_useState127, 2),
     roleKey = _useState128[0],
@@ -17826,7 +18146,9 @@ function AppShell(_ref130) {
       _db.loadAll("claims"),
       _db.loadAll("receipts"),
       _db.loadSettings("main"),
-      _db.loadSettings("pricing")
+      _db.loadSettings("pricing"),
+      _db.loadSettings("boxConfig"),
+      _db.loadSettings("destinations")
     ]).then(function(results) {
       var dbOrders    = results[0];
       var dbShipments = results[1];
@@ -17834,12 +18156,16 @@ function AppShell(_ref130) {
       var dbReceipts  = results[3];
       var dbTenant    = results[4];
       var dbPricing   = results[5];
+      var dbBoxConfig = results[6];
+      var dbDests     = results[7];
       if (dbOrders.length    > 0) setOrders(dbOrders);
       if (dbShipments.length > 0) setShipments(dbShipments);
       if (dbClaims.length    > 0) setClaims(dbClaims);
       if (dbReceipts.length  > 0) setReceipts(dbReceipts);
       if (dbTenant)               setTenant(dbTenant);
       if (dbPricing)              setPricing(dbPricing);
+      if (dbBoxConfig && Array.isArray(dbBoxConfig)) setAppBoxConfig(dbBoxConfig);
+      if (dbDests && Array.isArray(dbDests))         setAppDestinations(dbDests);
     }).catch(function(e) {
       console.error("[db] initial data load failed:", e);
       if (e && e.message && e.message.startsWith("db:404")) {
@@ -18053,7 +18379,8 @@ setOrders(function (prev) {
   var renderPage = function renderPage() {
     // HQ pages
     if (page === "overview") return /*#__PURE__*/React.createElement(HQOverview, {
-      orders: orders
+      orders: orders,
+      destinations: appDestinations
     });
     if (page === "analytics") return /*#__PURE__*/React.createElement(HQAnalytics, {
       orders: orders
@@ -18111,11 +18438,27 @@ setOrders(function (prev) {
     });
     if (page === "pricing") return /*#__PURE__*/React.createElement(PricingAdminPage, {
       pricing: pricing,
+      initialBoxConfig: appBoxConfig,
+      initialDestinations: appDestinations,
       onUpdate: function(newPricing) {
         setPricing(newPricing);
         if (session && session.tenantId) {
           _db.init(session.tenantId);
           _db.saveSettings("pricing", newPricing);
+        }
+      },
+      onUpdateBoxConfig: function(newBoxConfig) {
+        setAppBoxConfig(newBoxConfig);
+        if (session && session.tenantId) {
+          _db.init(session.tenantId);
+          _db.saveSettings("boxConfig", newBoxConfig);
+        }
+      },
+      onUpdateDestinations: function(newDests) {
+        setAppDestinations(newDests);
+        if (session && session.tenantId) {
+          _db.init(session.tenantId);
+          _db.saveSettings("destinations", newDests);
         }
       }
     });
@@ -18130,6 +18473,8 @@ setOrders(function (prev) {
     if (page === "shipments") return /*#__PURE__*/React.createElement(ShipmentsPage, {
       shipments: shipments,
       orders: orders,
+      boxConfig: appBoxConfig,
+      destinations: appDestinations,
       onCreateBatch: function onCreateBatch(newShipment) {
         setShipments(function(prev) { return [newShipment].concat(_toConsumableArray(prev)); });
         if (session && session.tenantId) {
@@ -18559,7 +18904,9 @@ setOrders(function (prev) {
     driversList: tenantDrivers,
     officesList: tenantOffices,
     existingOrders: orders,
-    shipmentsList: shipments
+    shipmentsList: shipments,
+    boxConfig: appBoxConfig,
+    destinations: appDestinations
   }), editOrder && /*#__PURE__*/React.createElement(OrderForm, {
     title: "Edit Order \u2014 ".concat(editOrder.id),
     initial: editOrder,
@@ -18572,7 +18919,9 @@ setOrders(function (prev) {
     driversList: tenantDrivers,
     officesList: tenantOffices,
     existingOrders: orders,
-    shipmentsList: shipments
+    shipmentsList: shipments,
+    boxConfig: appBoxConfig,
+    destinations: appDestinations
   }), selectedOrder && /*#__PURE__*/React.createElement(OrderDetail, {
     order: selectedOrder,
     onClose: function onClose() {
