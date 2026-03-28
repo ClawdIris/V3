@@ -1436,6 +1436,9 @@ var OrderForm = function OrderForm(_ref4) {
     existingOrders = _ref4$existingOrders === void 0 ? [] : _ref4$existingOrders,
     _ref4$shipmentsList = _ref4.shipmentsList,
     shipmentsList = _ref4$shipmentsList === void 0 ? [] : _ref4$shipmentsList,
+    _ref4$receivers = _ref4.receivers,
+    receivers = _ref4$receivers === void 0 ? [] : _ref4$receivers,
+    onSaveReceiver = _ref4.onSaveReceiver || function() {},
     _ref4$boxConfig = _ref4.boxConfig,
     boxConfig = _ref4$boxConfig === void 0 ? BOX_CONFIG : _ref4$boxConfig,
     _ref4$destinations = _ref4.destinations,
@@ -2073,6 +2076,7 @@ var OrderForm = function OrderForm(_ref4) {
     className: "modal-section"
   }, t("Consignee (Receiving Party)", "Consignatario (Receptor)")), /*#__PURE__*/React.createElement(ConsigneeSearch, {
     orders: existingOrders,
+    receivers: receivers,
     currentId: f.id,
     onFill: function onFill(d) {
       Object.entries(d).forEach(function (_ref17) {
@@ -4747,6 +4751,27 @@ var InvoiceModal = function InvoiceModal(_ref48) {
     return b.label === order.boxType;
   })) === null || _tenant$boxSizes === void 0 ? void 0 : _tenant$boxSizes.dims) || "";
   var itemDesc = order.description || order.itemType || "General merchandise";
+  // Build per-box rows: use order.boxes[] if available (mixed types), else fallback
+  var invoiceRows = (order.boxes && order.boxes.length > 0)
+    ? order.boxes.map(function(box, idx) {
+        var unitP = pricing[order.destination] ? (pricing[order.destination][box.boxType] || 0) : 0;
+        return {
+          qty: 1,
+          boxType: box.boxType || order.boxType || "Unknown",
+          unitPrice: unitP,
+          desc: box.description || itemDesc,
+          declaredValue: box.value || order.declaredValue || "",
+          amount: unitP
+        };
+      })
+    : [{
+        qty: order.boxCount || 1,
+        boxType: order.boxType,
+        unitPrice: (order.boxCount||1) > 0 ? boxBase / (order.boxCount||1) : boxBase,
+        desc: itemDesc,
+        declaredValue: order.declaredValue || "",
+        amount: boxBase
+      }];
   var invoiceDate = order.createdAt || today();
   var customTerms = (_sender$invoiceTerms = sender.invoiceTerms) === null || _sender$invoiceTerms === void 0 ? void 0 : _sender$invoiceTerms.trim();
   var DEFAULT_TERMS = [{
@@ -4840,7 +4865,19 @@ var InvoiceModal = function InvoiceModal(_ref48) {
       width: "13%",
       textAlign: "right"
     }
-  }, "Amount"))), /*#__PURE__*/React.createElement("tbody", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", null, order.boxCount || 1), /*#__PURE__*/React.createElement("td", null, order.boxType, boxDims ? " \u2014 ".concat(boxDims) : ""), /*#__PURE__*/React.createElement("td", null, "$", (order.boxCount || 1) > 0 ? (boxBase / (order.boxCount || 1)).toFixed(2) : boxBase.toFixed(2)), /*#__PURE__*/React.createElement("td", null, itemDesc), /*#__PURE__*/React.createElement("td", {
+  }, "Amount"))),
+  /*#__PURE__*/React.createElement("tbody", null,
+    invoiceRows.map(function(row, ridx) {
+      return /*#__PURE__*/React.createElement("tr", { key: ridx },
+        /*#__PURE__*/React.createElement("td", null, row.qty),
+        /*#__PURE__*/React.createElement("td", null, row.boxType),
+        /*#__PURE__*/React.createElement("td", null, "$", row.unitPrice.toFixed(2)),
+        /*#__PURE__*/React.createElement("td", null, row.desc),
+        /*#__PURE__*/React.createElement("td", { style: { textAlign: "right" } }, row.declaredValue ? "$".concat(parseFloat(row.declaredValue).toFixed(2)) : "\u2014"),
+        /*#__PURE__*/React.createElement("td", { style: { textAlign: "right", fontWeight: 700 } }, "$", row.amount.toFixed(2))
+      );
+    }),
+  /*#__PURE__*/React.createElement("tr", { style: { display: "none" } }, /*#__PURE__*/React.createElement("td", null, order.boxCount || 1), /*#__PURE__*/React.createElement("td", null, order.boxType, boxDims ? " \u2014 ".concat(boxDims) : ""), /*#__PURE__*/React.createElement("td", null, "$", (order.boxCount || 1) > 0 ? (boxBase / (order.boxCount || 1)).toFixed(2) : boxBase.toFixed(2)), /*#__PURE__*/React.createElement("td", null, itemDesc), /*#__PURE__*/React.createElement("td", {
     style: {
       textAlign: "right"
     }
@@ -5124,39 +5161,17 @@ var InvoiceModal = function InvoiceModal(_ref48) {
         fontWeight: 700
       }
     }, h);
-  }))), /*#__PURE__*/React.createElement("tbody", null, /*#__PURE__*/React.createElement("tr", {
-    style: {
-      borderBottom: "1px solid #eee"
-    }
-  }, /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px"
-    }
-  }, order.boxCount || 1), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px"
-    }
-  }, order.boxType), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px"
-    }
-  }, "$", (order.boxCount || 1) > 0 ? (boxBase / (order.boxCount || 1)).toFixed(2) : boxBase.toFixed(2)), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px",
-      color: "#444"
-    }
-  }, itemDesc), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px",
-      textAlign: "right"
-    }
-  }, order.declaredValue ? "$".concat(parseFloat(order.declaredValue).toFixed(2)) : "—"), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px",
-      textAlign: "right",
-      fontWeight: 700
-    }
-  }, "$", boxBase.toFixed(2))), order.insurance && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+  }))), /*#__PURE__*/React.createElement("tbody", null,
+    invoiceRows.map(function(row, ridx) {
+      return /*#__PURE__*/React.createElement("tr", { key: ridx, style: { borderBottom: "1px solid #eee" } },
+        /*#__PURE__*/React.createElement("td", { style: { padding: "5px 6px" } }, row.qty),
+        /*#__PURE__*/React.createElement("td", { style: { padding: "5px 6px" } }, row.boxType),
+        /*#__PURE__*/React.createElement("td", { style: { padding: "5px 6px" } }, "$", row.unitPrice.toFixed(2)),
+        /*#__PURE__*/React.createElement("td", { style: { padding: "5px 6px", color: "#444" } }, row.desc),
+        /*#__PURE__*/React.createElement("td", { style: { padding: "5px 6px", textAlign: "right" } }, row.declaredValue ? "$".concat(parseFloat(row.declaredValue).toFixed(2)) : "—"),
+        /*#__PURE__*/React.createElement("td", { style: { padding: "5px 6px", textAlign: "right", fontWeight: 700 } }, "$", row.amount.toFixed(2))
+      );
+    }), order.insurance && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
     style: {
       padding: "5px 6px"
     }
@@ -10544,6 +10559,14 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     _useStateExpViewId2 = _slicedToArray(_useStateExpViewId, 2),
     viewingExpFormId = _useStateExpViewId2[0],
     setViewingExpFormId = _useStateExpViewId2[1];
+  var _useStateRecentPicker = useState(false),
+    _useStateRecentPicker2 = _slicedToArray(_useStateRecentPicker, 2),
+    showRecentExpPicker = _useStateRecentPicker2[0],
+    setShowRecentExpPicker = _useStateRecentPicker2[1];
+  var _useStateRecentView = useState(null),
+    _useStateRecentView2 = _slicedToArray(_useStateRecentView, 2),
+    recentExpView = _useStateRecentView2[0],
+    setRecentExpView = _useStateRecentView2[1];
   var _useStateNewExpFormData = useState({fromDate:"",toDate:"",items:[]}),
     _useStateNewExpFormData2 = _slicedToArray(_useStateNewExpFormData, 2),
     newExpFormData = _useStateNewExpFormData2[0],
@@ -10992,6 +11015,144 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
       }, "\u21AA Move " + shpOrders.length + " Orders")
     )
   ))),
+  /*#__PURE__*/React.createElement("div", { style: { marginTop: 12, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 } },
+    /*#__PURE__*/React.createElement("span", { style: { fontSize: 11, color: "var(--text3)", fontWeight: 600 } }, "\uD83D\uDCCB Expense Sheets:"),
+    /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-ghost btn-sm",
+      onClick: function() { setShowRecentExpPicker(function(v){ return !v; }); }
+    }, showRecentExpPicker ? "\u25B4 Hide Recent" : "\u25BE View Recent (12)"),
+    showRecentExpPicker && /*#__PURE__*/React.createElement("span", { className: "mut xs" }, "All shipments with expense forms")
+  ),
+  showRecentExpPicker && /*#__PURE__*/React.createElement("div", { className: "card", style: { marginBottom: 12 } },
+    /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+      /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Recent Expense Sheets"),
+      /*#__PURE__*/React.createElement("span", { className: "mut xs", style: { marginLeft: "auto" } }, "12 most recent")
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "card-bd", style: { padding: 0 } },
+      (function() {
+        var recentShips = shipments
+          .filter(function(s) { return (s.expenseForms || []).length > 0; })
+          .sort(function(a,b) { return (b.lockedAt||b.id) > (a.lockedAt||a.id) ? 1 : -1; })
+          .slice(0, 12);
+        if (recentShips.length === 0) {
+          return /*#__PURE__*/React.createElement("div", { className: "card-bd mut xs" }, "No expense forms found in any shipment yet.");
+        }
+        return /*#__PURE__*/React.createElement("div", { className: "tbl" },
+          /*#__PURE__*/React.createElement("table", null,
+            /*#__PURE__*/React.createElement("thead", null,
+              /*#__PURE__*/React.createElement("tr", null,
+                /*#__PURE__*/React.createElement("th", null, "Shipment"),
+                /*#__PURE__*/React.createElement("th", null, "Destination"),
+                /*#__PURE__*/React.createElement("th", null, "Forms"),
+                /*#__PURE__*/React.createElement("th", null, "Total"),
+                /*#__PURE__*/React.createElement("th", null, "")
+              )
+            ),
+            /*#__PURE__*/React.createElement("tbody", null,
+              recentShips.map(function(shp) {
+                var total = (shp.expenseForms||[]).reduce(function(s,ef){ return s+(ef.total||0); }, 0);
+                return /*#__PURE__*/React.createElement("tr", { key: shp.id },
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tag" }, shp.id), " ", shp.name||""),
+                  /*#__PURE__*/React.createElement("td", null, shp.destination||"—"),
+                  /*#__PURE__*/React.createElement("td", null, (shp.expenseForms||[]).length, " form", (shp.expenseForms||[]).length !== 1 ? "s" : ""),
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("strong", null, "$", total.toFixed(2))),
+                  /*#__PURE__*/React.createElement("td", null,
+                    /*#__PURE__*/React.createElement("button", {
+                      className: "btn btn-ghost btn-xs",
+                      onClick: function() {
+                        setRecentExpView({ shipment: shp, formId: (shp.expenseForms[0]||{}).id });
+                      }
+                    }, "Open")
+                  )
+                );
+              })
+            )
+          )
+        );
+      })()
+    )
+  ),
+  recentExpView && /*#__PURE__*/React.createElement("div", { className: "overlay", onClick: function(e){ if(e.target===e.currentTarget) setRecentExpView(null); } },
+    /*#__PURE__*/React.createElement("div", { className: "modal modal-lg fu" },
+      /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginBottom: 16 } },
+        /*#__PURE__*/React.createElement("span", { className: "modal-title", style: { margin: 0 } },
+          "\uD83D\uDCB8 Expense Sheet \u2014 ", recentExpView.shipment.id
+        ),
+        /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm mla", onClick: function(){ setRecentExpView(null); } }, "Close")
+      ),
+      /*#__PURE__*/React.createElement("div", { style: { marginBottom: 12 } },
+        /*#__PURE__*/React.createElement("label", { className: "fl" }, "Select Form"),
+        /*#__PURE__*/React.createElement("select", {
+          className: "fi",
+          value: recentExpView.formId || "",
+          onChange: function(e) { setRecentExpView(function(p){ return Object.assign({},p,{formId:e.target.value}); }); }
+        },
+          (recentExpView.shipment.expenseForms||[]).map(function(ef) {
+            return /*#__PURE__*/React.createElement("option", { key: ef.id, value: ef.id },
+              ef.id, " — ", ef.fromDate, " to ", ef.toDate, " ($", parseFloat(ef.total||0).toFixed(2), ")"
+            );
+          })
+        )
+      ),
+      (function(){
+        var ef = (recentExpView.shipment.expenseForms||[]).find(function(f){ return f.id === recentExpView.formId; });
+        if (!ef) return null;
+        return /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginBottom: 8 } },
+            "Period: ", ef.fromDate, " \u2014 ", ef.toDate, " \u00B7 Shipment: ", recentExpView.shipment.destination||""
+          ),
+          /*#__PURE__*/React.createElement("div", { className: "tbl" },
+            /*#__PURE__*/React.createElement("table", null,
+              /*#__PURE__*/React.createElement("thead", null,
+                /*#__PURE__*/React.createElement("tr", null,
+                  /*#__PURE__*/React.createElement("th", null, "Type"),
+                  /*#__PURE__*/React.createElement("th", null, "Description"),
+                  /*#__PURE__*/React.createElement("th", null, "Qty"),
+                  /*#__PURE__*/React.createElement("th", null, "Amount")
+                )
+              ),
+              /*#__PURE__*/React.createElement("tbody", null,
+                (ef.items||[]).map(function(it, idx) {
+                  return /*#__PURE__*/React.createElement("tr", { key: idx },
+                    /*#__PURE__*/React.createElement("td", null, it.type||""),
+                    /*#__PURE__*/React.createElement("td", null, it.description||it.boxType||"\u2014"),
+                    /*#__PURE__*/React.createElement("td", null, it.qty||""),
+                    /*#__PURE__*/React.createElement("td", null, "$", parseFloat(it.amount||0).toFixed(2))
+                  );
+                })
+              )
+            )
+          ),
+          /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", marginTop: 12, fontWeight: 700 } },
+            "TOTAL: $", parseFloat(ef.total||0).toFixed(2)
+          ),
+          /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 16 } },
+            /*#__PURE__*/React.createElement("button", {
+              className: "btn btn-primary btn-sm",
+              onClick: function() {
+                var ifrm = document.createElement("iframe");
+                ifrm.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;";
+                document.body.appendChild(ifrm);
+                var doc = ifrm.contentDocument || ifrm.contentWindow.document;
+                doc.open();
+                doc.write("<!DOCTYPE html><html><head><style>@page{margin:0.5in}body{font-family:Arial,sans-serif;font-size:10pt}.total-row{font-weight:700;font-size:11pt;margin-top:8pt;border-top:1pt solid #000;padding-top:4pt}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px;font-size:9pt}th{background:#f5f5f5}</style></head><body>" +
+                  "<h2>Expense Sheet: "+ef.id+"</h2>" +
+                  "<p>Shipment: "+recentExpView.shipment.id+" — "+recentExpView.shipment.destination+"</p>" +
+                  "<p>Period: "+ef.fromDate+" to "+ef.toDate+"</p>" +
+                  "<table><tr><th>Type</th><th>Description</th><th>Qty</th><th>Amount</th></tr>" +
+                  (ef.items||[]).map(function(it){ return "<tr><td>"+(it.type||"")+"</td><td>"+(it.description||it.boxType||"")+"</td><td>"+(it.qty||"")+"</td><td>$"+parseFloat(it.amount||0).toFixed(2)+"</td></tr>"; }).join("") +
+                  "<tr class='total-row'><td colspan='3'>TOTAL</td><td>$"+parseFloat(ef.total||0).toFixed(2)+"</td></tr></table></body></html>");
+                doc.close();
+                ifrm.contentWindow.focus();
+                ifrm.contentWindow.print();
+                setTimeout(function(){ if(document.body.contains(ifrm)) document.body.removeChild(ifrm); }, 8000);
+              }
+            }, "\uD83D\uDDA8 Print")
+          )
+        );
+      })()
+    )
+  ),
   /*#__PURE__*/React.createElement("div", { className: "card", style: { marginTop: 12 } },
     /*#__PURE__*/React.createElement("div", { className: "card-hd" },
       /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCB8 Expenses"),
@@ -16891,6 +17052,8 @@ var CustomerSearch = function CustomerSearch(_ref121) {
 var ConsigneeSearch = function ConsigneeSearch(_ref122) {
   var _ref122$orders = _ref122.orders,
     orders = _ref122$orders === void 0 ? [] : _ref122$orders,
+    _ref122$receivers = _ref122.receivers,
+    receivers = _ref122$receivers === void 0 ? [] : _ref122$receivers,
     onFill = _ref122.onFill,
     _ref122$currentId = _ref122.currentId,
     currentId = _ref122$currentId === void 0 ? "" : _ref122$currentId;
@@ -16908,19 +17071,19 @@ var ConsigneeSearch = function ConsigneeSearch(_ref122) {
     setShow = _useState100[1];
   var search = function search(val) {
     setQ(val);
-    if (!val || val.length < 1) {
-      setResults([]);
-      setShow(false);
-      return;
-    }
+    if (!val || val.length < 1) { setResults([]); setShow(false); return; }
     var lower = val.toLowerCase();
     var seen = new Map();
+    (receivers || []).forEach(function(r) {
+      if ((r.consigneeName && r.consigneeName.toLowerCase().includes(lower)) || (r.consigneePhone && r.consigneePhone.includes(lower)))
+        seen.set(r.consigneePhone || r.consigneeName, r);
+    });
     orders.filter(function (o) {
       return o.id !== currentId;
     }).forEach(function (o) {
       var cName = o.consigneeName || o.name;
       var cPhone = o.consigneePhone || o.phone;
-      var match = (cName === null || cName === void 0 ? void 0 : cName.toLowerCase().includes(lower)) || (cPhone === null || cPhone === void 0 ? void 0 : cPhone.replace(/[^0-9+]/g, "").includes(val.replace(/[^0-9+]/g, "")));
+      var match = (cName && cName.toLowerCase().includes(lower)) || (cPhone === null || cPhone === void 0 ? void 0 : cPhone.replace(/[^0-9+]/g, "").includes(val.replace(/[^0-9+]/g, "")));
       if (match) {
         var key = cPhone || cName;
         if (!seen.has(key)) seen.set(key, _objectSpread(_objectSpread({}, o), {}, {
@@ -16932,7 +17095,7 @@ var ConsigneeSearch = function ConsigneeSearch(_ref122) {
         }));
       }
     });
-    setResults(_toConsumableArray(seen.values()).slice(0, 5));
+    setResults(_toConsumableArray(seen.values()).slice(0, 8));
     setShow(true);
   };
   var pick = function pick(o) {
@@ -17963,6 +18126,10 @@ function AppShell(_ref130) {
     _useState120 = _slicedToArray(_useState119, 2),
     orders = _useState120[0],
     setOrders = _useState120[1];
+  var _useState_rec1 = useState([]),
+    _useState_rec2 = _slicedToArray(_useState_rec1, 2),
+    receivers = _useState_rec2[0],
+    setReceivers = _useState_rec2[1];
   var _useState121 = useState([]),
     _useState122 = _slicedToArray(_useState121, 2),
     shipments = _useState122[0],
@@ -18170,6 +18337,7 @@ function AppShell(_ref130) {
       _db.loadAll("shipments"),
       _db.loadAll("claims"),
       _db.loadAll("receipts"),
+      _db.loadAll("receivers"),
       _db.loadSettings("main"),
       _db.loadSettings("pricing"),
       _db.loadSettings("boxConfig"),
@@ -18179,14 +18347,16 @@ function AppShell(_ref130) {
       var dbShipments = results[1];
       var dbClaims    = results[2];
       var dbReceipts  = results[3];
-      var dbTenant    = results[4];
-      var dbPricing   = results[5];
-      var dbBoxConfig = results[6];
-      var dbDests     = results[7];
+      var dbReceivers = results[4];
+      var dbTenant    = results[5];
+      var dbPricing   = results[6];
+      var dbBoxConfig = results[7];
+      var dbDests     = results[8];
       if (dbOrders.length    > 0) setOrders(dbOrders);
       if (dbShipments.length > 0) setShipments(dbShipments);
       if (dbClaims.length    > 0) setClaims(dbClaims);
       if (dbReceipts.length  > 0) setReceipts(dbReceipts);
+      if (dbReceivers.length > 0) setReceivers(dbReceivers);
       if (dbTenant)               setTenant(dbTenant);
       if (dbPricing)              setPricing(dbPricing);
       if (dbBoxConfig && Array.isArray(dbBoxConfig)) setAppBoxConfig(dbBoxConfig);
@@ -18311,6 +18481,12 @@ setOrders(function (prev) {
       _db.upsert("orders", order.id, order).catch(function() {
         notify("⚠️ Order saved locally but failed to sync — check connection");
       });
+      if (order.consigneeName && order.consigneePhone) {
+        var recId = (order.consigneePhone||order.consigneeName).replace(/[^a-zA-Z0-9_+]/g,"");
+        var rec = { id: recId, consigneeName: order.consigneeName, consigneePhone: order.consigneePhone, consigneeAddress: order.consigneeAddress||"", consigneeCity: order.consigneeCity||"", consigneeCountry: order.consigneeCountry||order.destination||"" };
+        setReceivers(function(prev){ var ex=prev.find(function(r){return r.id===recId;}); return ex?prev.map(function(r){return r.id===recId?rec:r;}):[rec].concat(prev); });
+        _db.upsert("receivers", recId, rec).catch(function(){});
+      }
     }
     setShowNewOrder(false);
     setEditOrder(null);
@@ -18930,6 +19106,7 @@ setOrders(function (prev) {
     officesList: tenantOffices,
     existingOrders: orders,
     shipmentsList: shipments,
+    receivers: receivers,
     boxConfig: appBoxConfig,
     destinations: appDestinations
   }), editOrder && /*#__PURE__*/React.createElement(OrderForm, {
@@ -18945,6 +19122,7 @@ setOrders(function (prev) {
     officesList: tenantOffices,
     existingOrders: orders,
     shipmentsList: shipments,
+    receivers: receivers,
     boxConfig: appBoxConfig,
     destinations: appDestinations
   }), selectedOrder && /*#__PURE__*/React.createElement(OrderDetail, {
