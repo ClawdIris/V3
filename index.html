@@ -12562,7 +12562,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     setSaved(true);
     setTimeout(function(){ return setSaved(false); }, 2000);
   };
-  var _tabContent = (function(){
+  var _tabContent = (function(tab){
     if (tab === "boxtypes") return (/*#__PURE__*/React.createElement("div", null,
     /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
       "\uD83D\uDCE6 Manage box types. Changes update the order form and pricing matrix. Archiving hides a type from new orders but preserves historical records."
@@ -12706,7 +12706,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     );
   })());
     return null;
-  })();
+  })(tab);
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
   }, /*#__PURE__*/React.createElement("div", {
