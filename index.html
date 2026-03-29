@@ -12577,7 +12577,8 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     _ref107$initialDestinations = _ref107.initialDestinations,
     initialDestinations = _ref107$initialDestinations === void 0 ? DESTINATIONS : _ref107$initialDestinations;
   var t = useT();
-  var _useState67 = useState(JSON.parse(JSON.stringify(pricing))),
+  var _safePricing = pricing && typeof pricing === "object" && !Array.isArray(pricing) ? pricing : DEFAULT_PRICING;
+  var _useState67 = useState(JSON.parse(JSON.stringify(_safePricing))),
     _useState68 = _slicedToArray(_useState67, 2),
     editPricing = _useState68[0],
     setEditPricing = _useState68[1];
@@ -12628,7 +12629,8 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     setEditDests([].concat(safe));
   }, [initialDestinations]);
   React.useEffect(function() {
-    setEditPricing(JSON.parse(JSON.stringify(pricing)));
+    var sp = pricing && typeof pricing === "object" && !Array.isArray(pricing) ? pricing : DEFAULT_PRICING;
+    setEditPricing(JSON.parse(JSON.stringify(sp)));
   }, [pricing]);
   React.useEffect(function() {
     var keys = (Array.isArray(editBoxCfg) ? editBoxCfg : []).filter(function (b) {
@@ -12638,7 +12640,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     });
     setEditPricing(function (p) {
       var next = {};
-      Object.keys(p).forEach(function (dest) {
+      Object.keys(p || {}).forEach(function (dest) {
         var row = _objectSpread(_objectSpread({}, p[dest]), {});
         keys.forEach(function (k) {
           if (row[k] === undefined) row[k] = 0;
@@ -12678,7 +12680,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
   var _opsReqConfirm = (tenant || {}).requireVoidConfirm !== false;
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, [/*#__PURE__*/React.createElement("div", {
     className: "tabs"
   }, /*#__PURE__*/React.createElement("div", {
     className: "tab ".concat(tab === "pricing" ? "on" : ""),
@@ -12984,7 +12986,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
       }
     }, "\"", t.msg, "\""));
   }))
-  ))), tab === "boxtypes" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  ), tab === "boxtypes" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "alert alert-b mb12"
   }, "\uD83D\uDCE6 Manage box types. Changes update the order form and pricing matrix. Archiving hides a type from new orders but preserves historical records."), /*#__PURE__*/React.createElement("div", {
     className: "card"
@@ -13232,7 +13234,8 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     }
   }), /*#__PURE__*/React.createElement("span", {
     className: "xs"
-  }, _opsReqConfirm ? "On" : "Off"))))))));
+  }, _opsReqConfirm ? "On" : "Off")))))))))
+  ]);
 };
 
 /* ════════════════════════════════════════════
