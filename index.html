@@ -13990,7 +13990,7 @@ var VoidOrderModal = function VoidOrderModal(_ref_void) {
   var word = lang === "es" ? "Confirmar" : "Confirm";
   var _vst = useState(""), _vsa = _slicedToArray(_vst, 2), typed = _vsa[0], setTyped = _vsa[1];
   var ready = !requireConfirm || typed === word;
-  useEffect(function(){ setTyped(""); }, []);
+  React.useEffect(function(){ setTyped(""); }, []);
   return /*#__PURE__*/React.createElement("div", { className: "overlay", onClick: function(e){ if(e.target===e.currentTarget) onClose(); } },
     /*#__PURE__*/React.createElement("div", { className: "modal fu", style: { maxWidth: 440 } },
       /*#__PURE__*/React.createElement("div", { className: "modal-title", style: { color: "var(--amber)" } }, "\u26A0\uFE0F Void Order"),
