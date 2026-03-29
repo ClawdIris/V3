@@ -1755,20 +1755,35 @@ var OrderForm = function OrderForm(_ref4) {
       var boxRows = (f.boxes && f.boxes.length > 0) ? f.boxes
         : [{ subId: "1", boxType: f.boxType || "Small", destinationCountry: f.destination || "Guatemala", gtDept: f.gtDept || "", zone: f.zone || "", description: f.description || "", declaredValue: f.declaredValue || "", status: f.status, shipmentId: f.shipmentId || "", price: "" }];
       return boxRows.map(function(box, idx) {
-        var updateBox = function(field, val) {
-          var updated = boxRows.map(function(b, i) { return i === idx ? Object.assign({}, b, _defineProperty({}, field, val)) : b; });
-          set("boxes", updated);
-          set("boxCount", updated.length);
-          if (idx === 0) {
-            if (field === "boxType") { set("boxType", val); autoPrice(null, val, updated.length); }
-            if (field === "destinationCountry") { set("destination", val); autoPrice(val); }
-            if (field === "gtDept") {
-              var found = GT_DEPARTMENTS.find(function(d){ return d.dept === val; });
-              if (found) { set("zone", found.zone); updateBox("zone", found.zone); }
-              set("gtDept", val);
-              if (!f.consigneeCity) set("consigneeCity", val);
+        var updateBox = function(field, val, _extraUpdates) {
+          setF(function(prev) {
+            var prevBoxes = (prev.boxes && prev.boxes.length > 0) ? prev.boxes
+              : [{ subId: "1", boxType: prev.boxType || "Small", destinationCountry: prev.destination || "Guatemala", gtDept: prev.gtDept || "", zone: prev.zone || "", description: prev.description || "", declaredValue: prev.declaredValue || "", status: prev.status, shipmentId: prev.shipmentId || "", price: "" }];
+            var updatedBoxes = prevBoxes.map(function(b, i) {
+              if (i !== idx) return b;
+              var merged = Object.assign({}, b, _defineProperty({}, field, val));
+              if (_extraUpdates) Object.assign(merged, _extraUpdates);
+              return merged;
+            });
+            var extra = { boxes: updatedBoxes, boxCount: updatedBoxes.length };
+            if (idx === 0) {
+              if (field === "boxType") { extra.boxType = val; }
+              if (field === "destinationCountry") { extra.destination = val; }
+              if (field === "gtDept") {
+                extra.gtDept = val;
+                var found = GT_DEPARTMENTS.find(function(d){ return d.dept === val; });
+                if (found) {
+                  extra.zone = found.zone;
+                  updatedBoxes = updatedBoxes.map(function(b, i) { return i === idx ? Object.assign({}, b, { zone: found.zone }) : b; });
+                  extra.boxes = updatedBoxes;
+                }
+                if (!prev.consigneeCity) extra.consigneeCity = val;
+              }
             }
-          }
+            return Object.assign({}, prev, extra);
+          });
+          if (idx === 0 && field === "boxType") autoPrice(null, val, null);
+          if (idx === 0 && field === "destinationCountry") autoPrice(val);
         };
         return /*#__PURE__*/React.createElement("div", {
           key: idx,
@@ -1802,7 +1817,7 @@ var OrderForm = function OrderForm(_ref4) {
               /*#__PURE__*/React.createElement("select", {
                 key: "dest-" + idx + "-" + (box.destinationCountry || "Guatemala"),
                 className: "fi", value: box.destinationCountry || "Guatemala",
-                onChange: function(e) { updateBox("destinationCountry", e.target.value); if (e.target.value !== "Guatemala") updateBox("gtDept", ""); }
+                onChange: function(e) { updateBox("destinationCountry", e.target.value, e.target.value !== "Guatemala" ? { gtDept: "" } : undefined); }
               }, destinations.map(function(d) { return /*#__PURE__*/React.createElement("option", { key: d }, d); }))
             ),
             /*#__PURE__*/React.createElement("div", { className: "fg" },
@@ -9053,6 +9068,16 @@ var ReceiptModal = function ReceiptModal(_ref83) {
     color: "#FEFCE8",
     border: "#FBBF24"
   }];
+  React.useEffect(function(){
+    if (Array.isArray(initialBoxConfig) && initialBoxConfig.length) {
+      setEditBoxCfg(JSON.parse(JSON.stringify(initialBoxConfig)));
+    }
+  }, [initialBoxConfig]);
+  React.useEffect(function(){
+    if (Array.isArray(initialDestinations) && initialDestinations.length) {
+      setEditDests([].concat(initialDestinations));
+    }
+  }, [initialDestinations]);
   var handleSave = function handleSave() {
     onSave(_objectSpread(_objectSpread({}, receipt), {}, {
       issuedAt: now()
@@ -10310,7 +10335,9 @@ var CashReconcileModal = function CashReconcileModal(_ref93) {
 var NewShipmentModal = function NewShipmentModal(_ref93ns) {
   var onSave = _ref93ns.onSave,
     onClose = _ref93ns.onClose,
-    existingCount = _ref93ns.existingCount;
+    existingCount = _ref93ns.existingCount,
+    _ref93ns$destinations = _ref93ns.destinations,
+    destinations = _ref93ns$destinations === void 0 ? DESTINATIONS : _ref93ns$destinations;
   var t = useT();
   var _useState_ns1 = useState("BATCH-" + String(existingCount + 1).padStart(3, "0")),
     _useState_ns2 = _slicedToArray(_useState_ns1, 2),
@@ -11164,6 +11191,8 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
                           if (!window.confirm("Delete this expense form?")) return;
                           var newForms = (selected.expenseForms || []).filter(function(x){ return x.id !== ef.id; });
                           var newCost = newForms.reduce(function(s,x){ return s + (x.total || 0); }, 0);
+                          var updatedShip = Object.assign({}, selected, { expenseForms: newForms, cost: newCost });
+                          setSelected(updatedShip);
                           onUpdateShipment(Object.assign({}, selected, { expenseForms: newForms, cost: newCost }));
                         }
                       }, "Del")
@@ -11310,7 +11339,9 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
                 });
                 var newForms = (selected.expenseForms||[]).concat([newForm]);
                 var newCost = newForms.reduce(function(s,ef){ return s + (ef.total||0); }, 0);
-                onUpdateShipment(Object.assign({}, selected, { expenseForms: newForms, cost: newCost }));
+                var updatedShipment = Object.assign({}, selected, { expenseForms: newForms, cost: newCost });
+                onUpdateShipment(updatedShipment);
+                setSelected(updatedShipment);
                 setShowNewExpForm(false);
                 setNewExpFormData({fromDate:"",toDate:"",items:[]});
               }
@@ -11482,6 +11513,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     onClick: function onClick() { return setShowNewShipment(true); }
   }, "+ New Shipment Batch"))), showNewShipment && /*#__PURE__*/React.createElement(NewShipmentModal, {
     existingCount: shipments.length,
+    destinations: appDestinations,
     onClose: function onClose() { return setShowNewShipment(false); },
     onSave: function onSave(newShipment) {
       var normalizedShipment = Object.assign({
@@ -12491,11 +12523,13 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
       })));
     });
   };
-  var _useStateBoxCfg = useState(JSON.parse(JSON.stringify(initialBoxConfig))),
+  var _safeInitBoxCfg = Array.isArray(initialBoxConfig) && initialBoxConfig.length ? initialBoxConfig : BOX_CONFIG;
+  var _useStateBoxCfg = useState(JSON.parse(JSON.stringify(_safeInitBoxCfg))),
     _useStateBoxCfg2 = _slicedToArray(_useStateBoxCfg, 2),
     editBoxCfg = _useStateBoxCfg2[0],
     setEditBoxCfg = _useStateBoxCfg2[1];
-  var _useStateDests = useState([].concat(initialDestinations)),
+  var _safeInitDests = Array.isArray(initialDestinations) && initialDestinations.length ? initialDestinations : DESTINATIONS;
+  var _useStateDests = useState([].concat(_safeInitDests)),
     _useStateDests2 = _slicedToArray(_useStateDests, 2),
     editDests = _useStateDests2[0],
     setEditDests = _useStateDests2[1];
@@ -12545,7 +12579,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
               /*#__PURE__*/React.createElement("th", null, "")
             )),
             /*#__PURE__*/React.createElement("tbody", null,
-              editBoxCfg.map(function(box, bIdx) {
+              (Array.isArray(editBoxCfg) ? editBoxCfg : []).map(function(box, bIdx) {
                 return /*#__PURE__*/React.createElement("tr", { key: box.key + bIdx },
                   /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tamb" }, box.key)),
                   /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: box.label,
@@ -12603,7 +12637,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
               /*#__PURE__*/React.createElement("th", null, "")
             )),
             /*#__PURE__*/React.createElement("tbody", null,
-              editDests.map(function(d, dIdx) {
+              (Array.isArray(editDests) ? editDests : []).map(function(d, dIdx) {
                 return /*#__PURE__*/React.createElement("tr", { key: d + dIdx },
                   /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: d,
                     onChange: function(e){ var vi=dIdx; setEditDests(function(p){ return p.map(function(x,i){ return i===vi?e.target.value:x; }); }); },
@@ -12632,7 +12666,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     )
   ))
     : tab === "operations" ? ((function(){
-    var _reqConfirm = !tenant || tenant.requireVoidConfirm !== false;
+    var _safeTenant = tenant || {}; var _reqConfirm = _safeTenant.requireVoidConfirm !== false;
     return /*#__PURE__*/React.createElement("div", null,
       /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
         "\u2699\uFE0F Configure operational behavior and safety settings."
@@ -12654,7 +12688,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
                 type: "checkbox",
                 checked: _reqConfirm,
                 onChange: function(e) {
-                  if (onUpdateTenant) onUpdateTenant({ requireVoidConfirm: e.target.checked });
+                  if (onUpdateTenant) onUpdateTenant({ requireVoidConfirm: e.target.checked }); else console.warn("onUpdateTenant not provided");
                 },
                 style: { width: 16, height: 16, cursor: "pointer" }
               }),
