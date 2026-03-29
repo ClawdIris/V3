@@ -19149,14 +19149,7 @@ setOrders(function (prev) {
   return /*#__PURE__*/React.createElement(LangContext.Provider, {
     value: lang
   }, /*#__PURE__*/React.createElement(React.Fragment, null,
-  voidTarget && /*#__PURE__*/React.createElement(VoidOrderModal, {
-    order: voidTarget,
-    lang: lang,
-    requireConfirm: tenant ? tenant.requireVoidConfirm !== false : true,
-    onClose: function(){ setVoidTarget(null); },
-    onConfirm: function(){ doVoidOrder(voidTarget); }
-  }),
-  /*#__PURE__*/React.createElement("style", null, CSS), showNewOrder && /*#__PURE__*/React.createElement(OrderForm, {
+    /*#__PURE__*/React.createElement("style", null, CSS), showNewOrder && /*#__PURE__*/React.createElement(OrderForm, {
     title: T("New Order", "Nuevo Pedido"),
     onSave: saveOrder,
     onClose: function onClose() {
@@ -19210,8 +19203,15 @@ setOrders(function (prev) {
       setInvoiceOrder(o);
       setSelectedOrder(null);
     },
-    onVoid: setVoidTarget,
+    onVoid: function(o){ setSelectedOrder(null); setTimeout(function(){ setVoidTarget(o); }, 0); },
     isHQ: roleKey === "hq"
+  }),
+  voidTarget && /*#__PURE__*/React.createElement(VoidOrderModal, {
+    order: voidTarget,
+    lang: lang,
+    requireConfirm: tenant ? tenant.requireVoidConfirm !== false : true,
+    onClose: function(){ setVoidTarget(null); },
+    onConfirm: function(){ doVoidOrder(voidTarget); }
   }), labelOrder && /*#__PURE__*/React.createElement(LabelModal, {
     order: labelOrder,
     onClose: function onClose() {
