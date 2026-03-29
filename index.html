@@ -278,6 +278,25 @@ var DEFAULT_PRICING = {
     surchargeName: "Distance from port"
   }
 };
+/** Add zeroed price slots for every active (non-Unknown) box key so custom types appear in the matrix and on orders. */
+var mergePricingWithBoxKeys = function mergePricingWithBoxKeys(pricing, boxCfg) {
+  var cfg = Array.isArray(boxCfg) && boxCfg.length ? boxCfg : BOX_CONFIG;
+  var keys = cfg.filter(function (b) {
+    return b.active && b.key !== "Unknown";
+  }).map(function (b) {
+    return b.key;
+  });
+  var base = pricing || {};
+  var out = {};
+  Object.keys(base).forEach(function (dest) {
+    var row = Object.assign({}, base[dest]);
+    keys.forEach(function (k) {
+      if (row[k] === undefined) row[k] = 0;
+    });
+    out[dest] = row;
+  });
+  return out;
+};
 
 /* ════════════════════════════════════════════
    CUSTOMS BROKERS PER COUNTRY
@@ -822,6 +841,13 @@ var today = function today() {
     month: "short",
     day: "numeric"
   });
+};
+var isoDateLocal = function isoDateLocal(d) {
+  var x = d || new Date();
+  var y = x.getFullYear();
+  var m = String(x.getMonth() + 1).padStart(2, "0");
+  var day = String(x.getDate()).padStart(2, "0");
+  return y + "-" + m + "-" + day;
 };
 var Sbadge = function Sbadge(_ref) {
   var s = _ref.s;
@@ -1763,6 +1789,20 @@ var OrderForm = function OrderForm(_ref4) {
               if (i !== idx) return b;
               var merged = Object.assign({}, b, _defineProperty({}, field, val));
               if (_extraUpdates) Object.assign(merged, _extraUpdates);
+              var dest = merged.destinationCountry || (idx === 0 ? prev.destination : "") || "";
+              if (field === "gtDept") {
+                var zfDept = GT_DEPARTMENTS.find(function(d){ return d.dept === val; });
+                merged.zone = zfDept ? zfDept.zone : "";
+              } else if (field === "destinationCountry") {
+                if (dest !== "Guatemala") {
+                  merged.zone = "";
+                } else if (merged.gtDept) {
+                  var zf2 = GT_DEPARTMENTS.find(function(d){ return d.dept === merged.gtDept; });
+                  merged.zone = zf2 ? zf2.zone : "";
+                } else {
+                  merged.zone = "";
+                }
+              }
               return merged;
             });
             var extra = { boxes: updatedBoxes, boxCount: updatedBoxes.length };
@@ -1772,11 +1812,7 @@ var OrderForm = function OrderForm(_ref4) {
               if (field === "gtDept") {
                 extra.gtDept = val;
                 var found = GT_DEPARTMENTS.find(function(d){ return d.dept === val; });
-                if (found) {
-                  extra.zone = found.zone;
-                  updatedBoxes = updatedBoxes.map(function(b, i) { return i === idx ? Object.assign({}, b, { zone: found.zone }) : b; });
-                  extra.boxes = updatedBoxes;
-                }
+                if (found) extra.zone = found.zone;
                 if (!prev.consigneeCity) extra.consigneeCity = val;
               }
             }
@@ -1817,7 +1853,7 @@ var OrderForm = function OrderForm(_ref4) {
               /*#__PURE__*/React.createElement("select", {
                 key: "dest-" + idx + "-" + (box.destinationCountry || "Guatemala"),
                 className: "fi", value: box.destinationCountry || "Guatemala",
-                onChange: function(e) { updateBox("destinationCountry", e.target.value, e.target.value !== "Guatemala" ? { gtDept: "" } : undefined); }
+                onChange: function(e) { updateBox("destinationCountry", e.target.value, e.target.value !== "Guatemala" ? { gtDept: "", zone: "" } : undefined); }
               }, destinations.map(function(d) { return /*#__PURE__*/React.createElement("option", { key: d }, d); }))
             ),
             /*#__PURE__*/React.createElement("div", { className: "fg" },
@@ -10627,8 +10663,9 @@ var ExpenseLineAdder = function ExpenseLineAdder(props) {
       "Unit: $", unitCost.toFixed(2), " \xD7 ", parseInt(lineQty)||0, " = $", lineTotal.toFixed(2)
     ),
     /*#__PURE__*/React.createElement("button", {
+      type: "button",
       className:"btn btn-primary btn-sm",
-      disabled: isBoxes ? !(lineQty && parseInt(lineQty) > 0) : !(lineAmt && parseFloat(lineAmt) > 0),
+      disabled: isBoxes ? !(lineQty && parseInt(lineQty) > 0) : !(lineAmt !== "" && lineAmt != null && parseFloat(lineAmt) > 0),
       onClick: function(){
         var typeLabel = (EXP_TYPES.find(function(t){ return t.key === lineType; })||{}).label || lineType;
         onAdd({type:typeLabel, description:isBoxes?"":lineDesc, boxType:isBoxes?lineBox:"", qty:isBoxes?parseInt(lineQty):null, unitCost:isBoxes?unitCost:null, amount:lineTotal});
@@ -11173,7 +11210,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
       }, showExpenses ? "\u25B4 Hide" : "\u25BE History"),
       /*#__PURE__*/React.createElement("button", {
         className: "btn btn-primary btn-sm", style: { marginLeft: 4 },
-        onClick: function() { setShowNewExpForm(true); setNewExpFormData({fromDate:"",toDate:"",items:[]}); setPendingExpDraft(null); }
+        onClick: function() { setShowNewExpForm(true); setNewExpFormData({fromDate: isoDateLocal(), toDate: isoDateLocal(), items:[]}); setPendingExpDraft(null); }
       }, "+ New Form")
     ),
     showExpenses && (selected.expenseForms || []).length === 0
@@ -11282,11 +11319,11 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
         })())
       ),
     showNewExpForm &&
-      /*#__PURE__*/React.createElement("div", { className: "overlay", onClick: function(e){ if(e.target===e.currentTarget) { setShowNewExpForm(false); setPendingExpDraft(null); } } },
-        /*#__PURE__*/React.createElement("div", { className: "modal modal-lg fu" },
+      /*#__PURE__*/React.createElement("div", { className: "overlay", style: { zIndex: 10000 }, onClick: function(e){ if(e.target===e.currentTarget) { setShowNewExpForm(false); setPendingExpDraft(null); } } },
+        /*#__PURE__*/React.createElement("div", { className: "modal modal-lg fu", onMouseDown: function(e){ e.stopPropagation(); } },
           /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginBottom: 16 } },
             /*#__PURE__*/React.createElement("span", { className: "modal-title", style: { margin: 0 } }, "\uD83D\uDCB8 New Expense Form"),
-            /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm mla", onClick: function(){ setShowNewExpForm(false); setPendingExpDraft(null); } }, "Cancel")
+            /*#__PURE__*/React.createElement("button", { type: "button", className: "btn btn-ghost btn-sm mla", onClick: function(){ setShowNewExpForm(false); setPendingExpDraft(null); } }, "Cancel")
           ),
           /*#__PURE__*/React.createElement("div", { className: "fr", style: { marginBottom: 12 } },
             /*#__PURE__*/React.createElement("div", { className: "fg" },
@@ -11325,7 +11362,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
                       /*#__PURE__*/React.createElement("button", { className: "btn btn-red btn-xs",
                         onClick: function(){
                           setNewExpFormData(function(p){
-                            var its = p.items.filter(function(_,j){ return j !== idx; });
+                            var its = (p.items||[]).filter(function(_,j){ return j !== idx; });
                             return Object.assign({},p,{items:its});
                           });
                         }
@@ -11351,30 +11388,44 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
           ),
           /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 16, justifyContent: "flex-end" } },
             /*#__PURE__*/React.createElement("button", {
+              type: "button",
               className: "btn btn-primary",
-              disabled: !(newExpFormData.fromDate && newExpFormData.toDate),
-              onClick: function(){
-                var finalItems = (newExpFormData.items || []).slice();
-                if (pendingExpDraft) finalItems = finalItems.concat([pendingExpDraft]);
-                var total = finalItems.reduce(function(s,it){ return s + (parseFloat(it.amount)||0); }, 0);
-                if (finalItems.length === 0 || total <= 0) {
-                  notify("\u26A0\uFE0F Add an amount and use + Add Item, or type an amount below \u2014 it will be included when you submit.");
-                  return;
+              disabled: !(String(newExpFormData.fromDate||"").trim() && String(newExpFormData.toDate||"").trim()),
+              onClick: function(e){
+                e.preventDefault();
+                e.stopPropagation();
+                try {
+                  var finalItems = (newExpFormData.items || []).map(function(it){ return Object.assign({}, it); });
+                  if (pendingExpDraft) finalItems = finalItems.concat([Object.assign({}, pendingExpDraft)]);
+                  var total = finalItems.reduce(function(s,it){ return s + (parseFloat(it.amount)||0); }, 0);
+                  if (finalItems.length === 0 || total <= 0) {
+                    notify("\u26A0\uFE0F Add a line item (+ Add Item) or enter an amount \u2014 it is included when you submit.");
+                    return;
+                  }
+                  if (typeof onUpdateShipment !== "function") {
+                    alert("Cannot save: app configuration error (onUpdateShipment).");
+                    return;
+                  }
+                  var newForm = Object.assign({}, newExpFormData, {
+                    id: "EXP-" + String(((selected.expenseForms||[]).length + 1)).padStart(3,"0"),
+                    createdAt: new Date().toISOString().slice(0,10),
+                    items: finalItems,
+                    total: total
+                  });
+                  var newForms = (selected.expenseForms||[]).concat([newForm]);
+                  var newCost = newForms.reduce(function(s,ef){ return s + (parseFloat(ef.total)||0); }, 0);
+                  var updatedShipment = Object.assign({}, selected, { expenseForms: newForms, cost: newCost });
+                  onUpdateShipment(updatedShipment);
+                  setSelected(updatedShipment);
+                  setShowExpenses(true);
+                  notify("\u2705 Expense saved: " + newForm.id + " \u2014 $" + total.toFixed(2));
+                  setShowNewExpForm(false);
+                  setNewExpFormData({fromDate: isoDateLocal(), toDate: isoDateLocal(), items:[]});
+                  setPendingExpDraft(null);
+                } catch (err) {
+                  console.error("[expense submit]", err);
+                  alert(err && err.message ? err.message : "Could not save expense form.");
                 }
-                var newForm = Object.assign({}, newExpFormData, {
-                  id: "EXP-" + String(((selected.expenseForms||[]).length + 1)).padStart(3,"0"),
-                  createdAt: new Date().toISOString().slice(0,10),
-                  items: finalItems,
-                  total: total
-                });
-                var newForms = (selected.expenseForms||[]).concat([newForm]);
-                var newCost = newForms.reduce(function(s,ef){ return s + (ef.total||0); }, 0);
-                var updatedShipment = Object.assign({}, selected, { expenseForms: newForms, cost: newCost });
-                onUpdateShipment(updatedShipment);
-                setSelected(updatedShipment);
-                setShowNewExpForm(false);
-                setNewExpFormData({fromDate:"",toDate:"",items:[]});
-                setPendingExpDraft(null);
               }
             }, "\u2713 Submit Expense Form")
           )
@@ -11382,7 +11433,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
       )
     ),
     /*#__PURE__*/React.createElement("div", { className: "card", style: { marginTop: 12 } },
-    /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
       /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCE3 Broadcast to Senders"),
       /*#__PURE__*/React.createElement("span", { className: "mut xs", style: { marginLeft: "auto" } },
         shpOrders.length + " customer" + (shpOrders.length !== 1 ? "s" : "")
@@ -12576,6 +12627,37 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     var safe = Array.isArray(initialDestinations) && initialDestinations.length ? initialDestinations : DESTINATIONS;
     setEditDests([].concat(safe));
   }, [initialDestinations]);
+  React.useEffect(function() {
+    setEditPricing(JSON.parse(JSON.stringify(pricing)));
+  }, [pricing]);
+  React.useEffect(function() {
+    var keys = (Array.isArray(editBoxCfg) ? editBoxCfg : []).filter(function (b) {
+      return b.active && b.key !== "Unknown";
+    }).map(function (b) {
+      return b.key;
+    });
+    setEditPricing(function (p) {
+      var next = {};
+      Object.keys(p).forEach(function (dest) {
+        var row = _objectSpread(_objectSpread({}, p[dest]), {});
+        keys.forEach(function (k) {
+          if (row[k] === undefined) row[k] = 0;
+        });
+        next[dest] = row;
+      });
+      return next;
+    });
+  }, [editBoxCfg]);
+  var matrixBoxColumns = (Array.isArray(editBoxCfg) ? editBoxCfg : []).filter(function (b) {
+    return b.active && b.key !== "Unknown";
+  });
+  var _pricingKeys = Object.keys(editPricing);
+  var matrixDestColumns = (Array.isArray(editDests) ? editDests : []).filter(function (d) {
+    return _pricingKeys.indexOf(d) >= 0;
+  });
+  _pricingKeys.forEach(function (d) {
+    if (matrixDestColumns.indexOf(d) < 0) matrixDestColumns.push(d);
+  });
   var handleSave = function handleSave() {
     onUpdate(editPricing);
     setSaved(true);
@@ -12783,17 +12865,20 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     onClick: handleSave
   }, "Save Changes"))), /*#__PURE__*/React.createElement("div", {
     className: "tbl"
-  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Destination"), /*#__PURE__*/React.createElement("th", null, "(DISH) 18x18x28 ($)"), /*#__PURE__*/React.createElement("th", null, "(74) 24x26x24 ($)"), /*#__PURE__*/React.createElement("th", null, "(88) 34x26x28 ($)"), /*#__PURE__*/React.createElement("th", null, "Freight ($)"), /*#__PURE__*/React.createElement("th", null, "Distance Surcharge ($)"), /*#__PURE__*/React.createElement("th", null, "Surcharge Name"))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(editPricing).map(function (_ref108) {
-    var _ref109 = _slicedToArray(_ref108, 2),
-      dest = _ref109[0],
-      row = _ref109[1];
-    return /*#__PURE__*/React.createElement("tr", {
+  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, t("Box type", "Tipo de caja")), matrixDestColumns.map(function (dest) {
+    return /*#__PURE__*/React.createElement("th", {
       key: dest
+    }, dest, " ($)");
+  }))), /*#__PURE__*/React.createElement("tbody", null, [].concat(_toConsumableArray(matrixBoxColumns.map(function (box) {
+    var bt = box.key;
+    return /*#__PURE__*/React.createElement("tr", {
+      key: bt
     }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
       className: "tb"
-    }, dest)), ["Small", "Medium", "Large", "Freight"].map(function (bt) {
+    }, box.label)), matrixDestColumns.map(function (dest) {
+      var row = editPricing[dest] || {};
       return /*#__PURE__*/React.createElement("td", {
-        key: bt
+        key: dest
       }, /*#__PURE__*/React.createElement("input", {
         className: "fi",
         type: "number",
@@ -12807,7 +12892,16 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
           fontSize: 12
         }
       }));
-    }), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", {
+    }));
+  })), [/*#__PURE__*/React.createElement("tr", {
+    key: "__surcharge__"
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
+    className: "tb"
+  }, t("Distance surcharge ($)", "Recargo por distancia ($)"))), matrixDestColumns.map(function (dest) {
+    var row = editPricing[dest] || {};
+    return /*#__PURE__*/React.createElement("td", {
+      key: dest
+    }, /*#__PURE__*/React.createElement("input", {
       className: "fi",
       type: "number",
       value: row.surcharge || 0,
@@ -12819,7 +12913,16 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
         padding: "4px 8px",
         fontSize: 12
       }
-    })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", {
+    }));
+  })), /*#__PURE__*/React.createElement("tr", {
+    key: "__surchargeName__"
+  }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
+    className: "tb"
+  }, t("Surcharge name", "Nombre del recargo"))), matrixDestColumns.map(function (dest) {
+    var row = editPricing[dest] || {};
+    return /*#__PURE__*/React.createElement("td", {
+      key: dest
+    }, /*#__PURE__*/React.createElement("input", {
       className: "fi",
       value: row.surchargeName || "",
       onChange: function onChange(e) {
@@ -12835,8 +12938,8 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
         fontSize: 12
       },
       placeholder: "e.g. Inland distance"
-    })));
-  })))))), tab === "commissions" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    }));
+  }))])))))), tab === "commissions" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "alert alert-a mb12"
   }, "\uD83E\uDD1D Commission rates are negotiated per office. Each office's cut is auto-calculated on every order they generate."), /*#__PURE__*/React.createElement("div", {
     className: "card"
@@ -17200,13 +17303,16 @@ var ConsigneeSearch = function ConsigneeSearch(_ref122) {
       return;
     }
     var lower = val.toLowerCase();
+    var digitsQuery = val.replace(/[^0-9+]/g, "");
     var seen = new Map();
     orders.filter(function (o) {
       return o.id !== currentId;
     }).forEach(function (o) {
       var cName = o.consigneeName || o.name;
       var cPhone = o.consigneePhone || o.phone;
-      var match = (cName === null || cName === void 0 ? void 0 : cName.toLowerCase().includes(lower)) || (cPhone === null || cPhone === void 0 ? void 0 : cPhone.replace(/[^0-9+]/g, "").includes(val.replace(/[^0-9+]/g, "")));
+      var nameMatch = cName && String(cName).toLowerCase().includes(lower);
+      var phoneMatch = digitsQuery.length > 0 && cPhone && String(cPhone).replace(/[^0-9+]/g, "").includes(digitsQuery);
+      var match = nameMatch || phoneMatch;
       if (match) {
         var key = cPhone || cName;
         if (!seen.has(key)) seen.set(key, _objectSpread(_objectSpread({}, o), {}, {
@@ -18478,7 +18584,7 @@ function AppShell(_ref130) {
       if (dbClaims.length    > 0) setClaims(dbClaims);
       if (dbReceipts.length  > 0) setReceipts(dbReceipts);
       if (dbTenant)               setTenant(dbTenant);
-      if (dbPricing)              setPricing(dbPricing);
+      if (dbPricing)              setPricing(mergePricingWithBoxKeys(dbPricing, dbBoxConfig && Array.isArray(dbBoxConfig) ? dbBoxConfig : null));
       if (dbBoxConfig && Array.isArray(dbBoxConfig)) setAppBoxConfig(dbBoxConfig);
       if (dbDests && Array.isArray(dbDests))         setAppDestinations(dbDests);
     }).catch(function(e) {
@@ -18783,10 +18889,15 @@ setOrders(function (prev) {
       },
       onUpdateBoxConfig: function(newBoxConfig) {
         setAppBoxConfig(newBoxConfig);
-        if (session && session.tenantId) {
-          _db.init(session.tenantId);
-          _db.saveSettings("boxConfig", newBoxConfig);
-        }
+        setPricing(function (prev) {
+          var merged = mergePricingWithBoxKeys(prev, newBoxConfig);
+          if (session && session.tenantId) {
+            _db.init(session.tenantId);
+            _db.saveSettings("pricing", merged);
+            _db.saveSettings("boxConfig", newBoxConfig);
+          }
+          return merged;
+        });
       },
       onUpdateDestinations: function(newDests) {
         setAppDestinations(newDests);
