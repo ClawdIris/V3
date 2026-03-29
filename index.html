@@ -12537,6 +12537,14 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     _useStateNewDest2 = _slicedToArray(_useStateNewDest, 2),
     newDest = _useStateNewDest2[0],
     setNewDest = _useStateNewDest2[1];
+  React.useEffect(function() {
+    var safe = Array.isArray(initialBoxConfig) && initialBoxConfig.length ? initialBoxConfig : BOX_CONFIG;
+    setEditBoxCfg(JSON.parse(JSON.stringify(safe)));
+  }, [initialBoxConfig]);
+  React.useEffect(function() {
+    var safe = Array.isArray(initialDestinations) && initialDestinations.length ? initialDestinations : DESTINATIONS;
+    setEditDests([].concat(safe));
+  }, [initialDestinations]);
   var handleSave = function handleSave() {
     onUpdate(editPricing);
     setSaved(true);
