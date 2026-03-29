@@ -13316,37 +13316,40 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
       )
     )
   )
-  , tab === "operations" && /*#__PURE__*/React.createElement("div", null,
-    /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
-      "\u2699\uFE0F Configure operational behavior and safety settings."
-    ),
-    /*#__PURE__*/React.createElement("div", { className: "card" },
-      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Void Order Settings")
+  , tab === "operations" && (function(){
+    var _reqConfirm = !tenant || tenant.requireVoidConfirm !== false;
+    return /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
+        "\u2699\uFE0F Configure operational behavior and safety settings."
       ),
-      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
-        /*#__PURE__*/React.createElement("div", { className: "row g10", style: { alignItems: "center", padding: "8px 0" } },
-          /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
-            /*#__PURE__*/React.createElement("div", { className: "tb", style: { fontSize: 13 } }, "Require typed confirmation to void an order"),
-            /*#__PURE__*/React.createElement("div", { className: "xs mut", style: { marginTop: 2 } },
-              "When enabled, staff must type \"Confirm\" before voiding. Disable for faster operations."
+      /*#__PURE__*/React.createElement("div", { className: "card" },
+        /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Void Order Settings")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+          /*#__PURE__*/React.createElement("div", { className: "row g10", style: { alignItems: "center", padding: "8px 0" } },
+            /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
+              /*#__PURE__*/React.createElement("div", { className: "tb", style: { fontSize: 13 } }, "Require typed confirmation to void an order"),
+              /*#__PURE__*/React.createElement("div", { className: "xs mut", style: { marginTop: 2 } },
+                "When enabled, staff must type \"Confirm\" before voiding. Disable for faster operations."
+              )
+            ),
+            /*#__PURE__*/React.createElement("label", { className: "row g10", style: { alignItems: "center", cursor: "pointer", flexShrink: 0 } },
+              /*#__PURE__*/React.createElement("input", {
+                type: "checkbox",
+                checked: _reqConfirm,
+                onChange: function(e) {
+                  if (onUpdateTenant) onUpdateTenant({ requireVoidConfirm: e.target.checked });
+                },
+                style: { width: 16, height: 16, cursor: "pointer" }
+              }),
+              /*#__PURE__*/React.createElement("span", { className: "xs" }, _reqConfirm ? "On" : "Off")
             )
-          ),
-          /*#__PURE__*/React.createElement("label", { className: "row g10", style: { alignItems: "center", cursor: "pointer", flexShrink: 0 } },
-            /*#__PURE__*/React.createElement("input", {
-              type: "checkbox",
-              checked: tenant ? tenant.requireVoidConfirm !== false : true,
-              onChange: function(e) {
-                if (onUpdateTenant) onUpdateTenant({ requireVoidConfirm: e.target.checked });
-              },
-              style: { width: 16, height: 16, cursor: "pointer" }
-            }),
-            /*#__PURE__*/React.createElement("span", { className: "xs" }, (tenant && tenant.requireVoidConfirm === false) ? "Off" : "On")
           )
         )
       )
-    )
-  )
+    );
+  })()
   ))));
 };
 
