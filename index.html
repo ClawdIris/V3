@@ -12444,6 +12444,8 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     onUpdate = _ref107.onUpdate,
     onUpdateBoxConfig = _ref107.onUpdateBoxConfig,
     onUpdateDestinations = _ref107.onUpdateDestinations,
+    tenant = _ref107.tenant,
+    onUpdateTenant = _ref107.onUpdateTenant,
     _ref107$initialBoxConfig = _ref107.initialBoxConfig,
     initialBoxConfig = _ref107$initialBoxConfig === void 0 ? BOX_CONFIG : _ref107$initialBoxConfig,
     _ref107$initialDestinations = _ref107.initialDestinations,
@@ -12531,7 +12533,10 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
   }, "\uD83D\uDCE6 Box Types"), /*#__PURE__*/React.createElement("div", {
     className: "tab ".concat(tab === "destinations" ? "on" : ""),
     onClick: function onClick() { return setTab("destinations"); }
-  }, "\uD83C\uDF0E Destinations")), tab === "pricing" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, "\uD83C\uDF0E Destinations"), /*#__PURE__*/React.createElement("div", {
+    className: "tab ".concat(tab === "operations" ? "on" : ""),
+    onClick: function onClick() { return setTab("operations"); }
+  }, "\u2699\uFE0F Operations")), tab === "pricing" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "alert alert-b mb12"
   }, "\uD83D\uDCB2 Set your base price per destination + box size. Add a distance surcharge for destinations further from the ocean port. Prices auto-fill on new orders."), /*#__PURE__*/React.createElement("div", {
     className: "card"
@@ -13311,6 +13316,37 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
       )
     )
   )
+  , tab === "operations" && /*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
+      "\u2699\uFE0F Configure operational behavior and safety settings."
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "card" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Void Order Settings")
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+        /*#__PURE__*/React.createElement("div", { className: "row g10", style: { alignItems: "center", padding: "8px 0" } },
+          /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
+            /*#__PURE__*/React.createElement("div", { className: "tb", style: { fontSize: 13 } }, "Require typed confirmation to void an order"),
+            /*#__PURE__*/React.createElement("div", { className: "xs mut", style: { marginTop: 2 } },
+              "When enabled, staff must type \"Confirm\" before voiding. Disable for faster operations."
+            )
+          ),
+          /*#__PURE__*/React.createElement("label", { className: "row g10", style: { alignItems: "center", cursor: "pointer", flexShrink: 0 } },
+            /*#__PURE__*/React.createElement("input", {
+              type: "checkbox",
+              checked: tenant ? tenant.requireVoidConfirm !== false : true,
+              onChange: function(e) {
+                if (onUpdateTenant) onUpdateTenant({ requireVoidConfirm: e.target.checked });
+              },
+              style: { width: 16, height: 16, cursor: "pointer" }
+            }),
+            /*#__PURE__*/React.createElement("span", { className: "xs" }, (tenant && tenant.requireVoidConfirm === false) ? "Off" : "On")
+          )
+        )
+      )
+    )
+  )
   ))));
 };
 
@@ -13948,17 +13984,20 @@ var CustomerProfilePage = function CustomerProfilePage(_ref113) {
    VOID ORDER MODAL — HQ/Admin only
 ════════════════════════════════════════════ */
 var VoidOrderModal = function VoidOrderModal(_ref_void) {
-  var order = _ref_void.order, onConfirm = _ref_void.onConfirm, onClose = _ref_void.onClose, lang = _ref_void.lang;
+  var order = _ref_void.order, onConfirm = _ref_void.onConfirm, onClose = _ref_void.onClose, lang = _ref_void.lang,
+    _ref_void$requireConfirm = _ref_void.requireConfirm,
+    requireConfirm = _ref_void$requireConfirm === void 0 ? true : _ref_void$requireConfirm;
   var word = lang === "es" ? "Confirmar" : "Confirm";
   var _vst = useState(""), _vsa = _slicedToArray(_vst, 2), typed = _vsa[0], setTyped = _vsa[1];
-  var ready = typed === word;
+  var ready = !requireConfirm || typed === word;
+  useEffect(function(){ setTyped(""); }, []);
   return /*#__PURE__*/React.createElement("div", { className: "overlay", onClick: function(e){ if(e.target===e.currentTarget) onClose(); } },
     /*#__PURE__*/React.createElement("div", { className: "modal fu", style: { maxWidth: 440 } },
       /*#__PURE__*/React.createElement("div", { className: "modal-title", style: { color: "var(--amber)" } }, "\u26A0\uFE0F Void Order"),
       /*#__PURE__*/React.createElement("div", { className: "alert alert-a", style: { marginBottom: 16 } },
         "This will void order ", /*#__PURE__*/React.createElement("strong", null, order.id), " for ", /*#__PURE__*/React.createElement("strong", null, order.name), ". The order will be hidden from active views but preserved in the audit record."
       ),
-      /*#__PURE__*/React.createElement("div", { className: "fg" },
+      requireConfirm && /*#__PURE__*/React.createElement("div", { className: "fg" },
         /*#__PURE__*/React.createElement("label", { className: "fl" }, "Type ", /*#__PURE__*/React.createElement("strong", null, word), " to void this order"),
         /*#__PURE__*/React.createElement("input", {
           className: "fi",
@@ -18664,6 +18703,15 @@ setOrders(function (prev) {
           _db.init(session.tenantId);
           _db.saveSettings("destinations", newDests);
         }
+      },
+      tenant: tenant,
+      onUpdateTenant: function(patch) {
+        var updated = Object.assign({}, tenant, patch);
+        setTenant(updated);
+        if (session && session.tenantId) {
+          _db.init(session.tenantId);
+          _db.saveSettings("main", updated);
+        }
       }
     });
     if (page === "notifications") return /*#__PURE__*/React.createElement(CampaignsPage, {
@@ -19104,6 +19152,7 @@ setOrders(function (prev) {
   voidTarget && /*#__PURE__*/React.createElement(VoidOrderModal, {
     order: voidTarget,
     lang: lang,
+    requireConfirm: tenant ? tenant.requireVoidConfirm !== false : true,
     onClose: function(){ setVoidTarget(null); },
     onConfirm: function(){ doVoidOrder(voidTarget); }
   }),
