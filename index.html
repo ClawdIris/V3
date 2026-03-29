@@ -12562,153 +12562,6 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     setSaved(true);
     setTimeout(function(){ return setSaved(false); }, 2000);
   };
-  var renderActiveTab = (
-    tab === "boxtypes" ? (/*#__PURE__*/React.createElement("div", null,
-    /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
-      "\uD83D\uDCE6 Manage box types. Changes update the order form and pricing matrix. Archiving hides a type from new orders but preserves historical records."
-    ),
-    /*#__PURE__*/React.createElement("div", { className: "card" },
-      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Box Types"),
-        /*#__PURE__*/React.createElement("div", { className: "row g10" },
-          saved && /*#__PURE__*/React.createElement("span", { className: "badge bg" }, "\u2713 Saved"),
-          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary btn-sm", onClick: handleSaveBoxTypes }, "Save Changes")
-        )
-      ),
-      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
-        /*#__PURE__*/React.createElement("div", { className: "tbl" },
-          /*#__PURE__*/React.createElement("table", null,
-            /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null,
-              /*#__PURE__*/React.createElement("th", null, "Key"),
-              /*#__PURE__*/React.createElement("th", null, "Display Label"),
-              /*#__PURE__*/React.createElement("th", null, "Code"),
-              /*#__PURE__*/React.createElement("th", null, "Dimensions"),
-              /*#__PURE__*/React.createElement("th", null, "Status"),
-              /*#__PURE__*/React.createElement("th", null, "")
-            )),
-            /*#__PURE__*/React.createElement("tbody", null,
-              (Array.isArray(editBoxCfg) ? editBoxCfg : []).map(function(box, bIdx) {
-                return /*#__PURE__*/React.createElement("tr", { key: box.key + bIdx },
-                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tamb" }, box.key)),
-                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: box.label,
-                    onChange: function(e){ var vi=bIdx; setEditBoxCfg(function(p){ return p.map(function(b,i){ return i===vi?Object.assign({},b,{label:e.target.value}):b; }); }); },
-                    style: { padding: "4px 8px", fontSize: 12 }
-                  })),
-                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: box.code,
-                    onChange: function(e){ var vi=bIdx; setEditBoxCfg(function(p){ return p.map(function(b,i){ return i===vi?Object.assign({},b,{code:e.target.value}):b; }); }); },
-                    style: { width: 70, padding: "4px 8px", fontSize: 12 }
-                  })),
-                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: box.dims,
-                    onChange: function(e){ var vi=bIdx; setEditBoxCfg(function(p){ return p.map(function(b,i){ return i===vi?Object.assign({},b,{dims:e.target.value}):b; }); }); },
-                    style: { width: 110, padding: "4px 8px", fontSize: 12 }
-                  })),
-                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
-                    className: "btn btn-sm " + (box.active ? "btn-green" : "btn-ghost"),
-                    onClick: function(){ var vi=bIdx; setEditBoxCfg(function(p){ return p.map(function(b,i){ return i===vi?Object.assign({},b,{active:!b.active}):b; }); }); }
-                  }, box.active ? "Active" : "Archived")),
-                  /*#__PURE__*/React.createElement("td", null,
-                    !["Small","Medium","Large","Freight","Unknown"].includes(box.key) &&
-                      /*#__PURE__*/React.createElement("button", { className: "btn btn-red btn-xs",
-                        onClick: function(){ var vi=bIdx; if(!window.confirm("Remove "+box.key+"?"))return; setEditBoxCfg(function(p){ return p.filter(function(_,i){ return i!==vi; }); }); }
-                      }, "Del")
-                  )
-                );
-              })
-            )
-          )
-        ),
-        /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 12 } },
-          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm",
-            onClick: function(){ var k="Custom"+Date.now().toString().slice(-4); setEditBoxCfg(function(p){ return p.concat([{key:k,code:"",dims:"",label:k,active:true}]); }); }
-          }, "+ Add Box Type")
-        )
-      )
-    )
-  ))
-    : tab === "destinations" ? (/*#__PURE__*/React.createElement("div", null,
-    /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
-      "\uD83C\uDF0E Manage shipping destinations. Adding a destination creates a row in the pricing matrix."
-    ),
-    /*#__PURE__*/React.createElement("div", { className: "card" },
-      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Destinations"),
-        /*#__PURE__*/React.createElement("div", { className: "row g10" },
-          saved && /*#__PURE__*/React.createElement("span", { className: "badge bg" }, "\u2713 Saved"),
-          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary btn-sm", onClick: handleSaveDests }, "Save Changes")
-        )
-      ),
-      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
-        /*#__PURE__*/React.createElement("div", { className: "tbl", style: { marginBottom: 12 } },
-          /*#__PURE__*/React.createElement("table", null,
-            /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null,
-              /*#__PURE__*/React.createElement("th", null, "Destination"),
-              /*#__PURE__*/React.createElement("th", null, "")
-            )),
-            /*#__PURE__*/React.createElement("tbody", null,
-              (Array.isArray(editDests) ? editDests : []).map(function(d, dIdx) {
-                return /*#__PURE__*/React.createElement("tr", { key: d + dIdx },
-                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: d,
-                    onChange: function(e){ var vi=dIdx; setEditDests(function(p){ return p.map(function(x,i){ return i===vi?e.target.value:x; }); }); },
-                    style: { padding: "4px 8px", fontSize: 12 }
-                  })),
-                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", { className: "btn btn-red btn-xs",
-                    onClick: function(){ var vi=dIdx; if(!window.confirm("Remove "+d+"?"))return; setEditDests(function(p){ return p.filter(function(_,i){ return i!==vi; }); }); }
-                  }, "Del"))
-                );
-              })
-            )
-          )
-        ),
-        /*#__PURE__*/React.createElement("div", { className: "row g10" },
-          /*#__PURE__*/React.createElement("input", { className: "fi", value: newDest,
-            onChange: function(e){ setNewDest(e.target.value); },
-            placeholder: "New destination...",
-            style: { maxWidth: 220, padding: "4px 8px", fontSize: 12 }
-          }),
-          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm",
-            disabled: !newDest.trim(),
-            onClick: function(){ if(!newDest.trim())return; setEditDests(function(p){ return p.concat([newDest.trim()]); }); setNewDest(""); }
-          }, "+ Add Destination")
-        )
-      )
-    )
-  ))
-    : tab === "operations" ? ((function(){
-    var _safeTenant = tenant || {}; var _reqConfirm = _safeTenant.requireVoidConfirm !== false;
-    return /*#__PURE__*/React.createElement("div", null,
-      /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
-        "\u2699\uFE0F Configure operational behavior and safety settings."
-      ),
-      /*#__PURE__*/React.createElement("div", { className: "card" },
-        /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Void Order Settings")
-        ),
-        /*#__PURE__*/React.createElement("div", { className: "card-bd" },
-          /*#__PURE__*/React.createElement("div", { className: "row g10", style: { alignItems: "center", padding: "8px 0" } },
-            /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
-              /*#__PURE__*/React.createElement("div", { className: "tb", style: { fontSize: 13 } }, "Require typed confirmation to void an order"),
-              /*#__PURE__*/React.createElement("div", { className: "xs mut", style: { marginTop: 2 } },
-                "When enabled, staff must type \"Confirm\" before voiding. Disable for faster operations."
-              )
-            ),
-            /*#__PURE__*/React.createElement("label", { className: "row g10", style: { alignItems: "center", cursor: "pointer", flexShrink: 0 } },
-              /*#__PURE__*/React.createElement("input", {
-                type: "checkbox",
-                checked: _reqConfirm,
-                onChange: function(e) {
-                  if (onUpdateTenant) onUpdateTenant({ requireVoidConfirm: e.target.checked }); else console.warn("onUpdateTenant not provided");
-                },
-                style: { width: 16, height: 16, cursor: "pointer" }
-              }),
-              /*#__PURE__*/React.createElement("span", { className: "xs" }, _reqConfirm ? "On" : "Off")
-            )
-          )
-        )
-      )
-    );
-  })())
-    : null
-  );
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
   }, /*#__PURE__*/React.createElement("div", {
@@ -12995,7 +12848,150 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
         fontStyle: "italic"
       }
     }, "\"", t.msg, "\""));
-  })), renderActiveTab)));
+  }))),
+  tab === "boxtypes" && (/*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
+      "\uD83D\uDCE6 Manage box types. Changes update the order form and pricing matrix. Archiving hides a type from new orders but preserves historical records."
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "card" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Box Types"),
+        /*#__PURE__*/React.createElement("div", { className: "row g10" },
+          saved && /*#__PURE__*/React.createElement("span", { className: "badge bg" }, "\u2713 Saved"),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary btn-sm", onClick: handleSaveBoxTypes }, "Save Changes")
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+        /*#__PURE__*/React.createElement("div", { className: "tbl" },
+          /*#__PURE__*/React.createElement("table", null,
+            /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null,
+              /*#__PURE__*/React.createElement("th", null, "Key"),
+              /*#__PURE__*/React.createElement("th", null, "Display Label"),
+              /*#__PURE__*/React.createElement("th", null, "Code"),
+              /*#__PURE__*/React.createElement("th", null, "Dimensions"),
+              /*#__PURE__*/React.createElement("th", null, "Status"),
+              /*#__PURE__*/React.createElement("th", null, "")
+            )),
+            /*#__PURE__*/React.createElement("tbody", null,
+              (Array.isArray(editBoxCfg) ? editBoxCfg : []).map(function(box, bIdx) {
+                return /*#__PURE__*/React.createElement("tr", { key: box.key + bIdx },
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tamb" }, box.key)),
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: box.label,
+                    onChange: function(e){ var vi=bIdx; setEditBoxCfg(function(p){ return p.map(function(b,i){ return i===vi?Object.assign({},b,{label:e.target.value}):b; }); }); },
+                    style: { padding: "4px 8px", fontSize: 12 }
+                  })),
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: box.code,
+                    onChange: function(e){ var vi=bIdx; setEditBoxCfg(function(p){ return p.map(function(b,i){ return i===vi?Object.assign({},b,{code:e.target.value}):b; }); }); },
+                    style: { width: 70, padding: "4px 8px", fontSize: 12 }
+                  })),
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: box.dims,
+                    onChange: function(e){ var vi=bIdx; setEditBoxCfg(function(p){ return p.map(function(b,i){ return i===vi?Object.assign({},b,{dims:e.target.value}):b; }); }); },
+                    style: { width: 110, padding: "4px 8px", fontSize: 12 }
+                  })),
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", {
+                    className: "btn btn-sm " + (box.active ? "btn-green" : "btn-ghost"),
+                    onClick: function(){ var vi=bIdx; setEditBoxCfg(function(p){ return p.map(function(b,i){ return i===vi?Object.assign({},b,{active:!b.active}):b; }); }); }
+                  }, box.active ? "Active" : "Archived")),
+                  /*#__PURE__*/React.createElement("td", null,
+                    !["Small","Medium","Large","Freight","Unknown"].includes(box.key) &&
+                      /*#__PURE__*/React.createElement("button", { className: "btn btn-red btn-xs",
+                        onClick: function(){ var vi=bIdx; if(!window.confirm("Remove "+box.key+"?"))return; setEditBoxCfg(function(p){ return p.filter(function(_,i){ return i!==vi; }); }); }
+                      }, "Del")
+                  )
+                );
+              })
+            )
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 12 } },
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm",
+            onClick: function(){ var k="Custom"+Date.now().toString().slice(-4); setEditBoxCfg(function(p){ return p.concat([{key:k,code:"",dims:"",label:k,active:true}]); }); }
+          }, "+ Add Box Type")
+        )
+      )
+    )),
+  tab === "destinations" && (/*#__PURE__*/React.createElement("div", null,
+    /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
+      "\uD83C\uDF0E Manage shipping destinations. Adding a destination creates a row in the pricing matrix."
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "card" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Destinations"),
+        /*#__PURE__*/React.createElement("div", { className: "row g10" },
+          saved && /*#__PURE__*/React.createElement("span", { className: "badge bg" }, "\u2713 Saved"),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary btn-sm", onClick: handleSaveDests }, "Save Changes")
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+        /*#__PURE__*/React.createElement("div", { className: "tbl", style: { marginBottom: 12 } },
+          /*#__PURE__*/React.createElement("table", null,
+            /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null,
+              /*#__PURE__*/React.createElement("th", null, "Destination"),
+              /*#__PURE__*/React.createElement("th", null, "")
+            )),
+            /*#__PURE__*/React.createElement("tbody", null,
+              (Array.isArray(editDests) ? editDests : []).map(function(d, dIdx) {
+                return /*#__PURE__*/React.createElement("tr", { key: d + dIdx },
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", { className: "fi", value: d,
+                    onChange: function(e){ var vi=dIdx; setEditDests(function(p){ return p.map(function(x,i){ return i===vi?e.target.value:x; }); }); },
+                    style: { padding: "4px 8px", fontSize: 12 }
+                  })),
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("button", { className: "btn btn-red btn-xs",
+                    onClick: function(){ var vi=dIdx; if(!window.confirm("Remove "+d+"?"))return; setEditDests(function(p){ return p.filter(function(_,i){ return i!==vi; }); }); }
+                  }, "Del"))
+                );
+              })
+            )
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "row g10" },
+          /*#__PURE__*/React.createElement("input", { className: "fi", value: newDest,
+            onChange: function(e){ setNewDest(e.target.value); },
+            placeholder: "New destination...",
+            style: { maxWidth: 220, padding: "4px 8px", fontSize: 12 }
+          }),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm",
+            disabled: !newDest.trim(),
+            onClick: function(){ if(!newDest.trim())return; setEditDests(function(p){ return p.concat([newDest.trim()]); }); setNewDest(""); }
+          }, "+ Add Destination")
+        )
+      )
+    )),
+  tab === "operations" && ((function(){
+    var _safeTenant = tenant || {}; var _reqConfirm = _safeTenant.requireVoidConfirm !== false;
+    return /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
+        "\u2699\uFE0F Configure operational behavior and safety settings."
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "card" },
+        /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Void Order Settings")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+          /*#__PURE__*/React.createElement("div", { className: "row g10", style: { alignItems: "center", padding: "8px 0" } },
+            /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
+              /*#__PURE__*/React.createElement("div", { className: "tb", style: { fontSize: 13 } }, "Require typed confirmation to void an order"),
+              /*#__PURE__*/React.createElement("div", { className: "xs mut", style: { marginTop: 2 } },
+                "When enabled, staff must type \"Confirm\" before voiding. Disable for faster operations."
+              )
+            ),
+            /*#__PURE__*/React.createElement("label", { className: "row g10", style: { alignItems: "center", cursor: "pointer", flexShrink: 0 } },
+              /*#__PURE__*/React.createElement("input", {
+                type: "checkbox",
+                checked: _reqConfirm,
+                onChange: function(e) {
+                  if (onUpdateTenant) onUpdateTenant({ requireVoidConfirm: e.target.checked }); else console.warn("onUpdateTenant not provided");
+                },
+                style: { width: 16, height: 16, cursor: "pointer" }
+              }),
+              /*#__PURE__*/React.createElement("span", { className: "xs" }, _reqConfirm ? "On" : "Off")
+            )
+          )
+        )
+      )
+    );
+  })()))
+  )));
 };
 
 /* ════════════════════════════════════════════
