@@ -10700,7 +10700,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     var _SHIPMENT_STATUS$sele, _SHIPMENT_STATUS$sele2;
     var shpOrders = getOrdersInShipment(selected);
     var liveRevenue = shpOrders.reduce(function(s,o){return s+((o.payment&&o.payment.amount)||0);},0);
-    var profit = liveRevenue - selected.cost;
+    var profit = liveRevenue - (selected.cost||0);
     var margin = liveRevenue > 0 ? Math.round(profit / liveRevenue * 100) : 0;
     return /*#__PURE__*/React.createElement("div", {
       className: "fu"
@@ -10817,7 +10817,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
       c: "sc-g"
     }, {
       l: "Cost",
-      v: "$".concat(selected.cost.toLocaleString()),
+      v: "$".concat((selected.cost||0).toLocaleString()),
       i: "📉",
       c: "sc-r"
     }, {
@@ -10998,7 +10998,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
       }, v));
     }))), selected.notes && /*#__PURE__*/React.createElement("div", {
       className: "alert alert-a"
-    }, "\uD83D\uDCDD ", /*#__PURE__*/React.createElement("span", null, selected.notes)), /*#__PURE__*/React.createElement("div", {
+    }, "\uD83D\uDCDD ", /*#__PURE__*/React.createElement("span", null, selected.notes||"")), /*#__PURE__*/React.createElement("div", {
       className: "card"
     }, /*#__PURE__*/React.createElement("div", {
       className: "card-hd"
@@ -11347,7 +11347,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
                       if (!broadcastMsg) {
                         setBroadcastMsg(
                           "Hi [Name]! \uD83D\uDEA2 Your shipment " + (selected.name || selected.id) +
-                          " heading to " + selected.destination +
+                          " heading to " + (selected.destination||"") +
                           " is now *" + (selected.status || "open").replace(/_/g," ") + "*." +
                           (selected.eta ? " Est. arrival: " + selected.eta + "." : "") +
                           " Questions? Reply here. \u2014 Casabe Xpress"
