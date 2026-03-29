@@ -10552,7 +10552,9 @@ var EditShipmentModal = function EditShipmentModal(_ref_esm) {
 };
 
 var ExpenseLineAdder = function ExpenseLineAdder(props) {
-  var onAdd = props.onAdd, boxUnitCosts = props.boxUnitCosts, boxConfig = props.boxConfig;
+  var onAdd = props.onAdd, onDraftChange = props.onDraftChange, boxUnitCosts = props.boxUnitCosts, boxConfig = props.boxConfig;
+  var _draftCbRef = React.useRef(onDraftChange);
+  React.useEffect(function() { _draftCbRef.current = onDraftChange; });
   var EXP_TYPES = [
     {key:"driver_pay",label:"Driver Pay"},
     {key:"helper",label:"Helper"},
@@ -10575,6 +10577,20 @@ var ExpenseLineAdder = function ExpenseLineAdder(props) {
   }, [lineBox, lineQty, isBoxes]);
   var unitCost = (boxUnitCosts || {})[lineBox] || 0;
   var lineTotal = isBoxes ? (unitCost * (parseInt(lineQty)||0)) : (parseFloat(lineAmt)||0);
+  React.useEffect(function(){
+    var cb = _draftCbRef.current;
+    if (!cb) return;
+    var typeLabel = (EXP_TYPES.find(function(t){ return t.key === lineType; })||{}).label || lineType;
+    var draft = null;
+    if (isBoxes) {
+      if (lineQty && parseInt(lineQty, 10) > 0) {
+        draft = { type: typeLabel, description: "", boxType: lineBox, qty: parseInt(lineQty, 10), unitCost: unitCost, amount: lineTotal };
+      }
+    } else if (lineAmt !== "" && lineAmt != null && parseFloat(lineAmt) > 0) {
+      draft = { type: typeLabel, description: lineDesc, boxType: "", qty: null, unitCost: null, amount: lineTotal };
+    }
+    cb(draft);
+  }, [lineType, lineDesc, lineAmt, lineQty, lineBox, isBoxes, unitCost, lineTotal]);
   return /*#__PURE__*/React.createElement("div", { style:{background:"var(--bg3)",borderRadius:8,padding:12,marginBottom:12} },
     /*#__PURE__*/React.createElement("div", { className:"modal-section", style:{marginTop:0} }, "Add Line Item"),
     /*#__PURE__*/React.createElement("div", { className:"fr3", style:{marginBottom:8} },
@@ -10686,6 +10702,10 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     _useStateNewExpFormData2 = _slicedToArray(_useStateNewExpFormData, 2),
     newExpFormData = _useStateNewExpFormData2[0],
     setNewExpFormData = _useStateNewExpFormData2[1];
+  var _useStatePendingExp = useState(null),
+    _useStatePendingExp2 = _slicedToArray(_useStatePendingExp, 2),
+    pendingExpDraft = _useStatePendingExp2[0],
+    setPendingExpDraft = _useStatePendingExp2[1];
   var BOX_UNIT_COSTS = {"Small":3.20,"Medium":10.00,"Large":12.25};
   var _useState69b = useState(false),
     _useState70b = _slicedToArray(_useState69b, 2),
@@ -11153,7 +11173,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
       }, showExpenses ? "\u25B4 Hide" : "\u25BE History"),
       /*#__PURE__*/React.createElement("button", {
         className: "btn btn-primary btn-sm", style: { marginLeft: 4 },
-        onClick: function() { setShowNewExpForm(true); setNewExpFormData({fromDate:"",toDate:"",items:[]}); }
+        onClick: function() { setShowNewExpForm(true); setNewExpFormData({fromDate:"",toDate:"",items:[]}); setPendingExpDraft(null); }
       }, "+ New Form")
     ),
     showExpenses && (selected.expenseForms || []).length === 0
@@ -11262,11 +11282,11 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
         })())
       ),
     showNewExpForm &&
-      /*#__PURE__*/React.createElement("div", { className: "overlay", onClick: function(e){ if(e.target===e.currentTarget) setShowNewExpForm(false); } },
+      /*#__PURE__*/React.createElement("div", { className: "overlay", onClick: function(e){ if(e.target===e.currentTarget) { setShowNewExpForm(false); setPendingExpDraft(null); } } },
         /*#__PURE__*/React.createElement("div", { className: "modal modal-lg fu" },
           /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginBottom: 16 } },
             /*#__PURE__*/React.createElement("span", { className: "modal-title", style: { margin: 0 } }, "\uD83D\uDCB8 New Expense Form"),
-            /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm mla", onClick: function(){ setShowNewExpForm(false); } }, "Cancel")
+            /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm mla", onClick: function(){ setShowNewExpForm(false); setPendingExpDraft(null); } }, "Cancel")
           ),
           /*#__PURE__*/React.createElement("div", { className: "fr", style: { marginBottom: 12 } },
             /*#__PURE__*/React.createElement("div", { className: "fg" },
@@ -11318,20 +11338,29 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
           ),
           /*#__PURE__*/React.createElement(ExpenseLineAdder, {
             onAdd: function(item){ setNewExpFormData(function(p){ return Object.assign({},p,{items:(p.items||[]).concat([item])}); }); },
+            onDraftChange: function(d){ setPendingExpDraft(d); },
             boxUnitCosts: BOX_UNIT_COSTS,
             boxConfig: boxConfig
           }),
           /*#__PURE__*/React.createElement("div", { style: { textAlign:"right", marginTop:8, fontWeight:700, fontSize:13, color:"var(--amber)" } },
-            "Form Total: $", ((newExpFormData.items||[]).reduce(function(s,it){ return s + (parseFloat(it.amount)||0); },0)).toFixed(2)
+            "Form Total: $", (function(){
+              var fromList = (newExpFormData.items||[]).reduce(function(s,it){ return s + (parseFloat(it.amount)||0); }, 0);
+              var fromDraft = pendingExpDraft ? (parseFloat(pendingExpDraft.amount)||0) : 0;
+              return (fromList + fromDraft).toFixed(2);
+            })()
           ),
           /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 16, justifyContent: "flex-end" } },
             /*#__PURE__*/React.createElement("button", {
               className: "btn btn-primary",
               disabled: !(newExpFormData.fromDate && newExpFormData.toDate),
               onClick: function(){
-                var finalItems = newExpFormData.items || [];
+                var finalItems = (newExpFormData.items || []).slice();
+                if (pendingExpDraft) finalItems = finalItems.concat([pendingExpDraft]);
                 var total = finalItems.reduce(function(s,it){ return s + (parseFloat(it.amount)||0); }, 0);
-                if (total === 0 && finalItems.length === 0) { notify("\u26A0\uFE0F Add at least one line item"); return; }
+                if (finalItems.length === 0 || total <= 0) {
+                  notify("\u26A0\uFE0F Add an amount and use + Add Item, or type an amount below \u2014 it will be included when you submit.");
+                  return;
+                }
                 var newForm = Object.assign({}, newExpFormData, {
                   id: "EXP-" + String(((selected.expenseForms||[]).length + 1)).padStart(3,"0"),
                   createdAt: new Date().toISOString().slice(0,10),
@@ -11345,6 +11374,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
                 setSelected(updatedShipment);
                 setShowNewExpForm(false);
                 setNewExpFormData({fromDate:"",toDate:"",items:[]});
+                setPendingExpDraft(null);
               }
             }, "\u2713 Submit Expense Form")
           )
