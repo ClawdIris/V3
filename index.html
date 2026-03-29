@@ -11513,7 +11513,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     onClick: function onClick() { return setShowNewShipment(true); }
   }, "+ New Shipment Batch"))), showNewShipment && /*#__PURE__*/React.createElement(NewShipmentModal, {
     existingCount: shipments.length,
-    destinations: appDestinations,
+    destinations: destinations,
     onClose: function onClose() { return setShowNewShipment(false); },
     onSave: function onSave(newShipment) {
       var normalizedShipment = Object.assign({
@@ -18236,7 +18236,7 @@ function AppShell(_ref130) {
     setAppBoxConfig = _useStateAppBoxCfg2[1];
   var _useStateAppDests = useState([].concat(DESTINATIONS)),
     _useStateAppDests2 = _slicedToArray(_useStateAppDests, 2),
-    appDestinations = _useStateAppDests2[0],
+    destinations = _useStateAppDests2[0],
     setAppDestinations = _useStateAppDests2[1];
   var _useState127 = useState(session.roleKey || "hq"),
     _useState128 = _slicedToArray(_useState127, 2),
@@ -18683,7 +18683,7 @@ setOrders(function (prev) {
     // HQ pages
     if (page === "overview") return /*#__PURE__*/React.createElement(HQOverview, {
       orders: orders,
-      destinations: appDestinations
+      destinations: destinations
     });
     if (page === "analytics") return /*#__PURE__*/React.createElement(HQAnalytics, {
       orders: orders
@@ -18742,7 +18742,7 @@ setOrders(function (prev) {
     if (page === "pricing") return /*#__PURE__*/React.createElement(PricingAdminPage, {
       pricing: pricing,
       initialBoxConfig: appBoxConfig,
-      initialDestinations: appDestinations,
+      initialDestinations: destinations,
       onUpdate: function(newPricing) {
         setPricing(newPricing);
         if (session && session.tenantId) {
@@ -18786,7 +18786,7 @@ setOrders(function (prev) {
       shipments: shipments,
       orders: orders,
       boxConfig: appBoxConfig,
-      destinations: appDestinations,
+      destinations: destinations,
       onCreateBatch: function onCreateBatch(newShipment) {
         setShipments(function(prev) { return [newShipment].concat(_toConsumableArray(prev)); });
         if (session && session.tenantId) {
@@ -19222,7 +19222,7 @@ setOrders(function (prev) {
     existingOrders: orders,
     shipmentsList: shipments,
     boxConfig: appBoxConfig,
-    destinations: appDestinations
+    destinations: destinations
   }), editOrder && /*#__PURE__*/React.createElement(OrderForm, {
     title: "Edit Order \u2014 ".concat(editOrder.id),
     initial: editOrder,
@@ -19237,7 +19237,7 @@ setOrders(function (prev) {
     existingOrders: orders,
     shipmentsList: shipments,
     boxConfig: appBoxConfig,
-    destinations: appDestinations
+    destinations: destinations
   }), selectedOrder && /*#__PURE__*/React.createElement(OrderDetail, {
     order: selectedOrder,
     onClose: function onClose() {
