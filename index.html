@@ -22,10 +22,24 @@
   </style>
   <!-- Supabase JS client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <!-- Runtime config -->
+  <!-- Runtime config - Load from environment variables -->
   <script>
-    var SUPABASE_URL     = "https://exayifxbqduhsxmmsnxr.supabase.co";
-    var SUPABASE_ANON_KEY = "sb_publishable_vqS6u4BduAw6fYYaLP-2aA_gfETHuH1";
+    // SECURITY: Keys must be injected at runtime from environment
+    // DO NOT hardcode credentials in source code
+    var SUPABASE_URL     = window.__CASABE_CONFIG?.supabase_url || (function() {
+      console.error('CRITICAL: SUPABASE_URL not configured. Set environment variable.');
+      return null;
+    })();
+    var SUPABASE_ANON_KEY = window.__CASABE_CONFIG?.supabase_anon_key || (function() {
+      console.error('CRITICAL: SUPABASE_ANON_KEY not configured. Set environment variable.');
+      return null;
+    })();
+    
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      console.error('FATAL: Supabase configuration incomplete. Application cannot initialize.');
+      throw new Error('Missing Supabase configuration');
+    }
+    
     var _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   </script>
 </head>
