@@ -22,24 +22,10 @@
   </style>
   <!-- Supabase JS client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <!-- Runtime config - Load from environment variables -->
+  <!-- Runtime config -->
   <script>
-    // SECURITY: Keys must be injected at runtime from environment
-    // DO NOT hardcode credentials in source code
-    var SUPABASE_URL     = window.__CASABE_CONFIG?.supabase_url || (function() {
-      console.error('CRITICAL: SUPABASE_URL not configured. Set environment variable.');
-      return null;
-    })();
-    var SUPABASE_ANON_KEY = window.__CASABE_CONFIG?.supabase_anon_key || (function() {
-      console.error('CRITICAL: SUPABASE_ANON_KEY not configured. Set environment variable.');
-      return null;
-    })();
-    
-    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-      console.error('FATAL: Supabase configuration incomplete. Application cannot initialize.');
-      throw new Error('Missing Supabase configuration');
-    }
-    
+    var SUPABASE_URL     = "https://exayifxbqduhsxmmsnxr.supabase.co";
+    var SUPABASE_ANON_KEY = "sb_publishable_vqS6u4BduAw6fYYaLP-2aA_gfETHuH1";
     var _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   </script>
 </head>
@@ -12694,7 +12680,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
   var _opsReqConfirm = (tenant || {}).requireVoidConfirm !== false;
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
-  }, [/*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("div", {
     className: "tabs"
   }, /*#__PURE__*/React.createElement("div", {
     className: "tab ".concat(tab === "pricing" ? "on" : ""),
@@ -13249,7 +13235,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
   }), /*#__PURE__*/React.createElement("span", {
     className: "xs"
   }, _opsReqConfirm ? "On" : "Off")))))))))
-  ]);
+  );
 };
 
 /* ════════════════════════════════════════════
