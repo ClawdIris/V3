@@ -12678,7 +12678,6 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     setTimeout(function(){ return setSaved(false); }, 2000);
   };
   var _opsReqConfirm = (tenant || {}).requireVoidConfirm !== false;
-  var renderActiveTab = (function(t_ab) { if(t_ab==="boxtypes") return React.createElement("div",null,"Box Types"); if(t_ab==="destinations") return React.createElement("div",null,"Destinations"); if(t_ab==="operations") return React.createElement("div",null,"Operations"); return null; })(tab);
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
   }, /*#__PURE__*/React.createElement("div", {
@@ -12987,7 +12986,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
       }
     }, "\"", t.msg, "\""));
   }))
-  ))))), renderActiveTab
+  ))))), (function(t_ab) { if(t_ab==="boxtypes") return React.createElement("div",null,"Box Types"); if(t_ab==="destinations") return React.createElement("div",null,"Destinations"); if(t_ab==="operations") return React.createElement("div",null,"Operations"); return null; })(tab)
   );
 };
 
