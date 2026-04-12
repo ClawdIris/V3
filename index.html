@@ -1575,6 +1575,9 @@ var CalendarPicker = function CalendarPicker(props) {
 ════════════════════════════════════════════ */
 var PAID_INVOICE_EDGE_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/send-paid-invoice";
 var LOG_BOX_STATUS_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/log-box-status";
+var QB_CONNECT_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/quickbooks-connect";
+var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4YXlpZnhicWR1aHN4bW1zbnhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM3NTgxNjMsImV4cCI6MjA0OTMzNDE2M30.LyBSJj2lrpJV1FBBKflpxXzBcW0UQb-e6ABlz2gQCNA";
+var SUPABASE_REST_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/rest/v1";
 
 /* ════════════════════════════════════════════
    SHARED BOX STATUS HELPERS
@@ -1904,7 +1907,9 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
         channels:    channels,
         phone:       phone.trim(),
         invoiceHtml: buildInvoiceHtml(),
-        messageBody: msgPreview
+        messageBody: msgPreview,
+        source: "paid_modal",
+        triggeredBy: (tenant && tenant.currentUser) || "staff"
       })
     })
     .then(function(r){ return r.json(); })
@@ -13329,30 +13334,69 @@ var ClaimsPage = function ClaimsPage(_ref106) {
 ════════════════════════════════════════════ */
 var IntegrationStatusPage = function IntegrationStatusPage(props) {
   var session = props.session || {};
+  var tenantId = session.tenantId || "casabe-xpress";
+
+  // ── WhatsApp status state ──────────────────────────────────────────────
   var _stWa = useState(null), _stWa2 = _slicedToArray(_stWa, 2),
       waStatus = _stWa2[0], setWaStatus = _stWa2[1];
   var _stSms = useState(null), _stSms2 = _slicedToArray(_stSms, 2),
       smsStatus = _stSms2[0], setSmsStatus = _stSms2[1];
-  var _stLog = useState([]), _stLog2 = _slicedToArray(_stLog, 2),
-      failLog = _stLog2[0], setFailLog = _stLog2[1];
   var _stLoading = useState(false), _stLoading2 = _slicedToArray(_stLoading, 2),
       loading = _stLoading2[0], setLoading = _stLoading2[1];
   var _stErr = useState(null), _stErr2 = _slicedToArray(_stErr, 2),
       err = _stErr2[0], setErr = _stErr2[1];
+  var _stTestPhone = useState("+1"), _stTestPhone2 = _slicedToArray(_stTestPhone, 2),
+      testPhone = _stTestPhone2[0], setTestPhone = _stTestPhone2[1];
+
+  // ── Send log state ────────────────────────────────────────────────────
+  var _stLog = useState([]), _stLog2 = _slicedToArray(_stLog, 2),
+      sendLog = _stLog2[0], setSendLog = _stLog2[1];
+  var _stLogFilter = useState("all"), _stLogFilter2 = _slicedToArray(_stLogFilter, 2),
+      logFilter = _stLogFilter2[0], setLogFilter = _stLogFilter2[1];
+  var _stRetrying = useState(null), _stRetrying2 = _slicedToArray(_stRetrying, 2),
+      retryingId = _stRetrying2[0], setRetryingId = _stRetrying2[1];
+  var _stRetryResult = useState({}), _stRetryResult2 = _slicedToArray(_stRetryResult, 2),
+      retryResults = _stRetryResult2[0], setRetryResults = _stRetryResult2[1];
+
+  // ── QuickBooks status state ───────────────────────────────────────────
+  var _stQb = useState(null), _stQb2 = _slicedToArray(_stQb, 2),
+      qbStatus = _stQb2[0], setQbStatus = _stQb2[1];
+  var _stQbLoading = useState(false), _stQbLoading2 = _slicedToArray(_stQbLoading, 2),
+      qbLoading = _stQbLoading2[0], setQbLoading = _stQbLoading2[1];
+
+  function supaFetch(path, opts) {
+    return fetch(SUPABASE_REST_URL + path, Object.assign({
+      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json" }
+    }, opts || {}));
+  }
+
+  // Load send_log on mount
+  React.useEffect(function() {
+    supaFetch("/send_log?order=ts.desc&limit=50")
+      .then(function(r){ return r.json(); })
+      .then(function(data){ if (Array.isArray(data)) setSendLog(data); })
+      .catch(function(){});
+    // Load QB status
+    fetch(QB_CONNECT_URL + "?action=status&tenantId=" + tenantId)
+      .then(function(r){ return r.json(); })
+      .then(function(data){ setQbStatus(data); })
+      .catch(function(){});
+  }, []);
 
   function checkStatus() {
     setLoading(true); setErr(null);
-    // Test both channels with empty payload — backend will stub if unconfigured
     fetch(PAID_INVOICE_EDGE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         orderId: "TEST-STATUS-CHECK",
-        tenantId: session.tenantId || "casabe-xpress",
-        channels: ["whatsapp","sms"],
-        phone: "+10000000000",
-        messageBody: "Integration status check",
-        triggeredBy: "admin_status_check"
+        tenantId: tenantId,
+        channels: ["whatsapp", "sms"],
+        phone: testPhone.trim() || "+10000000000",
+        messageBody: "Casabe Connect integration test. Please ignore.",
+        triggeredBy: session.displayName || "admin",
+        source: "admin_status_check",
+        testMode: true
       })
     })
     .then(function(r){ return r.json(); })
@@ -13365,20 +13409,46 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
     .catch(function(e){ setErr(String(e)); setLoading(false); });
   }
 
-  // Load recent failures from send_log via Supabase direct (anon key)
-  React.useEffect(function() {
-    var SUPABASE_URL = "https://exayifxbqduhsxmmsnxr.supabase.co";
-    var ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4YXlpZnhicWR1aHN4bW1zbnhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM3NTgxNjMsImV4cCI6MjA0OTMzNDE2M30.LyBSJj2lrpJV1FBBKflpxXzBcW0UQb-e6ABlz2gQCNA";
-    fetch(SUPABASE_URL + "/rest/v1/send_log?order=ts.desc&limit=20&status=eq.failed", {
-      headers: {
-        "apikey": ANON_KEY,
-        "Authorization": "Bearer " + ANON_KEY
-      }
+  function retryRow(row) {
+    setRetryingId(row.id);
+    fetch(PAID_INVOICE_EDGE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        orderId:     row.order_id,
+        tenantId:    row.tenant_id || tenantId,
+        channels:    row.channels || ["whatsapp"],
+        phone:       row.phone || "",
+        messageBody: "Resent: Your Casabe Xpress invoice for order " + row.order_id + " is confirmed paid.",
+        triggeredBy: session.displayName || "admin",
+        source: "admin_retry"
+      })
     })
     .then(function(r){ return r.json(); })
-    .then(function(data){ if (Array.isArray(data)) setFailLog(data); })
-    .catch(function(){}); // Silent — log table may be empty
-  }, []);
+    .then(function(data) {
+      var ok = Object.values(data.results || {}).some(function(r){ return r && r.ok; });
+      setRetryResults(function(p){ var n=Object.assign({},p); n[row.id]=ok?"ok":"fail"; return n; });
+      setRetryingId(null);
+      // Refresh log
+      supaFetch("/send_log?order=ts.desc&limit=50")
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(Array.isArray(d)) setSendLog(d); });
+    })
+    .catch(function(e){
+      setRetryResults(function(p){ var n=Object.assign({},p); n[row.id]="fail"; return n; });
+      setRetryingId(null);
+    });
+  }
+
+  function disconnectQb() {
+    setQbLoading(true);
+    fetch(QB_CONNECT_URL + "?action=disconnect&tenantId=" + tenantId, { method: "POST" })
+      .then(function(r){ return r.json(); })
+      .then(function(){ return fetch(QB_CONNECT_URL + "?action=status&tenantId=" + tenantId); })
+      .then(function(r){ return r.json(); })
+      .then(function(data){ setQbStatus(data); setQbLoading(false); })
+      .catch(function(){ setQbLoading(false); });
+  }
 
   function statusBadge(result) {
     if (!result) return /*#__PURE__*/React.createElement("span", { className: "badge ba" }, "Not tested");
@@ -13389,71 +13459,432 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
 
   function statusNote(result) {
     if (!result) return null;
-    if (result.error) return /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 4 } }, result.error);
-    if (result.messageId) return /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 4, color: "var(--green)" } }, "Message ID: ", result.messageId);
+    if (result.error) return /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 4, color: "var(--red)", wordBreak: "break-word" } }, result.error);
+    if (result.messageId) return /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 4, color: "var(--green)" } },
+      result.method === "document" ? "\uD83D\uDCCE PDF sent \u2014 ID: " : "\u2713 Text sent \u2014 ID: ", result.messageId);
     return null;
   }
 
+  var filteredLog = logFilter === "all" ? sendLog
+    : sendLog.filter(function(r){ return r.status === logFilter; });
+
   return /*#__PURE__*/React.createElement("div", { className: "fu" },
+
+    // ── WhatsApp status card ───────────────────────────────────────────────
     /*#__PURE__*/React.createElement("div", { className: "card mb14" },
       /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDD0C Messaging Integration Status"),
-        /*#__PURE__*/React.createElement("button", {
-          className: "btn btn-primary btn-sm mla",
-          disabled: loading,
-          onClick: checkStatus
-        }, loading ? "Checking\u2026" : "Test Connections")
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCAC WhatsApp Integration"),
+        /*#__PURE__*/React.createElement("div", { className: "mla row g8" },
+          /*#__PURE__*/React.createElement("input", {
+            className: "fi", style: { maxWidth: 160, fontSize: 12 },
+            placeholder: "Test phone (+1…)",
+            value: testPhone,
+            onChange: function(e){ setTestPhone(e.target.value); }
+          }),
+          /*#__PURE__*/React.createElement("button", {
+            className: "btn btn-primary btn-sm",
+            disabled: loading,
+            onClick: checkStatus
+          }, loading ? "Testing\u2026" : "Test Connection")
+        )
       ),
       /*#__PURE__*/React.createElement("div", { className: "card-bd" },
         err && /*#__PURE__*/React.createElement("div", { className: "alert alert-a mb12", style: { fontSize: 12 } }, "\u26A0 ", err),
         /*#__PURE__*/React.createElement("div", { className: "g2" },
-          // WhatsApp card
           /*#__PURE__*/React.createElement("div", { style: { background: "var(--bg3)", borderRadius: 8, padding: "14px 16px" } },
             /*#__PURE__*/React.createElement("div", { className: "row g10 mb8" },
               /*#__PURE__*/React.createElement("span", { style: { fontSize: 20 } }, "\uD83D\uDCAC"),
-              /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700, fontSize: 14 } }, "WhatsApp"),
+              /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700, fontSize: 14 } }, "WhatsApp Business"),
               statusBadge(waStatus)
             ),
-            /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "Requires: WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID"),
+            /*#__PURE__*/React.createElement("div", { className: "mut xs mb4" }, "Required secrets: WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_API_VERSION"),
+            /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "Optional: WHATSAPP_BUSINESS_ACCOUNT_ID, WHATSAPP_WEBHOOK_VERIFY_TOKEN, PDF_BASE_URL (for document attachments)"),
             statusNote(waStatus)
           ),
-          // SMS card
           /*#__PURE__*/React.createElement("div", { style: { background: "var(--bg3)", borderRadius: 8, padding: "14px 16px" } },
             /*#__PURE__*/React.createElement("div", { className: "row g10 mb8" },
               /*#__PURE__*/React.createElement("span", { style: { fontSize: 20 } }, "\uD83D\uDCF1"),
               /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700, fontSize: 14 } }, "SMS (Twilio)"),
               statusBadge(smsStatus)
             ),
-            /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "Requires: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER"),
+            /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "Required secrets: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER"),
             statusNote(smsStatus)
           )
         )
       )
     ),
 
-    // Recent failures
+    // ── QuickBooks status card ─────────────────────────────────────────────
+    /*#__PURE__*/React.createElement("div", { className: "card mb14" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCCA QuickBooks Integration"),
+        qbStatus && qbStatus.connected && /*#__PURE__*/React.createElement("button", {
+          className: "btn btn-ghost btn-sm mla",
+          disabled: qbLoading,
+          onClick: disconnectQb
+        }, "Disconnect"),
+        !qbStatus || !qbStatus.connected ? /*#__PURE__*/React.createElement("span", { className: "badge ba mla" }, "Not Connected")
+          : /*#__PURE__*/React.createElement("span", { className: "badge bg mla" }, "\u2713 Connected")
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+        !qbStatus ? /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "Checking status\u2026")
+        : !qbStatus.configured ? /*#__PURE__*/React.createElement("div", { className: "alert alert-a", style: { fontSize: 12 } },
+            "\u26A0\uFE0F QuickBooks credentials not configured. Set QUICKBOOKS_CLIENT_ID, QUICKBOOKS_CLIENT_SECRET, QUICKBOOKS_REDIRECT_URI, QUICKBOOKS_ENVIRONMENT in Edge Function secrets. ",
+            /*#__PURE__*/React.createElement("strong", null, "No credentials required for pilot \u2014 architecture is ready.")
+          )
+        : !qbStatus.connected ? /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { className: "mut xs mb8" }, "OAuth flow ready. Provide credentials and use Connect QuickBooks to authorize."),
+            /*#__PURE__*/React.createElement("div", { style: { background: "var(--bg3)", borderRadius: 8, padding: "12px 14px", fontSize: 12 } },
+              /*#__PURE__*/React.createElement("div", { style: { fontWeight: 600, marginBottom: 4 } }, "Environment: ", qbStatus.environment || "sandbox"),
+              /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "To connect: set credentials in Supabase secrets, then call auth_url action from your admin interface.")
+            )
+          )
+        : /*#__PURE__*/React.createElement("div", { style: { background: "var(--bg3)", borderRadius: 8, padding: "12px 14px", fontSize: 12.5 } },
+            [
+              ["Company Realm ID", qbStatus.realm_id],
+              ["Environment",      qbStatus.environment],
+              ["Connected",        qbStatus.connected_at ? new Date(qbStatus.connected_at).toLocaleString() : "\u2014"],
+              ["Token expires",    qbStatus.expires_at ? new Date(qbStatus.expires_at).toLocaleString() : "\u2014"],
+              ["Token status",     qbStatus.token_expired ? "\u26A0 Expired \u2014 refresh needed" : "\u2713 Valid"]
+            ].map(function(pair){
+              return /*#__PURE__*/React.createElement("div", { key: pair[0], className: "row g10 mb4" },
+                /*#__PURE__*/React.createElement("span", { className: "mut", style: { minWidth: 140, fontSize: 11 } }, pair[0] + ":"),
+                /*#__PURE__*/React.createElement("span", { style: { color: pair[0]==="Token status" && qbStatus.token_expired ? "var(--red)" : "var(--text)" } }, pair[1])
+              );
+            })
+          )
+      )
+    ),
+
+    // ── Send log ───────────────────────────────────────────────────────────
     /*#__PURE__*/React.createElement("div", { className: "card" },
       /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDDC2 Recent Send Failures"),
-        failLog.length > 0 && /*#__PURE__*/React.createElement("span", { className: "badge br mla" }, failLog.length, " failure", failLog.length !== 1 ? "s" : "")
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDDC2 Invoice Send Log"),
+        /*#__PURE__*/React.createElement("div", { className: "mla row g8" },
+          ["all","ok","partial","failed"].map(function(f){
+            return /*#__PURE__*/React.createElement("button", {
+              key: f,
+              className: "btn btn-ghost btn-sm" + (logFilter===f?" on":""),
+              style: logFilter===f ? { border: "1px solid var(--amber)", color: "var(--amber)" } : {},
+              onClick: function(){ setLogFilter(f); }
+            }, f.charAt(0).toUpperCase()+f.slice(1),
+              f!=="all" && sendLog.filter(function(r){ return r.status===f; }).length > 0
+                ? " (" + sendLog.filter(function(r){ return r.status===f; }).length + ")"
+                : null
+            );
+          })
+        )
       ),
-      failLog.length === 0
-        ? /*#__PURE__*/React.createElement("div", { className: "card-bd mut xs" }, "No failures recorded \u2014 run a test connection first, or check after sending invoices.")
+      filteredLog.length === 0
+        ? /*#__PURE__*/React.createElement("div", { className: "card-bd mut xs" }, logFilter === "all" ? "No send log entries yet." : "No " + logFilter + " entries.")
         : /*#__PURE__*/React.createElement("div", { className: "tbl" },
             /*#__PURE__*/React.createElement("table", null,
               /*#__PURE__*/React.createElement("thead", null,
                 /*#__PURE__*/React.createElement("tr", null,
-                  ["Order","Phone","Channels","Error","Time"].map(function(h){
+                  ["Order","Phone","Channels","Status","Error","Time","Action"].map(function(h){
                     return /*#__PURE__*/React.createElement("th", { key: h }, h);
                   })
                 )
               ),
               /*#__PURE__*/React.createElement("tbody", null,
-                failLog.map(function(row, i){
-                  return /*#__PURE__*/React.createElement("tr", { key: i },
+                filteredLog.map(function(row){
+                  var rr = retryResults[row.id];
+                  var isRetrying = retryingId === row.id;
+                  var statusColor = row.status==="ok" ? "var(--green)" : row.status==="failed" ? "var(--red)" : "var(--amber)";
+                  return /*#__PURE__*/React.createElement("tr", { key: row.id },
                     /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tamb" }, row.order_id)),
                     /*#__PURE__*/React.createElement("td", null, row.phone || "\u2014"),
-                    /*#__PURE__*/React.createElement("td", null, (row.channels || []).join(", ")),
+                    /*#__PURE__*/React.createElement("td", null, (row.channels||[]).join(", ")),
+                    /*#__PURE__*/React.createElement("td", { style: { color: statusColor, fontWeight: 600 } }, row.status),
+                    /*#__PURE__*/React.createElement("td", { style: { color: "var(--red)", fontSize: 11, maxWidth: 200, wordBreak: "break-word" } }, row.error || "\u2014"),
+                    /*#__PURE__*/React.createElement("td", { className: "mut xs" }, row.ts ? new Date(row.ts).toLocaleString() : "\u2014"),
+                    /*#__PURE__*/React.createElement("td", null,
+                      row.status !== "ok" && /*#__PURE__*/React.createElement("button", {
+                        className: "btn btn-ghost btn-xs",
+                        style: { fontSize: 10, padding: "2px 8px",
+                          color: rr==="ok" ? "var(--green)" : rr==="fail" ? "var(--red)" : undefined },
+                        disabled: isRetrying,
+                        onClick: function(){ retryRow(row); }
+                      }, isRetrying ? "\u2026" : rr==="ok" ? "\u2713 Sent" : rr==="fail" ? "\u26A0 Failed" : "Retry")
+                    )
+                  );
+                })
+              )
+            )
+          )
+    )
+  );
+};
+
+
+/* ════════════════════════════════════════════
+   QUICKBOOKS SYNC SERVICE
+   Mapping layer: CRM data → QB entities.
+   Not active for pilot — architecture only.
+   Activate by wiring real API calls when
+   QB credentials are live.
+════════════════════════════════════════════ */
+var QBSyncService = {
+  // Map a CRM order to a QuickBooks Invoice payload
+  orderToInvoice: function(order, customer) {
+    var lines = (order.boxes && order.boxes.length > 0 ? order.boxes : [null]).map(function(box, i) {
+      var desc = box ? (box.boxType + " — " + (box.destinationCountry || order.destination || "")) : (order.boxType || "Shipping");
+      var amt  = box ? (box.price || 0) : (order.payment && order.payment.amount || 0);
+      return {
+        DetailType: "SalesItemLineDetail",
+        Amount: parseFloat(amt),
+        Description: desc,
+        SalesItemLineDetail: { UnitPrice: parseFloat(amt), Qty: 1 }
+      };
+    });
+    return {
+      DocNumber: order.id,
+      TxnDate: order.createdAt || new Date().toISOString().slice(0,10),
+      CustomerRef: customer ? { value: customer.qbId, name: customer.name } : null,
+      Line: lines,
+      TotalAmt: parseFloat((order.payment && order.payment.amount) || 0)
+    };
+  },
+
+  // Map a CRM payment to a QuickBooks Payment payload
+  orderToPayment: function(order, qbInvoiceId) {
+    return {
+      DocNumber: order.id + "-PAY",
+      TxnDate: new Date().toISOString().slice(0,10),
+      TotalAmt: parseFloat((order.payment && order.payment.paid) || 0),
+      PaymentMethodRef: null,
+      Line: qbInvoiceId ? [{ Amount: parseFloat((order.payment && order.payment.paid) || 0),
+        LinkedTxn: [{ TxnId: qbInvoiceId, TxnType: "Invoice" }] }] : []
+    };
+  },
+
+  // Map a CRM order to a QuickBooks Customer payload
+  orderToCustomer: function(order) {
+    return {
+      DisplayName: order.consigneeName || order.name,
+      PrimaryPhone: { FreeFormNumber: order.phone || "" },
+      PrimaryEmailAddr: { Address: "" },
+      ShipAddr: {
+        Line1: order.consigneeAddress || order.address || "",
+        City: order.consigneeCity || order.destination || "",
+        Country: order.consigneeCountry || ""
+      }
+    };
+  },
+
+  // Map a shipment expense to a QuickBooks Bill/Expense payload
+  expenseToQb: function(shipment, expenseForm) {
+    var lines = (expenseForm.items || []).map(function(it) {
+      return {
+        DetailType: "AccountBasedExpenseLineDetail",
+        Amount: parseFloat(it.amount || 0),
+        Description: it.description || it.type || "",
+        AccountBasedExpenseLineDetail: { AccountRef: { name: "Cost of Goods Sold" } }
+      };
+    });
+    return {
+      DocNumber: expenseForm.id,
+      TxnDate: expenseForm.expenseDate || new Date().toISOString().slice(0,10),
+      Line: lines,
+      TotalAmt: parseFloat(expenseForm.total || 0)
+    };
+  }
+};
+
+/* ════════════════════════════════════════════
+   QUICKBOOKS PAGE
+   Admin UI for QB connection management.
+   Architecture ready; activate when credentials
+   are provided post-pilot.
+════════════════════════════════════════════ */
+var QuickBooksPage = function QuickBooksPage(props) {
+  var session = props.session || {};
+  var tenantId = session.tenantId || "casabe-xpress";
+
+  var _stStatus = useState(null), _stStatus2 = _slicedToArray(_stStatus, 2),
+      status = _stStatus2[0], setStatus = _stStatus2[1];
+  var _stLoading = useState(true), _stLoading2 = _slicedToArray(_stLoading, 2),
+      loading = _stLoading2[0], setLoading = _stLoading2[1];
+  var _stSyncLog = useState([]), _stSyncLog2 = _slicedToArray(_stSyncLog, 2),
+      syncLog = _stSyncLog2[0], setSyncLog = _stSyncLog2[1];
+  var _stAction = useState(null), _stAction2 = _slicedToArray(_stAction, 2),
+      actionMsg = _stAction2[0], setActionMsg = _stAction2[1];
+
+  function supaFetch(path, opts) {
+    return fetch(SUPABASE_REST_URL + path, Object.assign({
+      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json" }
+    }, opts || {}));
+  }
+
+  function loadStatus() {
+    setLoading(true);
+    fetch(QB_CONNECT_URL + "?action=status&tenantId=" + tenantId)
+      .then(function(r){ return r.json(); })
+      .then(function(data){ setStatus(data); setLoading(false); })
+      .catch(function(){ setLoading(false); });
+  }
+
+  React.useEffect(function() {
+    loadStatus();
+    supaFetch("/qb_sync_log?tenant_id=eq." + encodeURIComponent(tenantId) + "&order=ts.desc&limit=20")
+      .then(function(r){ return r.json(); })
+      .then(function(data){ if(Array.isArray(data)) setSyncLog(data); })
+      .catch(function(){});
+  }, []);
+
+  function handleConnect() {
+    setActionMsg(null);
+    fetch(QB_CONNECT_URL + "?action=auth_url&tenantId=" + tenantId)
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        if (data.url) {
+          window.open(data.url, "_blank", "width=600,height=700");
+          setActionMsg({ type: "info", text: "OAuth window opened. Complete authorization in the popup, then refresh this page." });
+        } else {
+          setActionMsg({ type: "error", text: data.error || "Failed to get authorization URL." });
+        }
+      })
+      .catch(function(e){ setActionMsg({ type: "error", text: String(e) }); });
+  }
+
+  function handleDisconnect() {
+    if (!window.confirm("Disconnect QuickBooks? This will revoke the OAuth token.")) return;
+    fetch(QB_CONNECT_URL + "?action=disconnect&tenantId=" + tenantId, { method: "POST" })
+      .then(function(r){ return r.json(); })
+      .then(function(){ setActionMsg({ type: "ok", text: "Disconnected." }); loadStatus(); })
+      .catch(function(e){ setActionMsg({ type: "error", text: String(e) }); });
+  }
+
+  function handleRefreshToken() {
+    fetch(QB_CONNECT_URL + "?action=refresh&tenantId=" + tenantId, { method: "POST" })
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if (data.ok) { setActionMsg({ type: "ok", text: "Token refreshed." }); loadStatus(); }
+        else setActionMsg({ type: "error", text: data.error || "Refresh failed." });
+      })
+      .catch(function(e){ setActionMsg({ type: "error", text: String(e) }); });
+  }
+
+  var notConfigured  = status && !status.configured;
+  var notConnected   = status && status.configured && !status.connected;
+  var connected      = status && status.connected;
+  var tokenExpired   = connected && status.token_expired;
+
+  return /*#__PURE__*/React.createElement("div", { className: "fu" },
+
+    // ── Connection status card ─────────────────────────────────────────────
+    /*#__PURE__*/React.createElement("div", { className: "card mb14" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCCA QuickBooks Online"),
+        loading ? /*#__PURE__*/React.createElement("span", { className: "mut xs mla" }, "Checking\u2026")
+        : connected
+          ? /*#__PURE__*/React.createElement("span", { className: "badge bg mla" }, "\u2713 Connected" + (tokenExpired ? " \u2014 \u26A0 Token expired" : ""))
+          : /*#__PURE__*/React.createElement("span", { className: "badge ba mla" }, notConfigured ? "Not Configured" : "Not Connected")
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+        actionMsg && /*#__PURE__*/React.createElement("div", {
+          className: "alert " + (actionMsg.type==="error" ? "alert-a" : actionMsg.type==="ok" ? "" : "alert-b") + " mb12",
+          style: { fontSize: 12, color: actionMsg.type==="ok" ? "var(--green)" : actionMsg.type==="info" ? "var(--amber)" : undefined,
+                   background: actionMsg.type==="ok" ? "rgba(0,229,160,.08)" : actionMsg.type==="info" ? "rgba(255,159,28,.08)" : undefined,
+                   border: actionMsg.type==="ok" ? "1px solid var(--green)" : actionMsg.type==="info" ? "1px solid var(--amber)" : undefined }
+        }, actionMsg.text),
+
+        notConfigured && /*#__PURE__*/React.createElement("div", { className: "alert alert-a", style: { fontSize: 12 } },
+          "\u26A0\uFE0F QuickBooks credentials not configured. Set the following in Supabase Edge Function secrets: ",
+          ["QUICKBOOKS_CLIENT_ID", "QUICKBOOKS_CLIENT_SECRET", "QUICKBOOKS_REDIRECT_URI", "QUICKBOOKS_ENVIRONMENT"].map(function(k){
+            return /*#__PURE__*/React.createElement("span", { key: k, style: { fontFamily: "monospace", fontSize: 11, display: "inline-block", margin: "2px 4px", background: "var(--bg3)", padding: "1px 6px", borderRadius: 4 } }, k);
+          }),
+          /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 8 } }, "\uD83D\uDCA1 No credentials needed for pilot \u2014 the integration architecture is fully built and ready to activate.")
+        ),
+
+        notConnected && /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { className: "mut xs mb12" }, "Credentials configured. Connect your QuickBooks company to enable sync."),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary", onClick: handleConnect }, "\uD83D\uDD17 Connect QuickBooks")
+        ),
+
+        connected && /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { style: { background: "var(--bg3)", borderRadius: 8, padding: "12px 14px", marginBottom: 12, fontSize: 12.5 } },
+            [
+              ["Company Realm ID",  status.realm_id],
+              ["Environment",       status.environment],
+              ["Connected at",      status.connected_at ? new Date(status.connected_at).toLocaleString() : "\u2014"],
+              ["Access token",      status.token_expired ? "\u26A0 Expired" : "\u2713 Valid"],
+              ["Expires",           status.expires_at ? new Date(status.expires_at).toLocaleString() : "\u2014"]
+            ].map(function(pair){
+              return /*#__PURE__*/React.createElement("div", { key: pair[0], className: "row g10 mb4" },
+                /*#__PURE__*/React.createElement("span", { className: "mut", style: { minWidth: 150, fontSize: 11 } }, pair[0] + ":"),
+                /*#__PURE__*/React.createElement("span", { style: { color: pair[0]==="Access token" && status.token_expired ? "var(--red)" : "var(--green)" } }, pair[1])
+              );
+            })
+          ),
+          /*#__PURE__*/React.createElement("div", { className: "row g10" },
+            tokenExpired && /*#__PURE__*/React.createElement("button", { className: "btn btn-primary btn-sm", onClick: handleRefreshToken }, "\u21BA Refresh Token"),
+            /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: handleDisconnect }, "Disconnect")
+          )
+        )
+      )
+    ),
+
+    // ── Sync mapping overview (architecture doc) ───────────────────────────
+    /*#__PURE__*/React.createElement("div", { className: "card mb14" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDD04 Sync Mapping (Ready \u2014 Not Active for Pilot)")
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+        /*#__PURE__*/React.createElement("div", { className: "tbl" },
+          /*#__PURE__*/React.createElement("table", null,
+            /*#__PURE__*/React.createElement("thead", null,
+              /*#__PURE__*/React.createElement("tr", null,
+                ["CRM Entity","→ QuickBooks Entity","Direction","Status"].map(function(h){
+                  return /*#__PURE__*/React.createElement("th", { key: h }, h);
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement("tbody", null,
+              [
+                ["Order",            "Invoice",         "Push", "Ready"],
+                ["Payment",          "Payment",         "Push", "Ready"],
+                ["Shipment Expense", "Bill / Expense",  "Push", "Ready"],
+                ["Customer",         "Customer",        "Push", "Ready"]
+              ].map(function(row){
+                return /*#__PURE__*/React.createElement("tr", { key: row[0] },
+                  /*#__PURE__*/React.createElement("td", null, row[0]),
+                  /*#__PURE__*/React.createElement("td", null, row[1]),
+                  /*#__PURE__*/React.createElement("td", null, row[2]),
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "badge ba" }, row[3]))
+                );
+              })
+            )
+          )
+        )
+      )
+    ),
+
+    // ── Sync log ───────────────────────────────────────────────────────────
+    /*#__PURE__*/React.createElement("div", { className: "card" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDDC2 Sync Log")
+      ),
+      syncLog.length === 0
+        ? /*#__PURE__*/React.createElement("div", { className: "card-bd mut xs" }, "No sync activity yet. Sync jobs will appear here once QuickBooks is connected and active.")
+        : /*#__PURE__*/React.createElement("div", { className: "tbl" },
+            /*#__PURE__*/React.createElement("table", null,
+              /*#__PURE__*/React.createElement("thead", null,
+                /*#__PURE__*/React.createElement("tr", null,
+                  ["Entity","Local ID","Remote ID","Direction","Status","Error","Time"].map(function(h){
+                    return /*#__PURE__*/React.createElement("th", { key: h }, h);
+                  })
+                )
+              ),
+              /*#__PURE__*/React.createElement("tbody", null,
+                syncLog.map(function(row){
+                  var statusColor = row.sync_status==="ok" ? "var(--green)" : row.sync_status==="failed" ? "var(--red)" : "var(--text3)";
+                  return /*#__PURE__*/React.createElement("tr", { key: row.id },
+                    /*#__PURE__*/React.createElement("td", null, row.entity_type),
+                    /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tamb" }, row.local_id)),
+                    /*#__PURE__*/React.createElement("td", null, row.remote_id || "\u2014"),
+                    /*#__PURE__*/React.createElement("td", null, row.sync_direction),
+                    /*#__PURE__*/React.createElement("td", { style: { color: statusColor, fontWeight: 600 } }, row.sync_status),
                     /*#__PURE__*/React.createElement("td", { style: { color: "var(--red)", fontSize: 11 } }, row.error || "\u2014"),
                     /*#__PURE__*/React.createElement("td", { className: "mut xs" }, row.ts ? new Date(row.ts).toLocaleString() : "\u2014")
                   );
@@ -17734,6 +18165,11 @@ var ROLES = {
         l: "Integrations",
         ls: "Integraciones",
         i: "🔌"
+      }, {
+        k: "quickbooks",
+        l: "QuickBooks",
+        ls: "QuickBooks",
+        i: "📊"
       }]
     }, {
       grp: "People",
@@ -19840,6 +20276,9 @@ setOrders(function (prev) {
       }
     });
     if (page === "integration") return /*#__PURE__*/React.createElement(IntegrationStatusPage, {
+      session: session
+    });
+    if (page === "quickbooks") return /*#__PURE__*/React.createElement(QuickBooksPage, {
       session: session
     });
     if (page === "notifications") return /*#__PURE__*/React.createElement(CampaignsPage, {
