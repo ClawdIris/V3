@@ -11010,7 +11010,7 @@ var ManifestModal = function ManifestModal(_ref89) {
               /*#__PURE__*/React.createElement("table",{className:"exp-print-tbl"},
                 /*#__PURE__*/React.createElement("thead",null,
                   /*#__PURE__*/React.createElement("tr",null,
-                    ["Tracking #","Receiver Name","Receiver Address","Receiver Phone","Box Type","Sender Name","Sender Phone"].map(function(h){
+                    ["Tracking Number","Receiver Name","Receiver Address","Receiver Phone Number","Box Type","Sender Name","Sender Phone Number"].map(function(h){
                       return /*#__PURE__*/React.createElement("th",{key:h},h);
                     })
                   )
@@ -11038,7 +11038,7 @@ var ManifestModal = function ManifestModal(_ref89) {
       /*#__PURE__*/React.createElement("div",{className:"row g10 mb14"},
         /*#__PURE__*/React.createElement("div",null,
           /*#__PURE__*/React.createElement("div",{className:"modal-title",style:{marginBottom:2}},"\uD83D\uDCCB Shipment Manifest \u2014 ",shipment.id),
-          /*#__PURE__*/React.createElement("div",{style:{fontSize:11.5,color:"var(--text3)}"}},rows.length," boxes \xB7 ",shpOrders.length," orders \xB7 ",Object.keys(grouped).length," zone(s)")
+          /*#__PURE__*/React.createElement("div",{style:{fontSize:11.5,color:"var(--text3)"}},rows.length," boxes \xB7 ",shpOrders.length," orders \xB7 ",Object.keys(grouped).length," zone(s)")
         ),
         /*#__PURE__*/React.createElement("div",{className:"mla row g8"},
           warnings.length>0&&/*#__PURE__*/React.createElement("span",{className:"badge ba"},"\u26A0 ",warnings.length," missing info"),
@@ -11696,6 +11696,62 @@ var ShipmentExpensesPanel = function ShipmentExpensesPanel(props) {
                 )
               )
             ),
+
+            viewingId && (function(){
+              var _ve = expenses.find(function(e){ return e.id === viewingId; });
+              if (!_ve) return null;
+              return /*#__PURE__*/React.createElement("div",{className:"card mb12",style:{background:"var(--bg3)",border:"1px solid var(--border2)"}},
+                /*#__PURE__*/React.createElement("div",{className:"card-hd",style:{padding:"8px 14px"}},
+                  /*#__PURE__*/React.createElement("span",{className:"xs tb"},"Detail: ",_ve.id),
+                  /*#__PURE__*/React.createElement("button",{className:"btn btn-ghost btn-xs mla",onClick:function(){setViewingId(null);}},"× Close")
+                ),
+                /*#__PURE__*/React.createElement("div",{className:"card-bd",style:{padding:"10px 14px"}},
+                  /*#__PURE__*/React.createElement("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,fontSize:12}},
+                    [["Type",_ve.type||"—"],["Box/Item",_ve.boxLabel||_ve.description||_ve.boxType||"—"],
+                     ["Qty",_ve.qty!=null?_ve.qty:"—"],["Unit Cost",_ve.unitCost?"$"+_ve.unitCost.toFixed(2):"—"],
+                     ["Amount","$"+(_ve.amount||0).toFixed(2)],["Added",_ve.createdAt?new Date(_ve.createdAt).toLocaleDateString():"—"]
+                    ].map(function(pair){
+                      return /*#__PURE__*/React.createElement("div",{key:pair[0]},
+                        /*#__PURE__*/React.createElement("div",{className:"mut xs",style:{marginBottom:2}},pair[0]),
+                        /*#__PURE__*/React.createElement("div",{className:"tb"},pair[1])
+                      );
+                    })
+                  )
+                )
+              );
+            }()),
+
+            showHistory && expenses.length > 0 && /*#__PURE__*/React.createElement("div",{className:"mb12"},
+              /*#__PURE__*/React.createElement("div",{className:"modal-section"},"Full History"),
+              /*#__PURE__*/React.createElement("div",{className:"tbl"},
+                /*#__PURE__*/React.createElement("table",null,
+                  /*#__PURE__*/React.createElement("thead",null,
+                    /*#__PURE__*/React.createElement("tr",null,
+                      ["Type","Description / Box","Qty","Unit Cost","Amount","Date",""].map(function(h){return /*#__PURE__*/React.createElement("th",{key:h},h);})
+                    )
+                  ),
+                  /*#__PURE__*/React.createElement("tbody",null,
+                    expenses.map(function(exp){
+                      return /*#__PURE__*/React.createElement("tr",{key:exp.id+"_h"},
+                        /*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement("span",{className:"badge ba"},exp.type)),
+                        /*#__PURE__*/React.createElement("td",null,exp.boxLabel||exp.description||exp.boxType||"—"),
+                        /*#__PURE__*/React.createElement("td",null,exp.qty||"—"),
+                        /*#__PURE__*/React.createElement("td",{className:"mono"},exp.unitCost?"$"+exp.unitCost.toFixed(2):"—"),
+                        /*#__PURE__*/React.createElement("td",{className:"mono tb"},"$",(exp.amount||0).toFixed(2)),
+                        /*#__PURE__*/React.createElement("td",{className:"xs mut"},exp.createdAt?new Date(exp.createdAt).toLocaleDateString():"—"),
+                        /*#__PURE__*/React.createElement("td",null,/*#__PURE__*/React.createElement("button",{className:"btn btn-red btn-xs",onClick:function(){handleDelete(exp.id);}},"×"))
+                      );
+                    }),
+                    /*#__PURE__*/React.createElement("tr",{style:{borderTop:"2px solid var(--border2)"}},
+                      /*#__PURE__*/React.createElement("td",{colSpan:4,style:{textAlign:"right",fontWeight:700}},"TOTAL"),
+                      /*#__PURE__*/React.createElement("td",{className:"mono",style:{color:"var(--amber)",fontWeight:700}},"$",total.toFixed(2)),
+                      /*#__PURE__*/React.createElement("td",null),/*#__PURE__*/React.createElement("td",null)
+                    )
+                  )
+                )
+              )
+            ),
+
             /*#__PURE__*/React.createElement(ExpenseLineAdder, {
               onAdd: handleAdd,
               onDraftChange: setDraftLine,
@@ -14280,7 +14336,7 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
   var _ps3 = useState([]), _ps4 = _slicedToArray(_ps3,2), auditLog = _ps4[0], setAuditLog = _ps4[1];
   var _ps5 = useState("overview"), _ps6 = _slicedToArray(_ps5,2), tab = _ps6[0], setTab = _ps6[1];
   var _ps7 = useState(false), _ps8 = _slicedToArray(_ps7,2), showPayForm = _ps8[0], setShowPayForm = _ps8[1];
-  var _ps9 = useState({ amount: "", method: "cash_pickup", notes: "" }),
+  var _ps9 = useState({ amount: "", method: "cash_pickup", notes: "", shipmentId: "", orderId: "", orderPlacedAt: "", paidInFullAt: "", commissionDeducted: "", netCollected: "" }),
       _ps10 = _slicedToArray(_ps9,2), payForm = _ps10[0], setPayForm = _ps10[1];
   var _ps11 = useState(false), _ps12 = _slicedToArray(_ps11,2), savingPay = _ps12[0], setSavingPay = _ps12[1];
 
@@ -14299,19 +14355,33 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
     var amt = parseFloat(payForm.amount);
     if (!amt || amt <= 0) { alert("Enter a valid amount."); return; }
     setSavingPay(true);
+    var _commDed = parseFloat(payForm.commissionDeducted) || amt;
+    var _netColl = parseFloat(payForm.netCollected) || (amt - _commDed);
     var payment = {
       officeId: offCfg ? offCfg.id : office.name,
       officeName: office.name,
       amount: amt,
       method: payForm.method,
       notes: payForm.notes,
+      shipmentId: payForm.shipmentId || null,
+      orderId: payForm.orderId || null,
+      orderPlacedAt: payForm.orderPlacedAt || null,
+      paidInFullAt: payForm.paidInFullAt || null,
+      commissionDeducted: _commDed,
+      netCollected: _netColl,
       receivedAt: new Date().toISOString(),
       loggedBy: (tenant && tenant.name) || "admin",
       loggedAt: new Date().toISOString()
     };
     _db.saveOfficePayment(payment).then(function(saved) {
       setPayments(function(prev) { return [saved].concat(prev); });
-      setPayForm({ amount: "", method: "cash_pickup", notes: "" });
+      _db.saveOfficeAuditEntry({
+        officeId: payment.officeId, changedAt: payment.loggedAt,
+        changedBy: payment.loggedBy, event: "payment_logged", field: "payment",
+        from: null, to: "$" + payment.amount.toFixed(2) + " via " + payment.method,
+        paymentRef: saved.id || null, notes: payment.notes || ""
+      }).catch(function(){});
+      setPayForm({ amount: "", method: "cash_pickup", notes: "", shipmentId: "", orderId: "", orderPlacedAt: "", paidInFullAt: "", commissionDeducted: "", netCollected: "" });
       setShowPayForm(false);
       setSavingPay(false);
     }).catch(function() { setSavingPay(false); });
@@ -14474,6 +14544,34 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
                 })
               )
             ),
+            /*#__PURE__*/React.createElement("div", { className: "fr", style: { marginBottom: 8 } },
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Order Placed At"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", type: "date", value: payForm.orderPlacedAt || "",
+                  onChange: function(e){ setPayForm(function(p){ return Object.assign({},p,{orderPlacedAt:e.target.value}); }); }
+                })
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Paid In Full At"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", type: "date", value: payForm.paidInFullAt || "",
+                  onChange: function(e){ setPayForm(function(p){ return Object.assign({},p,{paidInFullAt:e.target.value}); }); }
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fr", style: { marginBottom: 8 } },
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Commission Deducted ($)"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", type: "number", value: payForm.commissionDeducted || "", placeholder: "0.00",
+                  onChange: function(e){ setPayForm(function(p){ return Object.assign({},p,{commissionDeducted:e.target.value}); }); }
+                })
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Net Amount Collected ($)"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", type: "number", value: payForm.netCollected || "", placeholder: "0.00",
+                  onChange: function(e){ setPayForm(function(p){ return Object.assign({},p,{netCollected:e.target.value}); }); }
+                })
+              )
+            ),
             /*#__PURE__*/React.createElement("button", {
               className: "btn btn-primary btn-sm", disabled: savingPay,
               onClick: handleLogPayment
@@ -14488,22 +14586,25 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
                 /*#__PURE__*/React.createElement("table", null,
                   /*#__PURE__*/React.createElement("thead", null,
                     /*#__PURE__*/React.createElement("tr", null,
-                      ["Amount","Method","Received","Logged By","Notes"].map(function(h){ return /*#__PURE__*/React.createElement("th", { key: h }, h); })
+                      ["Order Placed","Paid In Full","Amount Recv'd","Commission","Net Collected","Method","Logged By","Notes"].map(function(h){ return /*#__PURE__*/React.createElement("th", { key: h }, h); })
                     )
                   ),
                   /*#__PURE__*/React.createElement("tbody", null,
                     payments.map(function(p) {
                       return /*#__PURE__*/React.createElement("tr", { key: p.id },
+                        /*#__PURE__*/React.createElement("td", { className: "mono xs" }, p.orderPlacedAt ? new Date(p.orderPlacedAt).toLocaleDateString() : "\u2014"),
+                        /*#__PURE__*/React.createElement("td", { className: "mono xs" }, p.paidInFullAt ? new Date(p.paidInFullAt).toLocaleDateString() : "\u2014"),
                         /*#__PURE__*/React.createElement("td", { className: "mono tb", style: { color: "var(--green)" } }, "$", (p.amount || 0).toFixed(2)),
+                        /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--red)" } }, p.commissionDeducted != null ? "$" + Number(p.commissionDeducted).toFixed(2) : "\u2014"),
+                        /*#__PURE__*/React.createElement("td", { className: "mono tb", style: { color: "var(--teal)" } }, p.netCollected != null ? "$" + Number(p.netCollected).toFixed(2) : "\u2014"),
                         /*#__PURE__*/React.createElement("td", null, p.method === "cash_pickup" ? "Cash Pickup" : "Money Transfer"),
-                        /*#__PURE__*/React.createElement("td", { className: "mono xs" }, p.receivedAt ? new Date(p.receivedAt).toLocaleDateString() : "\u2014"),
                         /*#__PURE__*/React.createElement("td", null, p.loggedBy || "\u2014"),
                         /*#__PURE__*/React.createElement("td", { className: "mut xs" }, p.notes || "\u2014")
                       );
                     }),
                     /*#__PURE__*/React.createElement("tr", { style: { borderTop: "2px solid var(--border2)", fontWeight: 700 } },
                       /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--green)" } }, "$", totalPaid.toFixed(2)),
-                      /*#__PURE__*/React.createElement("td", { colSpan: 4, style: { color: "var(--text3)", fontSize: 11 } }, "Total payments logged")
+                      /*#__PURE__*/React.createElement("td", { colSpan: 7, style: { color: "var(--text3)", fontSize: 11 } }, "Total payments logged")
                     )
                   )
                 )
