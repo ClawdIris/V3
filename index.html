@@ -14835,7 +14835,9 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     );
   })
 ),
-  tab === "whatsapp" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  tab === "whatsapp" && (function() {
+    try {
+      return /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "alert alert-g mb12"
   }, "\uD83D\uDCAC Connect your WhatsApp Business API number. Each subscriber brings their own number \u2014 no need to change anything when you switch companies."), /*#__PURE__*/React.createElement("div", {
     className: "card mb12"
@@ -14964,7 +14966,13 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
         fontStyle: "italic"
       }
     }, "\"", t.msg, "\""));
-  }))))
+  })))
+    );
+    } catch(e) {
+      console.error("NOTIFICATIONS TAB ERROR:", e);
+      return /*#__PURE__*/React.createElement("div", { className: "alert alert-r" }, "Render error: " + e.message);
+    }
+  }())
 , (function(t_ab) {
     if (t_ab === "boxtypes") return (/*#__PURE__*/React.createElement("div", null,
       /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
