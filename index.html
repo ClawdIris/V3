@@ -10836,7 +10836,22 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
   }, copied ? "✓ Copied!" : "📋 Copy Manifest"), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary mla",
     onClick: function onClick() {
-      return doPrint("printing-shipping-docs");
+      var el = document.querySelector('.shipping-docs-printout');
+      if (!el) { alert('Shipping docs not ready. Try again.'); return; }
+      var html = el.outerHTML;
+      var css = '*{box-sizing:border-box;margin:0;padding:0}body{font-family:"IBM Plex Sans",Arial,sans-serif;padding:.4in .5in;background:#fff;color:#000;font-size:10pt}.shipping-docs-printout{display:block!important}.exp-print-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:.1in;border-bottom:2pt solid #000;margin-bottom:.15in}.exp-print-co{font-family:"Syne",Arial,sans-serif;font-size:18pt;font-weight:900;color:#000}.exp-print-meta{font-size:9pt;color:#333;margin-bottom:.12in}.exp-print-tbl{width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:.1in}.exp-print-tbl th{background:#f5f5f5;border:1px solid #ccc;padding:5px 8px;text-align:left;font-weight:700}.exp-print-tbl td{border:1px solid #ccc;padding:5px 8px}.exp-print-grand{text-align:right;font-weight:900;font-size:11pt;border-top:2pt solid #000;padding-top:.06in;margin-top:.08in}@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}@page{margin:.4in}';
+      var ifrm = document.createElement('iframe');
+      ifrm.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:8.5in;height:11in;border:none;opacity:0;';
+      document.body.appendChild(ifrm);
+      var idoc = ifrm.contentDocument || ifrm.contentWindow.document;
+      idoc.open();
+      idoc.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + css + '</style></head><body>' + html + '</body></html>');
+      idoc.close();
+      var doClean = function() { try { document.body.removeChild(ifrm); } catch(e) {} };
+      ifrm.contentWindow.addEventListener('afterprint', doClean);
+      setTimeout(doClean, 8000);
+      ifrm.contentWindow.focus();
+      ifrm.contentWindow.print();
     }
   }, "\uD83D\uDDA8\uFE0F Print Documents")))
   ),
