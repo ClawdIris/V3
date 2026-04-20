@@ -162,10 +162,76 @@ var CSS = "\n@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600
 ════════════════════════════════════════════ */
 // These are defaults used before a tenant is configured.
 // Once a tenant completes onboarding, the App derives these from tenant.drivers and tenant.offices
-var DEFAULT_OFFICES = ["Casabe NY (HQ)", "Houston", "Orlando", "Los Angeles", "New York", "Dallas", "Atlantic Travel", "San Antonio"];
+var DEFAULT_OFFICES = [
+  { id: "off_hq",  name: "Casabe NY (HQ)",  address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0 },    notes: "HQ — no commission" },
+  { id: "off_hou", name: "Houston",          address: "", phone: "", active: true, commissionModel: { type: "per_box", rates: { Small: 40, Medium: 50, Large: 60, "Dish - Single": 5, "Dish - Pack of 10": 32, "Jumbo Drum": 60, Freight: 0 } }, notes: "Flat per-box commission" },
+  { id: "off_orl", name: "Orlando",          address: "", phone: "", active: true, commissionModel: { type: "per_box", rates: { Small: 35, Medium: 45, Large: 55, "Dish - Single": 5, "Dish - Pack of 10": 30, "Jumbo Drum": 55, Freight: 0 } }, notes: "Flat per-box commission" },
+  { id: "off_la",  name: "Los Angeles",      address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.18 }, notes: "Flat per-box commission" },
+  { id: "off_ny",  name: "New York",         address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.20 }, notes: "Negotiated 2024" },
+  { id: "off_dal", name: "Dallas",           address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.15 }, notes: "Standard" },
+  { id: "off_atl", name: "Atlantic Travel",  address: "", phone: "", active: true, commissionModel: { type: "per_box", rates: { Small: 40, Medium: 50, Large: 50, "Dish - Single": 5, "Dish - Pack of 10": 32, "Jumbo Drum": 60, Freight: 0 } }, notes: "Flat per-box commission" },
+  { id: "off_san", name: "San Antonio",      address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.10 }, notes: "Probationary" }
+];
 var DEFAULT_DRIVERS = ["Carlos Vargas", "Mike Torres", "Jorge Ruiz", "Maria Santos", "David Pérez"];
 // Resolved at render time from tenant in App (passed as props) — see getTenantLists()
-var OFFICES_LIST = DEFAULT_OFFICES;
+var OFFICES_LIST = DEFAULT_OFFICES.map(function(o){ return o.name; });
+
+/* ════════════════════════════════════════════
+   OFFICE HELPERS — single source of truth
+════════════════════════════════════════════ */
+var getOfficeList = function getOfficeList(tenant) {
+  var raw = (tenant && tenant.offices) || DEFAULT_OFFICES;
+  // Support legacy: if offices are plain strings, convert to objects
+  return raw.map(function(o, i) {
+    if (typeof o === "string") return { id: "off_legacy_" + i, name: o, active: true, commissionModel: { type: "percentage", percentage: 0 }, notes: "" };
+    return o;
+  }).filter(function(o){ return o.active !== false; });
+};
+var getOfficeOptions = function getOfficeOptions(tenant) {
+  return getOfficeList(tenant).map(function(o){ return o.name; });
+};
+var getOfficeMap = function getOfficeMap(tenant) {
+  var map = {};
+  getOfficeList(tenant).forEach(function(o){ map[o.name] = o; map[o.id] = o; });
+  return map;
+};
+var getOfficeById = function getOfficeById(tenant, idOrName) {
+  return getOfficeList(tenant).find(function(o){ return o.id === idOrName || o.name === idOrName; }) || null;
+};
+
+/* ════════════════════════════════════════════
+   COMMISSION ENGINE — shared calculator
+════════════════════════════════════════════ */
+var calculateOfficeCommission = function calculateOfficeCommission(officeConfig, grossAmount, boxes) {
+  if (!officeConfig) return 0;
+  var model = officeConfig.commissionModel || officeConfig;
+  // Legacy fallback: plain rate number
+  if (typeof model === "number") return Math.round(grossAmount * model * 100) / 100;
+  if (!model || !model.type) return 0;
+  if (model.type === "percentage") {
+    return Math.round(grossAmount * (model.percentage || 0) * 100) / 100;
+  }
+  if (model.type === "per_box") {
+    var rates = model.rates || {};
+    var boxArr = boxes && boxes.length ? boxes : [{ boxType: "Small" }];
+    return boxArr.reduce(function(sum, box) {
+      var bt = box.boxType || "Small";
+      var rate = rates[bt] !== undefined ? rates[bt] : (rates["Small"] || 0);
+      return sum + rate;
+    }, 0);
+  }
+  return 0;
+};
+var calculateNetRevenue = function calculateNetRevenue(order, tenant) {
+  var gross = order.commissionSnapshot ? order.commissionSnapshot.grossRevenue : (parseFloat(order.payment && order.payment.paid) || 0);
+  var comm = order.commissionSnapshot ? order.commissionSnapshot.commissionAmount : (parseFloat(order.payment && order.payment.commission) || 0);
+  if (order.commissionSnapshot) return order.commissionSnapshot.netRevenue;
+  if (!tenant) return gross - comm;
+  var offCfg = getOfficeById(tenant, order.officeId || order.office);
+  var boxes = order.boxes || [];
+  var commCalc = calculateOfficeCommission(offCfg, gross, boxes);
+  return gross - commCalc;
+};
 var DRIVERS_LIST = DEFAULT_DRIVERS;
 var ITEM_TYPES = {
   household: {
@@ -202,11 +268,16 @@ var ITEM_TYPES = {
 };
 var DESTINATIONS = ["Guatemala", "Costa Rica", "Honduras", "El Salvador", "Nicaragua", "Panama", "Belize"];
 var BOX_CONFIG = [
-  {key:"Small",  code:"DISH", dims:"18x18x28", label:"(DISH) 18x18x28", active:true, isDish:true},
-  {key:"Medium", code:"74",   dims:"24x26x24", label:"(74) 24x26x24",   active:true},
-  {key:"Large",  code:"88",   dims:"34x26x28", label:"(88) 34x26x28",   active:true},
-  {key:"Freight",code:"FR",   dims:"",         label:"Freight",          active:true},
-  {key:"Unknown",code:"",     dims:"",         label:"Unknown",          active:true}
+  {key:"Small",            code:"DISH", dims:"18x18x28", label:"(DISH) 18x18x28",         active:true,  isDish:false, pricingMode:"single", unitPrice:null, unitLabel:null},
+  {key:"Medium",           code:"74",   dims:"24x26x24", label:"(74) 24x26x24",            active:true,  isDish:false, pricingMode:"single", unitPrice:null, unitLabel:null},
+  {key:"Large",            code:"88",   dims:"34x26x28", label:"(88) 34x26x28",            active:true,  isDish:false, pricingMode:"single", unitPrice:null, unitLabel:null},
+  {key:"Dish - Single",    code:"DS",   dims:"18x18x28", label:"Dish – Single (each)",     active:true,  isDish:true,  pricingMode:"single", unitPrice:5.00,  unitLabel:"each"},
+  {key:"Dish - Pack of 10",code:"DP10", dims:"18x18x28", label:"Dish – Pack of 10 packs",  active:true,  isDish:true,  pricingMode:"pack",   unitPrice:32.00, unitLabel:"pack of 10"},
+  {key:"Jumbo Drum",       code:"JD",   dims:"",         label:"Jumbo Drum",               active:true,  isDish:false, pricingMode:"single", unitPrice:60.00, unitLabel:null},
+  {key:"Freight",          code:"FR",   dims:"",         label:"Freight",                  active:true,  isDish:false, pricingMode:"single", unitPrice:null, unitLabel:null},
+  {key:"Unknown",          code:"",     dims:"",         label:"Unknown",                  active:true,  isDish:false, pricingMode:"single", unitPrice:null, unitLabel:null},
+  // Legacy Dish key — hidden from selectors, preserved for historical order data
+  {key:"Dish",             code:"DISH_LEGACY", dims:"18x18x28", label:"Dish (legacy)",    active:false, isDish:true,  pricingMode:"single", unitPrice:null, unitLabel:null, legacy:true}
 ];
 var BOX_TYPES = BOX_CONFIG.filter(function(b){return b.active;}).map(function(b){return b.key;});
 var getBoxLabel = function(key){ var b=BOX_CONFIG.find(function(x){return x.key===key;}); return b?b.label:key; };
@@ -347,60 +418,23 @@ var DEFAULT_BROKERS = {
 };
 
 /* ════════════════════════════════════════════
-   OFFICE COMMISSIONS
+   OFFICE COMMISSIONS — LEGACY SHIM ONLY
+   Do NOT use OFFICE_COMMISSIONS in new code.
+   Use getOfficeById(tenant, name).commissionModel
+   and calculateOfficeCommission() instead.
 ════════════════════════════════════════════ */
-var OFFICE_COMMISSIONS = {
-  "Casabe NY (HQ)": {
-    rate: 0,
-    boxes: { "Small": 0, "Medium": 0, "Large": 0, "Extra Large": 0, "Dish": 0 },
-    notes: "HQ — no commission"
-  },
-  "Houston": {
-    rate: 0.15,
-    boxes: { "Small": 40, "Medium": 50, "Large": 60, "Extra Large": 70, "Dish": 20 },
-    notes: "Flat per-box commission"
-  },
-  "Orlando": {
-    rate: 0.12,
-    boxes: { "Small": 35, "Medium": 45, "Large": 55, "Extra Large": 65, "Dish": 18 },
-    notes: "Flat per-box commission"
-  },
-  "Los Angeles": {
-    rate: 0.18,
-    boxes: { "Small": 45, "Medium": 55, "Large": 65, "Extra Large": 75, "Dish": 22 },
-    notes: "Flat per-box commission"
-  },
-  "New York": {
-    rate: 0.20,
-    boxes: { "Small": 50, "Medium": 60, "Large": 70, "Extra Large": 80, "Dish": 25 },
-    notes: "Negotiated 2024"
-  },
-  "Dallas": {
-    rate: 0.15,
-    boxes: { "Small": 40, "Medium": 50, "Large": 60, "Extra Large": 70, "Dish": 20 },
-    notes: "Standard"
-  },
-  "San Antonio": {
-    rate: 0.10,
-    boxes: { "Small": 30, "Medium": 40, "Large": 50, "Extra Large": 60, "Dish": 15 },
-    notes: "Probationary"
-  },
-  "Miami": {
-    rate: 0.15,
-    boxes: { "Small": 40, "Medium": 50, "Large": 60, "Extra Large": 70, "Dish": 20 },
-    notes: "Standard"
-  },
-  "Atlanta": {
-    rate: 0.15,
-    boxes: { "Small": 40, "Medium": 50, "Large": 60, "Extra Large": 70, "Dish": 20 },
-    notes: "Standard"
-  },
-  "Atlantic Travel": {
-    rate: 0.15,
-    boxes: { "Small": 40, "Medium": 50, "Large": 50, "Extra Large": 60, "Dish": 20 },
-    notes: "Flat per-box commission"
-  }
-};
+var OFFICE_COMMISSIONS = (function() {
+  var out = {};
+  DEFAULT_OFFICES.forEach(function(o) {
+    var model = o.commissionModel || {};
+    out[o.name] = {
+      rate: model.type === "percentage" ? (model.percentage || 0) : 0,
+      boxes: model.type === "per_box" ? model.rates : { Small: 0, Medium: 0, Large: 0 },
+      notes: o.notes || ""
+    };
+  });
+  return out;
+}());
 
 /* ════════════════════════════════════════════
    CLAIMS STATUS
@@ -2140,7 +2174,6 @@ var OrderForm = function OrderForm(_ref4) {
     if (amt > 0 && !priceOverridden) setPay("amount", amt);
   };
   var save = function save() {
-    var _OFFICE_COMMISSIONS$f;
     if (!f.name || !f.phone) {
       alert("Name and phone are required.");
       return;
@@ -2185,9 +2218,25 @@ var OrderForm = function OrderForm(_ref4) {
         notifyOnStatusChange: typeof box.notifyOnStatusChange !== "undefined" ? box.notifyOnStatusChange : false
       };
     });
-    // Commission calc
-    var officeRate = ((_OFFICE_COMMISSIONS$f = OFFICE_COMMISSIONS[f.office]) === null || _OFFICE_COMMISSIONS$f === void 0 ? void 0 : _OFFICE_COMMISSIONS$f.rate) || 0;
+    // Commission snapshot — immutable at save time so future config changes don't mutate history
+    // BASIS: full order charge (payment.amount), NOT payment.paid.
+    // Commission is owed on what was charged, regardless of collection status.
     var amt = parseFloat(f.payment.amount) || 0;
+    var paidAmt = parseFloat(f.payment.paid) || 0;
+    var _offCfg = getOfficeById(tenant, f.officeId || f.office);
+    var _commAmt = calculateOfficeCommission(_offCfg, amt, boxes); // use amt, not paidAmt
+    var _grossRev = amt; // gross = full charge, always
+    var _netRev = _grossRev - _commAmt;
+    var _commSnapshot = {
+      officeId: _offCfg ? _offCfg.id : null,
+      officeNameSnapshot: _offCfg ? _offCfg.name : (f.office || ""),
+      commissionConfigSnapshot: _offCfg ? JSON.parse(JSON.stringify(_offCfg.commissionModel || {})) : {},
+      commissionAmount: Math.round(_commAmt * 100) / 100,
+      grossRevenue: Math.round(_grossRev * 100) / 100,  // full order charge
+      grossCollected: Math.round(paidAmt * 100) / 100,  // what has actually been paid
+      netRevenue: Math.round(_netRev * 100) / 100,
+      commissionCalculatedAt: now()
+    };
     var firstBox = boxes[0] || {};
     var order = _objectSpread(_objectSpread({}, f), {}, {
       id: baseId,
@@ -2202,18 +2251,20 @@ var OrderForm = function OrderForm(_ref4) {
       declaredValue: parseFloat(f.declaredValue) || 0,
       boxDeposit: f.boxDeposit,
       depositCredited: f.depositCredited || false,
+      officeId: _offCfg ? _offCfg.id : (f.officeId || null),
+      officeNameSnapshot: _offCfg ? _offCfg.name : (f.office || ""),
+      commissionSnapshot: _commSnapshot,
       payment: _objectSpread(_objectSpread({}, f.payment), {}, {
         amount: amt,
-        paid: parseFloat(f.payment.paid) || 0,
-        commission: Math.round(amt * officeRate * 100) / 100,
-        commissionRate: officeRate
+        paid: paidAmt,
+        commission: _commSnapshot.commissionAmount,
+        commissionRate: (_offCfg && _offCfg.commissionModel && _offCfg.commissionModel.type === "percentage") ? (_offCfg.commissionModel.percentage || 0) : 0
       }),
       history: [].concat(_toConsumableArray(f.history || []), [{
         status: f.status,
         ts: now(),
         note: ""
       }]),
-      zone: zone,
       priceStamped: true,
       priceStampedAt: f.priceStampedAt || now()
     });
@@ -6566,7 +6617,11 @@ var HQOverview = function HQOverview(_ref51) {
 var HQAnalytics = function HQAnalytics(_ref52) {
   var orders    = _ref52.orders;
   var shipments = _ref52.shipments || [];
+  var tenant    = _ref52.tenant;
   var t = useT();
+
+  var _stOffDetail = useState(null), _stOffDetail2 = _slicedToArray(_stOffDetail,2),
+      selectedOffice = _stOffDetail2[0], setSelectedOffice = _stOffDetail2[1];
 
   // ── Shipment selector: default = most recent by createdAt/date ──────────
   var sortedShipments = shipments.slice().sort(function(a,b){
@@ -6599,39 +6654,50 @@ var HQAnalytics = function HQAnalytics(_ref52) {
   var unpaid       = shpOrders.filter(function(o){ return o.payment.status === "unpaid"; })
                               .reduce(function(s,o){ return s + (o.payment.amount||0) - (o.payment.paid||0); }, 0);
 
-  // ── Commission: flat per-box-type (new model) with % fallback ───────────
-  function officeCommission(ordersArr, officeName) {
-    var cfg = OFFICE_COMMISSIONS[officeName];
-    if (!cfg) return 0;
-    // New model: cfg.boxes = { Small: 40, Medium: 50, ... }
-    if (cfg.boxes) {
-      return ordersArr.reduce(function(s, o) {
-        var boxes = o.boxes && o.boxes.length ? o.boxes : [{ boxType: o.boxType || "Small" }];
-        return s + boxes.reduce(function(bs, box) {
-          return bs + (cfg.boxes[box.boxType] || cfg.boxes["Small"] || 0);
-        }, 0);
-      }, 0);
-    }
-    // Legacy: flat rate %
-    var rev = ordersArr.reduce(function(s,o){ return s + (o.payment.amount||0); }, 0);
-    return Math.round(rev * (cfg.rate || 0) * 100) / 100;
+  // ── Commission: use shared engine with tenant office config ──────────────
+  function officeCommission(ordersArr, officeName, tenantRef) {
+    // Prefer snapshot if available (immutable historical data)
+    var totalFromSnapshot = ordersArr.reduce(function(s, o) {
+      if (o.commissionSnapshot && typeof o.commissionSnapshot.commissionAmount === "number") {
+        return s + o.commissionSnapshot.commissionAmount;
+      }
+      return s + (o.payment && o.payment.commission ? o.payment.commission : 0);
+    }, 0);
+    if (totalFromSnapshot > 0) return Math.round(totalFromSnapshot * 100) / 100;
+    // Fall back to live config calculation
+    var offCfg = getOfficeById(tenantRef, officeName);
+    if (!offCfg) return 0;
+    return ordersArr.reduce(function(s, o) {
+      var gross = parseFloat(o.payment && (o.payment.paid || o.payment.amount)) || 0;
+      var boxes = o.boxes && o.boxes.length ? o.boxes : [{ boxType: o.boxType || "Small" }];
+      return s + calculateOfficeCommission(offCfg, gross, boxes);
+    }, 0);
   }
 
-  // ── Build office rows from actual order data (not hardcoded list) ────────
+  // ── Build office rows from tenant config (single source of truth) ─────────
   var officeNames = [];
   orders.forEach(function(o){
-    if (o.office && !officeNames.includes(o.office)) officeNames.push(o.office);
+    var name = o.officeNameSnapshot || o.office;
+    if (name && !officeNames.includes(name)) officeNames.push(name);
   });
-  // Also include any configured offices that may have 0 orders
-  (OFFICES_LIST || []).forEach(function(name){
+  // Add configured offices that may have 0 orders this shipment
+  getOfficeOptions(tenant).forEach(function(name){
     if (!officeNames.includes(name)) officeNames.push(name);
   });
 
   var byOffice = officeNames.map(function(name) {
-    var selOrds  = shpOrders.filter(function(o){ return o.office === name; });
-    var prevOrds = prevOrders.filter(function(o){ return o.office === name; });
-    var grossRev = selOrds.reduce(function(s,o){ return s + (o.payment.paid||0); }, 0);
-    var commission = officeCommission(selOrds, name);
+    var selOrds  = shpOrders.filter(function(o){ return (o.officeNameSnapshot || o.office) === name; });
+    var prevOrds = prevOrders.filter(function(o){ return (o.officeNameSnapshot || o.office) === name; });
+    // Gross = full order charge (commission basis), collected = what was actually paid
+    var grossRev = selOrds.reduce(function(s,o){
+      if (o.commissionSnapshot) return s + (o.commissionSnapshot.grossRevenue || 0);
+      return s + (o.payment.amount || 0); // full charge
+    }, 0);
+    var grossCollected = selOrds.reduce(function(s,o){
+      if (o.commissionSnapshot) return s + (o.commissionSnapshot.grossCollected || o.commissionSnapshot.grossRevenue || 0);
+      return s + (o.payment.paid || 0);
+    }, 0);
+    var commission = officeCommission(selOrds, name, tenant);
     var netRev   = grossRev - commission;
     var unpaidAmt = selOrds.filter(function(o){ return o.payment.status==="unpaid"; })
                            .reduce(function(s,o){ return s + (o.payment.amount||0) - (o.payment.paid||0); }, 0);
@@ -6639,13 +6705,33 @@ var HQAnalytics = function HQAnalytics(_ref52) {
     var growth = selOrds.length === 0 && prevCount === 0 ? null
                : prevCount === 0 ? "New"
                : Math.round((selOrds.length - prevCount) / prevCount * 100);
+    // Per-box breakdown for detail view
+    var boxBreakdown = {};
+    selOrds.forEach(function(o) {
+      var bxArr = o.boxes && o.boxes.length ? o.boxes : [{ boxType: o.boxType || "Small" }];
+      bxArr.forEach(function(box) {
+        var bt = box.boxType || "Small";
+        if (!boxBreakdown[bt]) boxBreakdown[bt] = { count: 0, commissionPerBox: 0, totalCommission: 0 };
+        boxBreakdown[bt].count++;
+        var offCfg = getOfficeById(tenant, name);
+        var perBox = offCfg && offCfg.commissionModel && offCfg.commissionModel.type === "per_box"
+          ? ((offCfg.commissionModel.rates || {})[bt] || 0) : 0;
+        boxBreakdown[bt].commissionPerBox = perBox;
+        boxBreakdown[bt].totalCommission += perBox;
+      });
+    });
     return {
       name: name,
       count: selOrds.length,
-      netRev: netRev,
+      grossRev: Math.round(grossRev * 100) / 100,
+      grossCollected: Math.round(grossCollected * 100) / 100,
+      commission: Math.round(commission * 100) / 100,
+      netRev: Math.round(netRev * 100) / 100,
       prevCount: prevCount,
       growth: growth,
-      unpaid: unpaidAmt
+      unpaid: unpaidAmt,
+      boxBreakdown: boxBreakdown,
+      orders: selOrds
     };
   }).sort(function(a,b){ return b.count - a.count; });
 
@@ -6775,15 +6861,22 @@ var HQAnalytics = function HQAnalytics(_ref52) {
     ),
 
     // ── Office Performance Details table ────────────────────────────────────
+    selectedOffice && /*#__PURE__*/React.createElement(OfficeDetailModal, {
+      office: selectedOffice,
+      tenant: tenant,
+      shipmentLabel: selShipId ? (sortedShipments.find(function(s){ return s.id === selShipId; }) || {}).name || selShipId : "All shipments",
+      onClose: function() { setSelectedOffice(null); }
+    }),
     /*#__PURE__*/React.createElement("div", { className: "card" },
       /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-        /*#__PURE__*/React.createElement("span", { className: "card-title" }, t("Office Performance Details", "Detalles por Oficina"))
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, t("Office Performance Details", "Detalles por Oficina")),
+        /*#__PURE__*/React.createElement("span", { className: "mut xs" }, "Net revenue = Gross charged \u2212 commission \u00B7 Click any row to view full detail")
       ),
       /*#__PURE__*/React.createElement("div", { className: "tbl" },
         /*#__PURE__*/React.createElement("table", null,
           /*#__PURE__*/React.createElement("thead", null,
             /*#__PURE__*/React.createElement("tr", null,
-              ["Office","Orders","Revenue Collected","Prior Shipment Orders","Growth %","Unpaid"].map(function(h){
+              ["Office","Orders","Gross Charged","Commission Owed","Net Revenue","Prior Shipment","Growth %","Unpaid"].map(function(h){
                 return /*#__PURE__*/React.createElement("th", { key: h }, h);
               })
             )
@@ -6794,10 +6887,21 @@ var HQAnalytics = function HQAnalytics(_ref52) {
                               (o.growth >= 0 ? "+" : "") + o.growth + "%";
               var growthColor = o.growth === null || o.growth === "New" ? "var(--text3)"
                               : o.growth >= 0 ? "var(--green)" : "var(--red)";
-              return /*#__PURE__*/React.createElement("tr", { key: o.name },
-                /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tb" }, o.name)),
+              return /*#__PURE__*/React.createElement("tr", { key: o.name,
+                onClick: function() { setSelectedOffice(o); },
+                title: "Click to view office detail",
+                style: { cursor: "pointer" }
+              },
+                /*#__PURE__*/React.createElement("td", null,
+                  /*#__PURE__*/React.createElement("span", { className: "tb" }, o.name),
+                  /*#__PURE__*/React.createElement("span", { className: "mut xs", style: { marginLeft: 6 } }, "\u2192")
+                ),
                 /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tb" }, o.count)),
-                /*#__PURE__*/React.createElement("td", { style: { fontFamily: "'IBM Plex Mono',monospace", color: "var(--green)" } },
+                /*#__PURE__*/React.createElement("td", { style: { fontFamily: "'IBM Plex Mono',monospace", color: "var(--text2)" } },
+                  o.grossRev > 0 ? "$" + o.grossRev.toLocaleString() : "\u2014"),
+                /*#__PURE__*/React.createElement("td", { style: { fontFamily: "'IBM Plex Mono',monospace", color: o.commission > 0 ? "var(--amber)" : "var(--text3)" } },
+                  o.commission > 0 ? "$" + o.commission.toLocaleString() : "\u2014"),
+                /*#__PURE__*/React.createElement("td", { style: { fontFamily: "'IBM Plex Mono',monospace", color: "var(--green)", fontWeight: 700 } },
                   "$", o.netRev.toLocaleString()),
                 /*#__PURE__*/React.createElement("td", null, o.prevCount),
                 /*#__PURE__*/React.createElement("td", { style: { color: growthColor, fontWeight: 700 } }, growthTxt),
@@ -11381,9 +11485,155 @@ var ExpenseLineAdder = function ExpenseLineAdder(props) {
     },"+ Add Item")
   );
 };
+/* ════════════════════════════════════════════
+   SHIPMENT EXPENSES PANEL
+   Persisted via _db.saveShipmentExpense / loadShipmentExpenses
+════════════════════════════════════════════ */
+var ShipmentExpensesPanel = function ShipmentExpensesPanel(props) {
+  var shipment = props.shipment, tenant = props.tenant, boxConfig = props.boxConfig, boxUnitCosts = props.boxUnitCosts;
+  var _se1 = useState([]), _se2 = _slicedToArray(_se1,2), expenses = _se2[0], setExpenses = _se2[1];
+  var _se3 = useState(false), _se4 = _slicedToArray(_se3,2), loading = _se4[0], setLoading = _se4[1];
+  var _se5 = useState(null), _se6 = _slicedToArray(_se5,2), draftLine = _se6[0], setDraftLine = _se6[1];
+  var _se7 = useState(false), _se8 = _slicedToArray(_se7,2), showPrint = _se8[0], setShowPrint = _se8[1];
+
+  React.useEffect(function() {
+    if (!shipment) return;
+    setLoading(true);
+    _db.loadShipmentExpenses(shipment.id).then(function(rows) {
+      setExpenses(rows || []);
+      setLoading(false);
+    });
+  }, [shipment && shipment.id]);
+
+  var total = expenses.reduce(function(s, e) { return s + (e.amount || 0); }, 0);
+
+  var handleAdd = function(line) {
+    var exp = Object.assign({}, line, {
+      id: genId("EXP"),
+      shipmentId: shipment.id,
+      tenantId: tenant && tenant.id,
+      createdAt: new Date().toISOString(),
+      createdBy: "admin"
+    });
+    _db.saveShipmentExpense(exp).then(function(saved) {
+      setExpenses(function(prev) { return [].concat(_toConsumableArray(prev), [saved]); });
+    });
+  };
+
+  var handleDelete = function(id) {
+    if (!window.confirm("Delete this expense line?")) return;
+    _db.deleteShipmentExpense(id).then(function() {
+      setExpenses(function(prev) { return prev.filter(function(e) { return e.id !== id; }); });
+    });
+  };
+
+  var handlePrint = function() {
+    setShowPrint(true);
+    setTimeout(function() { doPrint("printing-expense"); }, 80);
+  };
+
+  if (!shipment) return null;
+
+  return /*#__PURE__*/React.createElement("div", { className: "card mb12" },
+    /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+      /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCB0 Shipment Expenses"),
+        /*#__PURE__*/React.createElement("div", { className: "card-sub" }, "Operational costs for this shipment — not shown on customer invoices")
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "row g6" },
+        expenses.length > 0 && /*#__PURE__*/React.createElement("span", { className: "badge ba" }, "$", total.toFixed(2), " total"),
+        expenses.length > 0 && /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: handlePrint }, "\uD83D\uDDA8 Print Expenses")
+      )
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+      loading
+        ? /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "Loading expenses...")
+        : /*#__PURE__*/React.createElement(React.Fragment, null,
+            expenses.length > 0 && /*#__PURE__*/React.createElement("div", { className: "tbl mb12" },
+              /*#__PURE__*/React.createElement("table", null,
+                /*#__PURE__*/React.createElement("thead", null,
+                  /*#__PURE__*/React.createElement("tr", null,
+                    ["Type","Description","Qty","Unit Cost","Amount",""].map(function(h) {
+                      return /*#__PURE__*/React.createElement("th", { key: h }, h);
+                    })
+                  )
+                ),
+                /*#__PURE__*/React.createElement("tbody", null,
+                  expenses.map(function(exp) {
+                    return /*#__PURE__*/React.createElement("tr", { key: exp.id },
+                      /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "badge ba" }, exp.type)),
+                      /*#__PURE__*/React.createElement("td", null, exp.description || exp.boxLabel || exp.boxType || "\u2014"),
+                      /*#__PURE__*/React.createElement("td", null, exp.qty || "\u2014"),
+                      /*#__PURE__*/React.createElement("td", { className: "mono" }, exp.unitCost ? "$" + exp.unitCost.toFixed(2) : "\u2014"),
+                      /*#__PURE__*/React.createElement("td", { className: "mono tb" }, "$", (exp.amount || 0).toFixed(2)),
+                      /*#__PURE__*/React.createElement("td", null,
+                        /*#__PURE__*/React.createElement("button", { className: "btn btn-red btn-xs", onClick: function() { handleDelete(exp.id); } }, "\u00D7")
+                      )
+                    );
+                  }),
+                  /*#__PURE__*/React.createElement("tr", { style: { borderTop: "2px solid var(--border2)" } },
+                    /*#__PURE__*/React.createElement("td", { colSpan: 4, style: { textAlign: "right", fontWeight: 700, paddingRight: 12 } }, "TOTAL"),
+                    /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--amber)", fontWeight: 700 } }, "$", total.toFixed(2)),
+                    /*#__PURE__*/React.createElement("td", null)
+                  )
+                )
+              )
+            ),
+            /*#__PURE__*/React.createElement(ExpenseLineAdder, {
+              onAdd: handleAdd,
+              onDraftChange: setDraftLine,
+              boxConfig: boxConfig || BOX_CONFIG,
+              boxUnitCosts: boxUnitCosts || {}
+            })
+          )
+    ),
+    /* Print printout — branded, hidden on screen */
+    showPrint && /*#__PURE__*/React.createElement("div", { className: "expense-printout" },
+      /*#__PURE__*/React.createElement("div", { className: "exp-print-header" },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { className: "exp-print-co" }, (tenant && tenant.name) || "Casabe Connect"),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: "8pt", color: "#555", marginTop: 3 } }, "Shipment Expense Report")
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", fontSize: "9pt", color: "#333" } },
+          /*#__PURE__*/React.createElement("div", null, shipment.name || shipment.id),
+          shipment.date && /*#__PURE__*/React.createElement("div", null, shipment.date),
+          shipment.destination && /*#__PURE__*/React.createElement("div", null, shipment.destination)
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "exp-print-meta" },
+        "Printed: ", new Date().toLocaleDateString(), " \u00A0|\u00A0 ", expenses.length, " expense line(s)"
+      ),
+      /*#__PURE__*/React.createElement("table", { className: "exp-print-tbl" },
+        /*#__PURE__*/React.createElement("thead", null,
+          /*#__PURE__*/React.createElement("tr", null,
+            ["Type","Description / Box","Qty","Unit Cost","Amount"].map(function(h) {
+              return /*#__PURE__*/React.createElement("th", { key: h }, h);
+            })
+          )
+        ),
+        /*#__PURE__*/React.createElement("tbody", null,
+          expenses.map(function(exp, i) {
+            return /*#__PURE__*/React.createElement("tr", { key: i },
+              /*#__PURE__*/React.createElement("td", null, exp.type),
+              /*#__PURE__*/React.createElement("td", null, exp.description || exp.boxLabel || exp.boxType || "\u2014"),
+              /*#__PURE__*/React.createElement("td", { style: { textAlign: "center" } }, exp.qty || "\u2014"),
+              /*#__PURE__*/React.createElement("td", { style: { textAlign: "right" } }, exp.unitCost ? "$" + exp.unitCost.toFixed(2) : "\u2014"),
+              /*#__PURE__*/React.createElement("td", { style: { textAlign: "right", fontWeight: 700 } }, "$", (exp.amount || 0).toFixed(2))
+            );
+          })
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "exp-print-grand" },
+        "TOTAL EXPENSES: $", total.toFixed(2)
+      )
+    )
+  );
+};
+
 var ShipmentsPage = function ShipmentsPage(_ref94) {
   var shipments = _ref94.shipments,
     orders = _ref94.orders,
+    tenant = _ref94.tenant,
     onCreateBatch = _ref94.onCreateBatch,
     onLockBatch = _ref94.onLockBatch,
     onBulkStatusUpdate = _ref94.onBulkStatusUpdate,
@@ -11910,9 +12160,15 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
       }, "\u21AA Move " + shpOrders.length + " Orders")
     )
   ))),
+  /*#__PURE__*/React.createElement(ShipmentExpensesPanel, {
+    shipment: selected,
+    tenant: tenant,
+    boxConfig: boxConfig,
+    boxUnitCosts: BOX_UNIT_COSTS
+  }),
   /*#__PURE__*/React.createElement("div", { className: "card", style: { marginTop: 12 } },
     /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-      /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCB8 Expenses"),
+      /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCB8 Legacy Expense Forms"),
       /*#__PURE__*/React.createElement("span", { className: "mut xs", style: { marginLeft: "auto" } },
         "Total: $", ((selected.expenseForms || []).reduce(function(s, ef){ return s + (ef.total || 0); }, 0)).toFixed(2)
       ),
@@ -11927,69 +12183,61 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
       (selected.expenseForms || []).length > 0 && /*#__PURE__*/React.createElement("button", {
         className: "btn btn-ghost btn-sm", style: { marginLeft: 4 },
         onClick: function() {
-          var ef_all = selected.expenseForms || [];
-          var shipRef = selected.name || selected.id || "";
-          var shipDest = selected.destination || "";
-          var shipDate = selected.date || "";
-          var grand = ef_all.reduce(function(s, ef){ return s + (ef.total || 0); }, 0);
-          // Branded header matching invoice/manifest style
-          var header_html = '<div class="eph"><div class="eph-co">CASABE XPRESS</div><div class="eph-tag">DOOR TO DOOR CARGO</div></div>';
-          var meta_html  = '<div class="epm">Shipment: <strong>' + shipRef + '</strong>'
-            + (shipDate ? ' &mdash; ' + shipDate : '')
-            + (shipDest ? ' &mdash; ' + shipDest : '')
-            + ' &nbsp;|&nbsp; ' + ef_all.length + ' expense form(s)'
-            + ' &nbsp;|&nbsp; Generated ' + new Date().toLocaleDateString()
-            + '</div>';
-          var forms_html = ef_all.map(function(ef) {
-            var date_str = ef.expenseDate || (ef.fromDate && ef.toDate ? ef.fromDate + " to " + ef.toDate : ef.fromDate || ef.toDate || "");
-            var item_rows = (ef.items || []).map(function(it) {
-              return "<tr>"
-                + '<td>' + (it.type || "") + '</td>'
-                + '<td>' + (it.description || it.boxLabel || it.boxType || "") + '</td>'
-                + '<td style="text-align:right">' + (it.qty || "") + '</td>'
-                + '<td style="text-align:right">$' + parseFloat(it.amount || 0).toFixed(2) + '</td>'
-                + "</tr>";
-            }).join("");
-            return '<div class="ef-block">'
-              + '<div class="ef-id">' + ef.id + ' &mdash; ' + (date_str || "&mdash;") + '</div>'
-              + '<table><thead><tr><th>Type</th><th>Description</th><th style="text-align:right">Qty</th><th style="text-align:right">Amount</th></tr></thead>'
-              + '<tbody>' + item_rows + '</tbody>'
-              + '<tfoot><tr><td colspan="3" class="tf-lbl">Subtotal</td><td class="tf-val">$' + parseFloat(ef.total || 0).toFixed(2) + '</td></tr></tfoot>'
-              + '</table></div>';
-          }).join("");
-          var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
-            + '*{box-sizing:border-box;margin:0;padding:0}'
-            + 'body{font-family:"IBM Plex Sans",Arial,sans-serif;padding:.4in .5in;background:#fff;color:#000;font-size:10pt}'
-            + '.eph{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:.1in;border-bottom:2pt solid #000;margin-bottom:.15in}'
-            + '.eph-co{font-family:Syne,Arial,sans-serif;font-size:18pt;font-weight:900;letter-spacing:.04em;color:#000}'
-            + '.eph-tag{font-size:8pt;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#555}'
-            + '.epm{font-size:9.5pt;color:#333;margin-bottom:.15in}'
-            + '.ef-block{margin-bottom:.18in;page-break-inside:avoid}'
-            + '.ef-id{font-weight:700;font-size:10.5pt;margin-bottom:.06in;color:#000}'
-            + 'table{width:100%;border-collapse:collapse;font-size:9.5pt}'
-            + 'th{background:#f5f5f5;border:1px solid #ccc;padding:4px 8px;text-align:left;font-weight:700}'
-            + 'td{border:1px solid #ccc;padding:4px 8px}'
-            + '.tf-lbl{text-align:right;font-weight:700;color:#000}'
-            + '.tf-val{text-align:right;font-weight:700;color:#000}'
-            + '.grand{text-align:right;font-weight:900;font-size:12pt;margin-top:.12in;padding-top:.08in;border-top:2pt solid #000;color:#000}'
-            + '@page{margin:.4in}'
-            + '</style></head><body>'
-            + header_html + meta_html + forms_html
-            + '<div class="grand">GRAND TOTAL: $' + grand.toFixed(2) + '</div>'
-            + '</body></html>';
-          var ifrm = document.createElement("iframe");
-          ifrm.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:8.5in;height:11in;";
-          document.body.appendChild(ifrm);
-          ifrm.contentDocument.open();
-          ifrm.contentDocument.write(html);
-          ifrm.contentDocument.close();
-          setTimeout(function(){
-            ifrm.contentWindow.focus();
-            ifrm.contentWindow.print();
-            setTimeout(function(){ if(document.body.contains(ifrm)) document.body.removeChild(ifrm); }, 1000);
-          }, 300);
+          // Branded print using the shared printing-expense / .expense-printout system
+          doPrint("printing-expense");
         }
       }, "\uD83D\uDDA8 Print All Expenses")
+    ),
+    /* Branded expense printout — hidden on screen, shown only when printing-expense class active */
+    (selected.expenseForms || []).length > 0 && /*#__PURE__*/React.createElement("div", { className: "expense-printout" },
+      /*#__PURE__*/React.createElement("div", { className: "exp-print-header" },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { className: "exp-print-co" }, (tenant && tenant.name) || "Casabe Connect"),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: "8pt", color: "#555", marginTop: 3, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" } }, "Shipment Expense Report")
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", fontSize: "9pt", color: "#333", lineHeight: 1.6 } },
+          /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("strong", null, selected.name || selected.id)),
+          selected.date && /*#__PURE__*/React.createElement("div", null, selected.date),
+          selected.destination && /*#__PURE__*/React.createElement("div", null, selected.destination)
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "exp-print-meta" },
+        (selected.expenseForms || []).length, " expense form(s)",
+        " \u00A0|\u00A0 Grand Total: $", ((selected.expenseForms || []).reduce(function(s, ef){ return s + (ef.total || 0); }, 0)).toFixed(2),
+        " \u00A0|\u00A0 Generated ", new Date().toLocaleDateString()
+      ),
+      (selected.expenseForms || []).map(function(ef, fi) {
+        var dateStr = ef.expenseDate || (ef.fromDate && ef.toDate ? ef.fromDate + " to " + ef.toDate : ef.fromDate || ef.toDate || "");
+        return /*#__PURE__*/React.createElement("div", { key: fi, style: { marginBottom: "0.18in", pageBreakInside: "avoid" } },
+          /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, fontSize: "10.5pt", marginBottom: "0.06in", color: "#000", borderBottom: "1pt solid #ccc", paddingBottom: "0.04in" } },
+            ef.id, dateStr ? " \u2014 " + dateStr : ""
+          ),
+          /*#__PURE__*/React.createElement("table", { className: "exp-print-tbl" },
+            /*#__PURE__*/React.createElement("thead", null,
+              /*#__PURE__*/React.createElement("tr", null,
+                ["Type","Description","Qty","Amount"].map(function(h){ return /*#__PURE__*/React.createElement("th", { key: h }, h); })
+              )
+            ),
+            /*#__PURE__*/React.createElement("tbody", null,
+              (ef.items || []).map(function(it, ii) {
+                return /*#__PURE__*/React.createElement("tr", { key: ii },
+                  /*#__PURE__*/React.createElement("td", null, it.type || ""),
+                  /*#__PURE__*/React.createElement("td", null, it.description || it.boxLabel || it.boxType || ""),
+                  /*#__PURE__*/React.createElement("td", { style: { textAlign: "right" } }, it.qty || ""),
+                  /*#__PURE__*/React.createElement("td", { style: { textAlign: "right", fontWeight: 700 } }, "$", parseFloat(it.amount || 0).toFixed(2))
+                );
+              }),
+              /*#__PURE__*/React.createElement("tr", null,
+                /*#__PURE__*/React.createElement("td", { colSpan: 3, style: { textAlign: "right", fontWeight: 700, borderTop: "1pt solid #000" } }, "Subtotal"),
+                /*#__PURE__*/React.createElement("td", { style: { textAlign: "right", fontWeight: 700, borderTop: "1pt solid #000" } }, "$", parseFloat(ef.total || 0).toFixed(2))
+              )
+            )
+          )
+        );
+      }),
+      /*#__PURE__*/React.createElement("div", { className: "exp-print-grand" },
+        "GRAND TOTAL: $", ((selected.expenseForms || []).reduce(function(s, ef){ return s + (ef.total || 0); }, 0)).toFixed(2)
+      )
     ),
     showExpenses && (selected.expenseForms || []).length === 0
       ? /*#__PURE__*/React.createElement("div", { className: "card-bd" },
@@ -13897,6 +14145,283 @@ var QuickBooksPage = function QuickBooksPage(props) {
 };
 
 
+/* ════════════════════════════════════════════
+   OFFICE DETAIL MODAL
+   Shows per-box breakdown, commission totals, payment history,
+   outstanding balance, and audit log.
+════════════════════════════════════════════ */
+var OfficeDetailModal = function OfficeDetailModal(props) {
+  var office = props.office;       // { name, commission, grossRev, grossCollected, netRev, unpaid, boxBreakdown, orders }
+  var tenant = props.tenant;
+  var shipmentLabel = props.shipmentLabel;
+  var onClose = props.onClose;
+
+  var _ps1 = useState([]), _ps2 = _slicedToArray(_ps1,2), payments = _ps2[0], setPayments = _ps2[1];
+  var _ps3 = useState([]), _ps4 = _slicedToArray(_ps3,2), auditLog = _ps4[0], setAuditLog = _ps4[1];
+  var _ps5 = useState("overview"), _ps6 = _slicedToArray(_ps5,2), tab = _ps6[0], setTab = _ps6[1];
+  var _ps7 = useState(false), _ps8 = _slicedToArray(_ps7,2), showPayForm = _ps8[0], setShowPayForm = _ps8[1];
+  var _ps9 = useState({ amount: "", method: "cash_pickup", notes: "" }),
+      _ps10 = _slicedToArray(_ps9,2), payForm = _ps10[0], setPayForm = _ps10[1];
+  var _ps11 = useState(false), _ps12 = _slicedToArray(_ps11,2), savingPay = _ps12[0], setSavingPay = _ps12[1];
+
+  var offCfg = getOfficeById(tenant, office.name);
+
+  React.useEffect(function() {
+    if (!offCfg) return;
+    _db.loadOfficePayments(offCfg.id).then(setPayments).catch(function() {});
+    _db.loadOfficeAuditLog(offCfg.id).then(setAuditLog).catch(function() {});
+  }, [offCfg && offCfg.id]);
+
+  var totalPaid = payments.reduce(function(s, p) { return s + (p.amount || 0); }, 0);
+  var outstanding = Math.max(0, (office.commission || 0) - totalPaid);
+
+  var handleLogPayment = function() {
+    var amt = parseFloat(payForm.amount);
+    if (!amt || amt <= 0) { alert("Enter a valid amount."); return; }
+    setSavingPay(true);
+    var payment = {
+      officeId: offCfg ? offCfg.id : office.name,
+      officeName: office.name,
+      amount: amt,
+      method: payForm.method,
+      notes: payForm.notes,
+      receivedAt: new Date().toISOString(),
+      loggedBy: (tenant && tenant.name) || "admin",
+      loggedAt: new Date().toISOString()
+    };
+    _db.saveOfficePayment(payment).then(function(saved) {
+      setPayments(function(prev) { return [saved].concat(prev); });
+      setPayForm({ amount: "", method: "cash_pickup", notes: "" });
+      setShowPayForm(false);
+      setSavingPay(false);
+    }).catch(function() { setSavingPay(false); });
+  };
+
+  var boxRows = Object.entries(office.boxBreakdown || {}).filter(function(e){ return e[1].count > 0; });
+  var modelType = offCfg && offCfg.commissionModel && offCfg.commissionModel.type;
+
+  return /*#__PURE__*/React.createElement("div", { className: "overlay", onClick: function(e){ if(e.target===e.currentTarget) onClose(); } },
+    /*#__PURE__*/React.createElement("div", { className: "modal modal-lg", style: { width: 740, maxHeight: "92vh" } },
+      /*#__PURE__*/React.createElement("div", { className: "row g10 mb12" },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { className: "modal-title", style: { margin: 0 } }, "\uD83C\uDFE2 ", office.name),
+          shipmentLabel && /*#__PURE__*/React.createElement("div", { className: "mut xs" }, shipmentLabel)
+        ),
+        /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm mla", onClick: onClose }, "\u00D7 Close")
+      ),
+
+      // KPI strip
+      /*#__PURE__*/React.createElement("div", { className: "sg4 mb12" },
+        [
+          { lbl: "Gross Charged", val: "$" + (office.grossRev || 0).toLocaleString(), cls: "sc-b", ico: "\uD83D\uDCB3" },
+          { lbl: "Commission Owed", val: "$" + (office.commission || 0).toLocaleString(), cls: "sc-a", ico: "\uD83E\uDD1D" },
+          { lbl: "Payments Logged", val: "$" + totalPaid.toLocaleString(), cls: "sc-g", ico: "\u2705" },
+          { lbl: "Outstanding Balance", val: "$" + outstanding.toLocaleString(), cls: outstanding > 0 ? "sc-r" : "sc-g", ico: outstanding > 0 ? "\u26A0\uFE0F" : "\u2705" }
+        ].map(function(k) {
+          return /*#__PURE__*/React.createElement("div", { key: k.lbl, className: "sc " + k.cls },
+            /*#__PURE__*/React.createElement("div", { className: "sc-ico" }, k.ico),
+            /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, k.lbl),
+            /*#__PURE__*/React.createElement("div", { className: "sc-val", style: { fontSize: 20 } }, k.val)
+          );
+        })
+      ),
+
+      // Tabs
+      /*#__PURE__*/React.createElement("div", { className: "tabs" },
+        [["overview", "\uD83D\uDCCA Overview"], ["payments", "\uD83D\uDCB0 Payments"], ["audit", "\uD83D\uDCCB Audit Log"]].map(function(t) {
+          return /*#__PURE__*/React.createElement("div", { key: t[0], className: "tab " + (tab === t[0] ? "on" : ""), onClick: function(){ setTab(t[0]); } }, t[1]);
+        })
+      ),
+
+      // Overview tab
+      tab === "overview" && /*#__PURE__*/React.createElement("div", null,
+        // Commission model badge
+        offCfg && /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("strong", null, "Commission Model: "),
+            modelType === "per_box" ? "Per-box flat rate" : "Percentage of gross (" + Math.round((offCfg.commissionModel.percentage || 0) * 100) + "%)"
+          )
+        ),
+
+        // Per-box breakdown (only for per_box model)
+        modelType === "per_box" && boxRows.length > 0 && /*#__PURE__*/React.createElement("div", { className: "card mb12" },
+          /*#__PURE__*/React.createElement("div", { className: "card-hd" }, /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Per-Box Commission Breakdown")),
+          /*#__PURE__*/React.createElement("div", { className: "tbl" },
+            /*#__PURE__*/React.createElement("table", null,
+              /*#__PURE__*/React.createElement("thead", null,
+                /*#__PURE__*/React.createElement("tr", null,
+                  ["Box Type","Qty Shipped","Rate / Box","Commission Total"].map(function(h){ return /*#__PURE__*/React.createElement("th", { key: h }, h); })
+                )
+              ),
+              /*#__PURE__*/React.createElement("tbody", null,
+                boxRows.map(function(e) {
+                  var bt = e[0], bd = e[1];
+                  var rate = (offCfg.commissionModel.rates || {})[bt] || 0;
+                  return /*#__PURE__*/React.createElement("tr", { key: bt },
+                    /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "badge bb" }, bt)),
+                    /*#__PURE__*/React.createElement("td", { className: "tb" }, bd.count),
+                    /*#__PURE__*/React.createElement("td", { className: "mono" }, rate > 0 ? "$" + rate.toFixed(2) : "\u2014"),
+                    /*#__PURE__*/React.createElement("td", { className: "mono tb", style: { color: "var(--amber)" } },
+                      rate > 0 ? "$" + (rate * bd.count).toFixed(2) : "\u2014")
+                  );
+                }),
+                /*#__PURE__*/React.createElement("tr", { style: { borderTop: "2px solid var(--border2)" } },
+                  /*#__PURE__*/React.createElement("td", { colSpan: 3, style: { textAlign: "right", fontWeight: 700 } }, "Total Commission"),
+                  /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--amber)", fontWeight: 700 } }, "$", (office.commission || 0).toFixed(2))
+                )
+              )
+            )
+          )
+        ),
+
+        // Orders list
+        /*#__PURE__*/React.createElement("div", { className: "card" },
+          /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+            /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Orders — " + (office.orders || []).length + " total"),
+            /*#__PURE__*/React.createElement("span", { className: "mut xs" },
+              "Net Revenue: ", /*#__PURE__*/React.createElement("strong", { style: { color: "var(--green)" } }, "$", (office.netRev || 0).toLocaleString())
+            )
+          ),
+          /*#__PURE__*/React.createElement("div", { className: "tbl", style: { maxHeight: 260, overflowY: "auto" } },
+            /*#__PURE__*/React.createElement("table", null,
+              /*#__PURE__*/React.createElement("thead", null,
+                /*#__PURE__*/React.createElement("tr", null,
+                  ["ID","Customer","Box Type","Charged","Paid","Commission","Status"].map(function(h){ return /*#__PURE__*/React.createElement("th", { key: h }, h); })
+                )
+              ),
+              /*#__PURE__*/React.createElement("tbody", null,
+                (office.orders || []).map(function(o) {
+                  var snap = o.commissionSnapshot || {};
+                  var comm = snap.commissionAmount || (o.payment && o.payment.commission) || 0;
+                  return /*#__PURE__*/React.createElement("tr", { key: o.id },
+                    /*#__PURE__*/React.createElement("td", { className: "tamb" }, o.id),
+                    /*#__PURE__*/React.createElement("td", { className: "tb" }, o.name),
+                    /*#__PURE__*/React.createElement("td", null, o.boxType || (o.boxes && o.boxes[0] && o.boxes[0].boxType)),
+                    /*#__PURE__*/React.createElement("td", { className: "mono" }, "$", (o.payment && o.payment.amount || 0).toFixed(2)),
+                    /*#__PURE__*/React.createElement("td", { className: "mono" }, "$", (o.payment && o.payment.paid || 0).toFixed(2)),
+                    /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--amber)" } }, comm > 0 ? "$" + comm.toFixed(2) : "\u2014"),
+                    /*#__PURE__*/React.createElement("td", null,
+                      /*#__PURE__*/React.createElement("span", { className: "badge " + ((o.payment && o.payment.status === "paid") ? "bg" : "ba") },
+                        o.payment && o.payment.status || "pending"
+                      )
+                    )
+                  );
+                })
+              )
+            )
+          )
+        )
+      ),
+
+      // Payments tab
+      tab === "payments" && /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("div", { className: "row g10 mb12" },
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("span", { className: "badge " + (outstanding > 0 ? "br" : "bg"), style: { fontSize: 12 } },
+              outstanding > 0 ? "Outstanding: $" + outstanding.toFixed(2) : "Fully settled"
+            )
+          ),
+          /*#__PURE__*/React.createElement("button", {
+            className: "btn btn-primary btn-sm mla",
+            onClick: function() { setShowPayForm(function(v){ return !v; }); }
+          }, showPayForm ? "Cancel" : "+ Log Payment")
+        ),
+
+        showPayForm && /*#__PURE__*/React.createElement("div", { className: "card mb12", style: { background: "var(--bg3)" } },
+          /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+            /*#__PURE__*/React.createElement("div", { className: "fr3" },
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Amount ($)"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", type: "number", min: "0", step: "0.01",
+                  value: payForm.amount, placeholder: "0.00",
+                  onChange: function(e){ setPayForm(function(p){ return Object.assign({},p,{amount:e.target.value}); }); }
+                })
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Method"),
+                /*#__PURE__*/React.createElement("select", { className: "fi",
+                  value: payForm.method,
+                  onChange: function(e){ setPayForm(function(p){ return Object.assign({},p,{method:e.target.value}); }); }
+                },
+                  /*#__PURE__*/React.createElement("option", { value: "cash_pickup" }, "Cash Pickup"),
+                  /*#__PURE__*/React.createElement("option", { value: "money_transfer" }, "Money Transfer (Zelle/Venmo)")
+                )
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Notes"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", value: payForm.notes, placeholder: "Optional...",
+                  onChange: function(e){ setPayForm(function(p){ return Object.assign({},p,{notes:e.target.value}); }); }
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement("button", {
+              className: "btn btn-primary btn-sm", disabled: savingPay,
+              onClick: handleLogPayment
+            }, savingPay ? "Saving..." : "\u2713 Log Payment")
+          )
+        ),
+
+        payments.length === 0
+          ? /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { padding: 16 } }, "No payments logged yet.")
+          : /*#__PURE__*/React.createElement("div", { className: "card" },
+              /*#__PURE__*/React.createElement("div", { className: "tbl" },
+                /*#__PURE__*/React.createElement("table", null,
+                  /*#__PURE__*/React.createElement("thead", null,
+                    /*#__PURE__*/React.createElement("tr", null,
+                      ["Amount","Method","Received","Logged By","Notes"].map(function(h){ return /*#__PURE__*/React.createElement("th", { key: h }, h); })
+                    )
+                  ),
+                  /*#__PURE__*/React.createElement("tbody", null,
+                    payments.map(function(p) {
+                      return /*#__PURE__*/React.createElement("tr", { key: p.id },
+                        /*#__PURE__*/React.createElement("td", { className: "mono tb", style: { color: "var(--green)" } }, "$", (p.amount || 0).toFixed(2)),
+                        /*#__PURE__*/React.createElement("td", null, p.method === "cash_pickup" ? "Cash Pickup" : "Money Transfer"),
+                        /*#__PURE__*/React.createElement("td", { className: "mono xs" }, p.receivedAt ? new Date(p.receivedAt).toLocaleDateString() : "\u2014"),
+                        /*#__PURE__*/React.createElement("td", null, p.loggedBy || "\u2014"),
+                        /*#__PURE__*/React.createElement("td", { className: "mut xs" }, p.notes || "\u2014")
+                      );
+                    }),
+                    /*#__PURE__*/React.createElement("tr", { style: { borderTop: "2px solid var(--border2)", fontWeight: 700 } },
+                      /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--green)" } }, "$", totalPaid.toFixed(2)),
+                      /*#__PURE__*/React.createElement("td", { colSpan: 4, style: { color: "var(--text3)", fontSize: 11 } }, "Total payments logged")
+                    )
+                  )
+                )
+              )
+            )
+      ),
+
+      // Audit Log tab
+      tab === "audit" && /*#__PURE__*/React.createElement("div", null,
+        auditLog.length === 0
+          ? /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { padding: 16 } }, "No commission changes recorded yet.")
+          : /*#__PURE__*/React.createElement("div", { className: "card" },
+              /*#__PURE__*/React.createElement("div", { className: "tbl" },
+                /*#__PURE__*/React.createElement("table", null,
+                  /*#__PURE__*/React.createElement("thead", null,
+                    /*#__PURE__*/React.createElement("tr", null,
+                      ["Field","From","To","Changed By","Date"].map(function(h){ return /*#__PURE__*/React.createElement("th", { key: h }, h); })
+                    )
+                  ),
+                  /*#__PURE__*/React.createElement("tbody", null,
+                    auditLog.map(function(entry) {
+                      return /*#__PURE__*/React.createElement("tr", { key: entry.id },
+                        /*#__PURE__*/React.createElement("td", { className: "tb" }, entry.field),
+                        /*#__PURE__*/React.createElement("td", { className: "mono xs", style: { color: "var(--red)" } }, entry.fromValue || "\u2014"),
+                        /*#__PURE__*/React.createElement("td", { className: "mono xs", style: { color: "var(--green)" } }, entry.toValue || "\u2014"),
+                        /*#__PURE__*/React.createElement("td", null, entry.changedBy || "\u2014"),
+                        /*#__PURE__*/React.createElement("td", { className: "mono xs" }, entry.changedAt ? new Date(entry.changedAt).toLocaleString() : "\u2014")
+                      );
+                    })
+                  )
+                )
+              )
+            )
+      )
+    )
+  );
+};
+
 var PricingAdminPage = function PricingAdminPage(_ref107) {
   var pricing = _ref107.pricing,
     onUpdate = _ref107.onUpdate,
@@ -13914,10 +14439,17 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     _useState68 = _slicedToArray(_useState67, 2),
     editPricing = _useState68[0],
     setEditPricing = _useState68[1];
-  var _useState69 = useState(JSON.parse(JSON.stringify(OFFICE_COMMISSIONS))),
+  // Offices from tenant (single source of truth) — fall back to DEFAULT_OFFICES
+  var _useState69 = useState(function() {
+    return JSON.parse(JSON.stringify(getOfficeList(tenant)));
+  }),
     _useState70 = _slicedToArray(_useState69, 2),
-    commissions = _useState70[0],
-    setCommissions = _useState70[1];
+    editOffices = _useState70[0],
+    setEditOffices = _useState70[1];
+  // Keep in sync if tenant prop changes
+  React.useEffect(function() {
+    setEditOffices(JSON.parse(JSON.stringify(getOfficeList(tenant))));
+  }, [tenant && tenant.offices]);
   var _useState71 = useState("pricing"),
     _useState72 = _slicedToArray(_useState71, 2),
     tab = _useState72[0],
@@ -13931,11 +14463,41 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
       return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, dest, _objectSpread(_objectSpread({}, p[dest]), {}, _defineProperty({}, field, parseFloat(val) || 0))));
     });
   };
-  var updateComm = function updateComm(office, val) {
-    setCommissions(function (p) {
-      return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, office, _objectSpread(_objectSpread({}, p[office]), {}, {
-        rate: parseFloat(val) / 100 || 0
-      })));
+  // Office commission model updaters
+  var updateOfficeModelType = function updateOfficeModelType(idx, type) {
+    setEditOffices(function(offices) {
+      return offices.map(function(o, i) {
+        if (i !== idx) return o;
+        var newModel = type === "percentage"
+          ? { type: "percentage", percentage: (o.commissionModel && o.commissionModel.percentage) || 0 }
+          : { type: "per_box", rates: (o.commissionModel && o.commissionModel.rates) || { Small: 0, Medium: 0, Large: 0, "Dish - Single": 0, "Dish - Pack of 10": 0, "Jumbo Drum": 0, Freight: 0 } };
+        return Object.assign({}, o, { commissionModel: newModel });
+      });
+    });
+  };
+  var updateOfficePercentage = function updateOfficePercentage(idx, val) {
+    setEditOffices(function(offices) {
+      return offices.map(function(o, i) {
+        if (i !== idx) return o;
+        var model = Object.assign({}, o.commissionModel || {}, { percentage: parseFloat(val) / 100 || 0 });
+        return Object.assign({}, o, { commissionModel: model });
+      });
+    });
+  };
+  var updateOfficeBoxRate = function updateOfficeBoxRate(idx, boxKey, val) {
+    setEditOffices(function(offices) {
+      return offices.map(function(o, i) {
+        if (i !== idx) return o;
+        var rates = Object.assign({}, (o.commissionModel && o.commissionModel.rates) || {});
+        rates[boxKey] = parseFloat(val) || 0;
+        var model = Object.assign({}, o.commissionModel || {}, { rates: rates });
+        return Object.assign({}, o, { commissionModel: model });
+      });
+    });
+  };
+  var updateOfficeNotes = function updateOfficeNotes(idx, val) {
+    setEditOffices(function(offices) {
+      return offices.map(function(o, i) { return i !== idx ? o : Object.assign({}, o, { notes: val }); });
     });
   };
   var _safeInitBoxCfg = Array.isArray(initialBoxConfig) && initialBoxConfig.length ? initialBoxConfig : BOX_CONFIG;
@@ -13995,9 +14557,70 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
   var handleSave = function handleSave() {
     onUpdate(editPricing);
     setSaved(true);
-    setTimeout(function () {
-      return setSaved(false);
-    }, 2000);
+    setTimeout(function () { return setSaved(false); }, 2000);
+  };
+  var handleSaveOffices = function handleSaveOffices() {
+    // Audit: compare editOffices against current tenant.offices, log any commission changes
+    var prevOffices = getOfficeList(tenant);
+    var changedAt = new Date().toISOString();
+    var changedBy = (tenant && tenant.name) || "admin";
+    editOffices.forEach(function(newOff) {
+      var prev = prevOffices.find(function(p){ return p.id === newOff.id || p.name === newOff.name; });
+      if (!prev) return; // new office, no delta
+      var prevModel = prev.commissionModel || {};
+      var newModel = newOff.commissionModel || {};
+      // Log type change
+      if (prevModel.type !== newModel.type) {
+        _db.saveOfficeAuditEntry({
+          officeId: newOff.id, officeName: newOff.name,
+          field: "commissionModel.type",
+          fromValue: prevModel.type || "none",
+          toValue: newModel.type,
+          changedBy: changedBy, changedAt: changedAt
+        }).catch(function(){});
+      }
+      // Log percentage change
+      if (newModel.type === "percentage" && prevModel.percentage !== newModel.percentage) {
+        _db.saveOfficeAuditEntry({
+          officeId: newOff.id, officeName: newOff.name,
+          field: "commissionModel.percentage",
+          fromValue: Math.round((prevModel.percentage || 0) * 100) + "%",
+          toValue: Math.round((newModel.percentage || 0) * 100) + "%",
+          changedBy: changedBy, changedAt: changedAt
+        }).catch(function(){});
+      }
+      // Log per-box rate changes
+      if (newModel.type === "per_box") {
+        var prevRates = prevModel.rates || {};
+        var newRates = newModel.rates || {};
+        Object.keys(newRates).forEach(function(boxKey) {
+          if (prevRates[boxKey] !== newRates[boxKey]) {
+            _db.saveOfficeAuditEntry({
+              officeId: newOff.id, officeName: newOff.name,
+              field: "commissionModel.rates." + boxKey,
+              fromValue: prevRates[boxKey] !== undefined ? "$" + prevRates[boxKey] : "none",
+              toValue: "$" + newRates[boxKey],
+              changedBy: changedBy, changedAt: changedAt
+            }).catch(function(){});
+          }
+        });
+      }
+      // Log notes change
+      if ((prev.notes || "") !== (newOff.notes || "")) {
+        _db.saveOfficeAuditEntry({
+          officeId: newOff.id, officeName: newOff.name,
+          field: "notes",
+          fromValue: prev.notes || "",
+          toValue: newOff.notes || "",
+          changedBy: changedBy, changedAt: changedAt
+        }).catch(function(){});
+      }
+    });
+    if (onUpdateTenant) {
+      onUpdateTenant({ offices: editOffices });
+    }
+    setSaved(true);
+    setTimeout(function(){ return setSaved(false); }, 2000);
   };
   var handleSaveBoxTypes = function handleSaveBoxTypes() {
     if (onUpdateBoxConfig) onUpdateBoxConfig(editBoxCfg);
@@ -14129,66 +14752,89 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
       },
       placeholder: "e.g. Inland distance"
     }));
-  }))])))))), tab === "commissions" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
-    className: "alert alert-a mb12"
-  }, "\uD83E\uDD1D Commission rates are negotiated per office. Each office's cut is auto-calculated on every order they generate."), /*#__PURE__*/React.createElement("div", {
-    className: "card"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "card-hd"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "card-title"
-  }, "Office Commission Rates"), /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-primary btn-sm",
-    onClick: handleSave
-  }, "Save Changes")), /*#__PURE__*/React.createElement("div", {
-    className: "tbl"
-  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, t("Office", "Oficina")), /*#__PURE__*/React.createElement("th", null, t("Commission Rate (%)", "Tasa de Comisión (%)")), /*#__PURE__*/React.createElement("th", null, t("Notes", "Notas")), /*#__PURE__*/React.createElement("th", null, t("Est. This Month", "Est. Este Mes")))), /*#__PURE__*/React.createElement("tbody", null, Object.entries(commissions).map(function (_ref110) {
-    var _ref111 = _slicedToArray(_ref110, 2),
-      office = _ref111[0],
-      data = _ref111[1];
-    return /*#__PURE__*/React.createElement("tr", {
-      key: office
-    }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-      className: "tb"
-    }, office)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
-      className: "row g6"
-    }, /*#__PURE__*/React.createElement("input", {
-      className: "fi",
-      type: "number",
-      value: Math.round(data.rate * 100),
-      onChange: function onChange(e) {
-        return updateComm(office, e.target.value);
-      },
-      style: {
-        width: 60,
-        padding: "4px 8px",
-        fontSize: 12
-      },
-      min: "0",
-      max: "100"
-    }), /*#__PURE__*/React.createElement("span", {
-      className: "mut xs"
-    }, "%"))), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", {
-      className: "fi",
-      value: data.notes,
-      onChange: function onChange(e) {
-        return setCommissions(function (p) {
-          return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, office, _objectSpread(_objectSpread({}, p[office]), {}, {
-            notes: e.target.value
-          })));
-        });
-      },
-      style: {
-        padding: "4px 8px",
-        fontSize: 12
-      }
-    })), /*#__PURE__*/React.createElement("td", {
-      style: {
-        fontFamily: "'IBM Plex Mono',monospace",
-        color: "var(--amber)"
-      }
-    }, "$", Math.round(Math.random() * 800 + 200)));
-  }))), tab === "whatsapp" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }))])))))), tab === "commissions" && /*#__PURE__*/React.createElement("div", null,
+  /*#__PURE__*/React.createElement("div", { className: "alert alert-a mb12" },
+    "\uD83E\uDD1D Commission rates are negotiated per office. ",
+    /*#__PURE__*/React.createElement("strong", null, "Per-box"), " mode deducts a flat dollar amount per box type. ",
+    /*#__PURE__*/React.createElement("strong", null, "Percentage"), " mode deducts a % of the gross collected amount. Customer invoices always show gross only."
+  ),
+  /*#__PURE__*/React.createElement("div", { className: "row g10 mb12" },
+    saved && /*#__PURE__*/React.createElement("span", { className: "badge bg" }, "\u2713 Saved"),
+    /*#__PURE__*/React.createElement("button", { className: "btn btn-primary btn-sm", onClick: handleSaveOffices }, "Save All Commission Changes"),
+    /*#__PURE__*/React.createElement("span", { className: "mut xs mla" }, editOffices.length, " offices configured")
+  ),
+  editOffices.map(function(office, idx) {
+    var model = office.commissionModel || { type: "percentage", percentage: 0 };
+    var isPerBox = model.type === "per_box";
+    var activeBoxTypes = (Array.isArray(editBoxCfg) ? editBoxCfg : BOX_CONFIG)
+      .filter(function(b){ return b.active && !b.legacy && b.key !== "Unknown"; });
+    return /*#__PURE__*/React.createElement("div", { key: office.id || idx, className: "card mb12" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { className: "card-title" }, office.name),
+          office.notes && /*#__PURE__*/React.createElement("div", { className: "card-sub" }, office.notes)
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "row g6" },
+          /*#__PURE__*/React.createElement("div", { className: "role-sw" },
+            /*#__PURE__*/React.createElement("button", {
+              className: "rsw-btn " + (!isPerBox ? "on" : ""),
+              onClick: function() { updateOfficeModelType(idx, "percentage"); }
+            }, "% Rate"),
+            /*#__PURE__*/React.createElement("button", {
+              className: "rsw-btn " + (isPerBox ? "on" : ""),
+              onClick: function() { updateOfficeModelType(idx, "per_box"); }
+            }, "Per Box")
+          )
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+        !isPerBox
+          ? /*#__PURE__*/React.createElement("div", { className: "row g10", style: { alignItems: "center" } },
+              /*#__PURE__*/React.createElement("label", { className: "fl", style: { margin: 0, width: "auto" } }, "Commission Rate:"),
+              /*#__PURE__*/React.createElement("input", {
+                className: "fi", type: "number", min: "0", max: "100", step: "0.5",
+                value: Math.round((model.percentage || 0) * 100 * 10) / 10,
+                onChange: function(e) { updateOfficePercentage(idx, e.target.value); },
+                style: { width: 70, padding: "5px 8px", fontSize: 13 }
+              }),
+              /*#__PURE__*/React.createElement("span", { className: "mut xs" }, "% of gross collected"),
+              model.percentage > 0 && /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { marginLeft: "auto" } },
+                "e.g. $300 order → $", Math.round(300 * (model.percentage || 0) * 100) / 100, " commission"
+              )
+            )
+          : /*#__PURE__*/React.createElement("div", null,
+              /*#__PURE__*/React.createElement("div", { className: "mut xs mb12" }, "Flat dollar amount deducted per box shipped through this office"),
+              /*#__PURE__*/React.createElement("div", { className: "fr3" },
+                activeBoxTypes.map(function(box) {
+                  var rate = (model.rates || {})[box.key];
+                  return /*#__PURE__*/React.createElement("div", { key: box.key, className: "fg" },
+                    /*#__PURE__*/React.createElement("label", { className: "fl" }, box.label || box.key),
+                    /*#__PURE__*/React.createElement("div", { className: "row g6" },
+                      /*#__PURE__*/React.createElement("span", { className: "mut xs" }, "$"),
+                      /*#__PURE__*/React.createElement("input", {
+                        className: "fi", type: "number", min: "0", step: "1",
+                        value: rate !== undefined ? rate : 0,
+                        onChange: function(e) { updateOfficeBoxRate(idx, box.key, e.target.value); },
+                        style: { padding: "5px 8px", fontSize: 13 }
+                      })
+                    )
+                  );
+                })
+              )
+            ),
+        /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginTop: 10 } },
+          /*#__PURE__*/React.createElement("label", { className: "fl" }, "Notes"),
+          /*#__PURE__*/React.createElement("input", {
+            className: "fi",
+            value: office.notes || "",
+            placeholder: "e.g. Negotiated 2024, standard, probationary...",
+            onChange: function(e) { updateOfficeNotes(idx, e.target.value); }
+          })
+        )
+      )
+    );
+  }),
+  tab === "whatsapp" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "alert alert-g mb12"
   }, "\uD83D\uDCAC Connect your WhatsApp Business API number. Each subscriber brings their own number \u2014 no need to change anything when you switch companies."), /*#__PURE__*/React.createElement("div", {
     className: "card mb12"
@@ -14318,7 +14964,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
       }
     }, "\"", t.msg, "\""));
   }))
-  ))))), (function(t_ab) {
+  ))), (function(t_ab) {
     if (t_ab === "boxtypes") return (/*#__PURE__*/React.createElement("div", null,
       /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
         "\uD83D\uDCE6 Manage box types. Changes update the order form and pricing matrix. Archiving hides a type from new orders but preserves historical records."
@@ -15673,10 +16319,13 @@ var EMPTY_TENANT = {
     role: "driver"
   }],
   offices: [{
+    id: "off_" + Date.now(),
     name: "",
     address: "",
     phone: "",
-    commissionRate: 15
+    active: true,
+    commissionModel: { type: "percentage", percentage: 0.15 },
+    notes: ""
   }],
   paymentMethods: {
     cash: true,
@@ -15739,12 +16388,21 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
           } : d;
         }),
         offices: (existingTenant.offices || [""]).map(function (o) {
-          return typeof o === "string" ? {
-            name: o,
-            address: "",
-            phone: "",
-            commissionRate: 15
-          } : o;
+          if (typeof o === "string") return {
+            id: "off_" + Date.now() + Math.random().toString(36).slice(2,6),
+            name: o, address: "", phone: "", active: true,
+            commissionModel: { type: "percentage", percentage: 0.15 }, notes: ""
+          };
+          // Migrate legacy commissionRate field
+          if (o.commissionRate !== undefined && !o.commissionModel) {
+            return Object.assign({}, o, {
+              id: o.id || "off_" + Date.now() + Math.random().toString(36).slice(2,6),
+              active: o.active !== false,
+              commissionModel: { type: "percentage", percentage: (o.commissionRate || 0) / 100 },
+              notes: o.notes || ""
+            });
+          }
+          return Object.assign({ id: "off_" + Date.now() + Math.random().toString(36).slice(2,6), active: true }, o);
         })
       }) : _objectSpread({}, EMPTY_TENANT);
     }),
@@ -15795,10 +16453,10 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
   };
   var addOff = function addOff() {
     return set("offices", [].concat(_toConsumableArray(data.offices), [{
-      name: "",
-      address: "",
-      phone: "",
-      commissionRate: 15
+      id: "off_" + Date.now(),
+      name: "", address: "", phone: "", active: true,
+      commissionModel: { type: "percentage", percentage: 0.15 },
+      notes: ""
     }]));
   };
   var remBox = function remBox(id) {
@@ -17514,17 +18172,18 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
         }, T("Commission Rate (%)", "Tasa de Comisión (%)")), /*#__PURE__*/React.createElement("input", {
           className: "fi",
           type: "number",
-          value: o.commissionRate,
+          value: Math.round(((o.commissionModel && o.commissionModel.percentage) || o.commissionRate / 100 || 0) * 100 * 10) / 10,
           onChange: function onChange(e) {
-            return setOff(i, "commissionRate", parseFloat(e.target.value) || 0);
+            var pct = parseFloat(e.target.value) / 100 || 0;
+            setOff(i, "commissionModel", Object.assign({}, (o.commissionModel || { type: "percentage" }), { percentage: pct }));
           },
           placeholder: "15"
-        }), /*#__PURE__*/React.createElement("div", {
+        })), /*#__PURE__*/React.createElement("div", {
           className: "xs mut",
           style: {
             marginTop: 3
           }
-        }, T("% of order revenue paid to this office", "% de los ingresos del pedido pagado a esta oficina")))));
+        }, T("% of order revenue paid to this office — set per-box rates in Pricing & Commissions", "% de ingresos pagado a esta oficina"))));
       }), /*#__PURE__*/React.createElement("button", {
         className: "btn btn-ghost",
         onClick: addOff,
@@ -19191,6 +19850,79 @@ var _db = {
       .then(function(res) {
         if (res.error) console.error("[db] saveSettings error", key, res.error.message);
       });
+  },
+
+  // ── Office Payments ────────────────────────────────────────────────────────
+  // Schema: { id, tenantId, officeId, shipmentId?, amount, method, receivedAt, loggedBy, loggedAt, notes }
+  loadOfficePayments: function(officeId) {
+    var q = _supabase.from("office_payments").select("data");
+    if (officeId) q = q.eq("office_id", officeId);
+    return q.order("logged_at", { ascending: false }).then(function(res) {
+      if (res.error) { console.error("[db] loadOfficePayments error", res.error.message); return []; }
+      return (res.data || []).map(function(r) { return r.data; });
+    });
+  },
+
+  saveOfficePayment: function(payment) {
+    var id = payment.id || genId("OP");
+    var row = Object.assign({}, payment, { id: id, tenantId: _db._tenantId });
+    return _supabase
+      .from("office_payments")
+      .upsert([{ id: id, tenant_id: _db._tenantId, office_id: row.officeId, logged_at: row.loggedAt || new Date().toISOString(), data: row }], { onConflict: "id" })
+      .then(function(res) {
+        if (res.error) console.error("[db] saveOfficePayment error", res.error.message);
+        return row;
+      });
+  },
+
+  // ── Shipment Expenses ──────────────────────────────────────────────────────
+  // Schema: { id, tenantId, shipmentId, type, boxTypeId?, quantity, unitPrice, amount, notes, createdBy, createdAt }
+  loadShipmentExpenses: function(shipmentId) {
+    var q = _supabase.from("shipment_expenses").select("data");
+    if (shipmentId) q = q.eq("shipment_id", shipmentId);
+    return q.order("created_at", { ascending: false }).then(function(res) {
+      if (res.error) { console.error("[db] loadShipmentExpenses error", res.error.message); return []; }
+      return (res.data || []).map(function(r) { return r.data; });
+    });
+  },
+
+  saveShipmentExpense: function(expense) {
+    var id = expense.id || genId("EXP");
+    var row = Object.assign({}, expense, { id: id, tenantId: _db._tenantId });
+    return _supabase
+      .from("shipment_expenses")
+      .upsert([{ id: id, tenant_id: _db._tenantId, shipment_id: row.shipmentId, created_at: row.createdAt || new Date().toISOString(), data: row }], { onConflict: "id" })
+      .then(function(res) {
+        if (res.error) console.error("[db] saveShipmentExpense error", res.error.message);
+        return row;
+      });
+  },
+
+  deleteShipmentExpense: function(id) {
+    return _supabase.from("shipment_expenses").delete().eq("id", id).eq("tenant_id", _db._tenantId)
+      .then(function(res) { if (res.error) console.error("[db] deleteShipmentExpense error", res.error.message); });
+  },
+
+  // ── Office Commission Audit Log ────────────────────────────────────────────
+  loadOfficeAuditLog: function(officeId) {
+    var q = _supabase.from("office_commission_audit").select("data");
+    if (officeId) q = q.eq("office_id", officeId);
+    return q.order("changed_at", { ascending: false }).then(function(res) {
+      if (res.error) { console.error("[db] loadOfficeAuditLog error", res.error.message); return []; }
+      return (res.data || []).map(function(r) { return r.data; });
+    });
+  },
+
+  saveOfficeAuditEntry: function(entry) {
+    var id = entry.id || genId("OCA");
+    var row = Object.assign({}, entry, { id: id, tenantId: _db._tenantId });
+    return _supabase
+      .from("office_commission_audit")
+      .upsert([{ id: id, tenant_id: _db._tenantId, office_id: row.officeId, changed_at: row.changedAt || new Date().toISOString(), data: row }], { onConflict: "id" })
+      .then(function(res) {
+        if (res.error) console.error("[db] saveOfficeAuditEntry error", res.error.message);
+        return row;
+      });
   }
 };
 var LoginScreen = function LoginScreen(_ref126) {
@@ -19825,13 +20557,8 @@ function AppShell(_ref130) {
     return fromTenant.length > 0 ? fromTenant : DEFAULT_DRIVERS;
   }, [tenant]);
   var tenantOffices = React.useMemo(function () {
-    var fromTenant = ((tenant === null || tenant === void 0 ? void 0 : tenant.offices) || []).filter(function (o) {
-      return o.name;
-    }).map(function (o) {
-      return o.name;
-    });
-    return fromTenant.length > 0 ? fromTenant : DEFAULT_OFFICES;
-  }, [tenant]);
+    return getOfficeOptions(tenant);
+  }, [tenant && tenant.offices]);
 
   // Derive ROLES user names from tenant users config
   var tenantUsers = (tenant === null || tenant === void 0 ? void 0 : tenant.users) || [];
@@ -20182,7 +20909,8 @@ setOrders(function (prev) {
     });
     if (page === "analytics") return /*#__PURE__*/React.createElement(HQAnalytics, {
       orders: orders,
-      shipments: shipments
+      shipments: shipments,
+      tenant: tenant
     });
     if (page === "customers") return /*#__PURE__*/React.createElement(CustomerProfilePage, {
       orders: orders,
@@ -20292,6 +21020,7 @@ setOrders(function (prev) {
     if (page === "shipments") return /*#__PURE__*/React.createElement(ShipmentsPage, {
       shipments: shipments,
       orders: orders,
+      tenant: tenant,
       boxConfig: appBoxConfig,
       destinations: destinations,
       onCreateBatch: function onCreateBatch(newShipment) {
