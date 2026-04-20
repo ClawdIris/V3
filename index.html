@@ -163,14 +163,15 @@ var CSS = "\n@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600
 // These are defaults used before a tenant is configured.
 // Once a tenant completes onboarding, the App derives these from tenant.drivers and tenant.offices
 var DEFAULT_OFFICES = [
-  { id: "off_hq",  name: "Casabe NY (HQ)",  address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0 },    notes: "HQ — no commission" },
-  { id: "off_hou", name: "Houston",          address: "", phone: "", active: true, commissionModel: { type: "per_box", rates: { Small: 40, Medium: 50, Large: 60, "Dish - Single": 5, "Dish - Pack of 10": 32, "Jumbo Drum": 60, Freight: 0 } }, notes: "Flat per-box commission" },
-  { id: "off_orl", name: "Orlando",          address: "", phone: "", active: true, commissionModel: { type: "per_box", rates: { Small: 35, Medium: 45, Large: 55, "Dish - Single": 5, "Dish - Pack of 10": 30, "Jumbo Drum": 55, Freight: 0 } }, notes: "Flat per-box commission" },
-  { id: "off_la",  name: "Los Angeles",      address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.18 }, notes: "Flat per-box commission" },
-  { id: "off_ny",  name: "New York",         address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.20 }, notes: "Negotiated 2024" },
-  { id: "off_dal", name: "Dallas",           address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.15 }, notes: "Standard" },
-  { id: "off_atl", name: "Atlantic Travel",  address: "", phone: "", active: true, commissionModel: { type: "per_box", rates: { Small: 40, Medium: 50, Large: 50, "Dish - Single": 5, "Dish - Pack of 10": 32, "Jumbo Drum": 60, Freight: 0 } }, notes: "Flat per-box commission" },
-  { id: "off_san", name: "San Antonio",      address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.10 }, notes: "Probationary" }
+  { id: "off_hq",  name: "Casabe NY (HQ)",  address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0,    rates: { Small: 0,  Medium: 0,  Large: 0,  "Dish - Single": 0, "Dish - Pack of 10": 0,  "Jumbo Drum": 0,  Freight: 0 } }, notes: "HQ — no commission" },
+  { id: "off_hou", name: "Houston",          address: "", phone: "", active: true, commissionModel: { type: "per_box",   percentage: 0,    rates: { Small: 40, Medium: 50, Large: 60, "Dish - Single": 5, "Dish - Pack of 10": 32, "Jumbo Drum": 60, Freight: 0 } }, notes: "Flat per-box commission" },
+  { id: "off_orl", name: "Orlando",          address: "", phone: "", active: true, commissionModel: { type: "per_box",   percentage: 0,    rates: { Small: 35, Medium: 45, Large: 55, "Dish - Single": 5, "Dish - Pack of 10": 30, "Jumbo Drum": 55, Freight: 0 } }, notes: "Flat per-box commission" },
+  { id: "off_la",  name: "Los Angeles",      address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.18, rates: { Small: 40, Medium: 50, Large: 60, "Dish - Single": 5, "Dish - Pack of 10": 32, "Jumbo Drum": 60, Freight: 0 } }, notes: "18% of gross charged" },
+  { id: "off_ny",  name: "New York",         address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.20, rates: { Small: 40, Medium: 50, Large: 60, "Dish - Single": 5, "Dish - Pack of 10": 32, "Jumbo Drum": 60, Freight: 0 } }, notes: "Negotiated 2024" },
+  { id: "off_dal", name: "Dallas",           address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.15, rates: { Small: 35, Medium: 45, Large: 55, "Dish - Single": 5, "Dish - Pack of 10": 30, "Jumbo Drum": 55, Freight: 0 } }, notes: "Standard" },
+  { id: "off_atl", name: "Atlantic Travel",  address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.18, rates: { Small: 40, Medium: 50, Large: 60, "Dish - Single": 5, "Dish - Pack of 10": 32, "Jumbo Drum": 60, Freight: 0 } }, notes: "18% of gross charged" },
+  { id: "off_eff", name: "Effecty",          address: "", phone: "", active: true, commissionModel: { type: "per_box",   percentage: 0,    rates: { Small: 30, Medium: 40, Large: 50, "Dish - Single": 4, "Dish - Pack of 10": 25, "Jumbo Drum": 50, Freight: 0 } }, notes: "Per-box rates" },
+  { id: "off_san", name: "San Antonio",      address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.10, rates: { Small: 30, Medium: 40, Large: 50, "Dish - Single": 4, "Dish - Pack of 10": 25, "Jumbo Drum": 50, Freight: 0 } }, notes: "Probationary" }
 ];
 var DEFAULT_DRIVERS = ["Carlos Vargas", "Mike Torres", "Jorge Ruiz", "Maria Santos", "David Pérez"];
 // Resolved at render time from tenant in App (passed as props) — see getTenantLists()
@@ -223,7 +224,7 @@ var calculateOfficeCommission = function calculateOfficeCommission(officeConfig,
   return 0;
 };
 var calculateNetRevenue = function calculateNetRevenue(order, tenant) {
-  var gross = order.commissionSnapshot ? order.commissionSnapshot.grossRevenue : (parseFloat(order.payment && order.payment.paid) || 0);
+  var gross = order.commissionSnapshot ? order.commissionSnapshot.grossRevenue : (parseFloat(order.payment && order.payment.amount) || 0);
   var comm = order.commissionSnapshot ? order.commissionSnapshot.commissionAmount : (parseFloat(order.payment && order.payment.commission) || 0);
   if (order.commissionSnapshot) return order.commissionSnapshot.netRevenue;
   if (!tenant) return gross - comm;
@@ -2273,6 +2274,10 @@ var OrderForm = function OrderForm(_ref4) {
       setPendingPaidOrder(order); setPaidSendPending(true);
     } else { onSave(order); }
   };
+  // Internal-only commission preview — computed at render time, never shown on invoice
+  var _commPreviewOffice = getOfficeById(tenant, f.officeId || f.office);
+  var _commPreviewAmt = parseFloat(f.payment && f.payment.amount) || 0;
+  var _commPreviewVal = _commPreviewOffice ? calculateOfficeCommission(_commPreviewOffice, _commPreviewAmt, f.boxes || []) : null;
   return /*#__PURE__*/React.createElement(React.Fragment, null,
     paidSendPending && pendingPaidOrder && /*#__PURE__*/React.createElement(PaidInvoiceSendModal, {
       order: pendingPaidOrder,
@@ -2382,12 +2387,14 @@ var OrderForm = function OrderForm(_ref4) {
     className: "fi",
     value: f.office,
     onChange: function onChange(e) {
-      return set("office", e.target.value);
+      var _oName = e.target.value;
+      var _oCfg = getOfficeById(tenant, _oName);
+      set("office", _oName);
+      set("officeId", _oCfg ? _oCfg.id : "");
     }
-  }, (officesList || OFFICES_LIST).map(function (o) {
-    return /*#__PURE__*/React.createElement("option", {
-      key: o
-    }, o);
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, "— None —"),
+  (tenant ? getOfficeOptions(tenant) : (officesList || OFFICES_LIST)).map(function(o) {
+    return /*#__PURE__*/React.createElement("option", { key: o, value: o }, o);
   })))), /*#__PURE__*/React.createElement("div", {
     className: "fg"
   }, /*#__PURE__*/React.createElement("label", {
@@ -2846,7 +2853,15 @@ var OrderForm = function OrderForm(_ref4) {
     style: {
       color: f.payment.amount - f.payment.paid > 0 ? "var(--red)" : "var(--green)"
     }
-  }, "$", Math.max(0, (parseFloat(f.payment.amount) || 0) - (parseFloat(f.payment.paid) || 0)).toFixed(2))))), /*#__PURE__*/React.createElement("div", {
+  }, "$", Math.max(0, (parseFloat(f.payment.amount) || 0) - (parseFloat(f.payment.paid) || 0)).toFixed(2))))), _commPreviewOffice && _commPreviewVal !== null && /*#__PURE__*/React.createElement("div", {
+    className: "alert alert-b mb12",
+    style: { fontSize: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }
+  },
+    /*#__PURE__*/React.createElement("span", null, "\uD83C\uDFE2 Office Commission \u2014 ", _commPreviewOffice.name),
+    /*#__PURE__*/React.createElement("strong", { style: { fontFamily: "monospace", fontSize: 13 } },
+      "$", _commPreviewVal.toFixed(2), " \u00A0(net: $", (_commPreviewAmt - _commPreviewVal).toFixed(2), ")"
+    )
+  ), /*#__PURE__*/React.createElement("div", {
     className: "modal-section"
   }, "Description"), /*#__PURE__*/React.createElement("div", {
     className: "fg"
@@ -6703,7 +6718,7 @@ var HQAnalytics = function HQAnalytics(_ref52) {
     var offCfg = getOfficeById(tenantRef, officeName);
     if (!offCfg) return 0;
     return ordersArr.reduce(function(s, o) {
-      var gross = parseFloat(o.payment && (o.payment.paid || o.payment.amount)) || 0;
+      var gross = parseFloat(o.payment && o.payment.amount) || 0;
       var boxes = o.boxes && o.boxes.length ? o.boxes : [{ boxType: o.boxType || "Small" }];
       return s + calculateOfficeCommission(offCfg, gross, boxes);
     }, 0);
@@ -10909,7 +10924,7 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
    MANIFEST GENERATOR  (Risk #10 + new feature)
 ════════════════════════════════════════════ */
 var ManifestModal = function ManifestModal(_ref89) {
-  var shipment = _ref89.shipment, orders = _ref89.orders, onClose = _ref89.onClose;
+  var shipment = _ref89.shipment, orders = _ref89.orders, onClose = _ref89.onClose, tenant = _ref89.tenant;
   var shpOrders = (shipment.orderIds || []).reduce(function(acc, id) {
     var o = orders.find(function(x){ return x.id === id; }); if (o) acc.push(o); return acc;
   }, []);
@@ -10955,14 +10970,16 @@ var ManifestModal = function ManifestModal(_ref89) {
 
   var cs = {padding:"5px 8px",textAlign:"left",border:"1px solid var(--border)",fontSize:11,verticalAlign:"top"};
   var ths = Object.assign({},cs,{fontWeight:700,background:"var(--bg2)",fontSize:10.5});
-  var HDRS = ["Tracking #","Receiver Name","Receiver Address","Receiver Phone","Box Type","Sender Name","Sender Phone"];
+  var HDRS = ["Tracking Number","Receiver Name","Receiver Address","Receiver Phone Number","Box Type","Sender Name","Sender Phone Number"];
   return /*#__PURE__*/React.createElement("div",{className:"overlay",onClick:function(e){return e.target===e.currentTarget&&onClose();}},
     /*#__PURE__*/React.createElement(React.Fragment,null,
     /* Hidden branded printout — shown only under printing-manifest body class */
-    /*#__PURE__*/React.createElement("div",{className:"manifest-printout"},
+    /*#__PURE__*/React.createElement("div",{className:"manifest-printout",style:{WebkitPrintColorAdjust:"exact",printColorAdjust:"exact"}},
       /*#__PURE__*/React.createElement("div",{className:"exp-print-header"},
         /*#__PURE__*/React.createElement("div",null,
-          /*#__PURE__*/React.createElement("div",{className:"exp-print-co"},"CASABE XPRESS"),
+          (tenant&&(tenant.logoUrl||tenant.logoMarkUrl))
+            ?/*#__PURE__*/React.createElement("img",{src:tenant.logoUrl||tenant.logoMarkUrl,style:{height:"0.4in",maxWidth:"1.8in",objectFit:"contain",display:"block",marginBottom:4}})
+            :/*#__PURE__*/React.createElement("div",{className:"exp-print-co"},(tenant&&tenant.name)||"CASABE XPRESS"),
           /*#__PURE__*/React.createElement("div",{style:{fontSize:"8pt",color:"#555",marginTop:3,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.1em"}},"Shipment Manifest")
         ),
         /*#__PURE__*/React.createElement("div",{style:{textAlign:"right",fontSize:"9pt",color:"#333",lineHeight:1.6}},
@@ -11057,7 +11074,7 @@ var ManifestModal = function ManifestModal(_ref89) {
                   /*#__PURE__*/React.createElement("thead",null,/*#__PURE__*/React.createElement("tr",null,HDRS.map(function(h){return /*#__PURE__*/React.createElement("th",{key:h,style:ths},h);}))),
                   /*#__PURE__*/React.createElement("tbody",null,
                     deptRows.map(function(r,ri){
-                      return /*#__PURE__*/React.createElement("tr",{key:r.trackingId+ri,style:{background:ri%2===0?"var(--bg1)":"var(--bg2)"}},
+                      return /*#__PURE__*/React.createElement("tr",{key:r.trackingId+ri,style:{background:ri%2===0?"var(--bg3)":"var(--bg2)"}},
                         /*#__PURE__*/React.createElement("td",{style:cs},/*#__PURE__*/React.createElement("span",{style:{fontFamily:"monospace",fontWeight:700}},r.trackingId)),
                         /*#__PURE__*/React.createElement("td",{style:cs},r.receiverName||/*#__PURE__*/React.createElement("span",{style:{color:"var(--red)"}},"\\u26A0 missing")),
                         /*#__PURE__*/React.createElement("td",{style:cs},r.receiverAddress),
@@ -11485,29 +11502,28 @@ var ExpenseLineAdder = function ExpenseLineAdder(props) {
     {key:"gas",label:"Gas"},{key:"food",label:"Food"},
     {key:"boxes",label:"Box Purchase"},{key:"other",label:"Other"}
   ];
-  // Dish variants — separate from boxConfig unit costs
-  var DISH_VARIANTS = [
-    {key:"dish_single", label:"Dish \u2013 Single (each)", unitCost:5.00},
-    {key:"dish_pack_10", label:"Dish \u2013 Pack of 10 packs", unitCost:32.00}
-  ];
+  var _cfg = Array.isArray(boxConfig) && boxConfig.length ? boxConfig : BOX_CONFIG;
+  var activeBoxOptions = _cfg.filter(function(b) {
+    return b.active && !b.legacy && b.key !== "Unknown" &&
+           (b.unitPrice != null || (boxUnitCosts && boxUnitCosts[b.key] != null));
+  });
+  var firstBox = activeBoxOptions.length ? activeBoxOptions[0].key : "Small";
   var _st1 = useState("driver_pay"), _st2 = _slicedToArray(_st1,2), lineType = _st2[0], setLineType = _st2[1];
   var _st3 = useState(""), _st4 = _slicedToArray(_st3,2), lineDesc = _st4[0], setLineDesc = _st4[1];
   var _st5 = useState(""), _st6 = _slicedToArray(_st5,2), lineAmt = _st6[0], setLineAmt = _st6[1];
-  var _st7 = useState("Small"), _st8 = _slicedToArray(_st7,2), lineBox = _st8[0], setLineBox = _st8[1];
+  var _st7 = useState(firstBox), _st8 = _slicedToArray(_st7,2), lineBox = _st8[0], setLineBox = _st8[1];
   var _st9 = useState(""), _st10 = _slicedToArray(_st9,2), lineQty = _st10[0], setLineQty = _st10[1];
-  var _stDish = useState("dish_single"), _stDish2 = _slicedToArray(_stDish,2), dishVariant = _stDish2[0], setDishVariant = _stDish2[1];
 
   var isBoxes = lineType === "boxes";
-  var _dishBc = (boxConfig||BOX_CONFIG).find(function(b){ return b.key === lineBox; });
-  var isDish = isBoxes && !!(_dishBc && _dishBc.isDish);
-  // Determine unit cost: dish variants override boxUnitCosts
-  var dishInfo = isDish ? (DISH_VARIANTS.find(function(d){ return d.key === dishVariant; }) || DISH_VARIANTS[0]) : null;
-  var unitCost = isDish ? dishInfo.unitCost : ((boxUnitCosts || {})[lineBox] || 0);
+  var selectedBoxCfg = _cfg.find(function(b){ return b.key === lineBox; }) || {};
+  var unitCost = (selectedBoxCfg.unitPrice != null)
+    ? selectedBoxCfg.unitPrice
+    : ((boxUnitCosts || {})[lineBox] || 0);
   var lineTotal = isBoxes ? (unitCost * (parseInt(lineQty)||0)) : (parseFloat(lineAmt)||0);
 
   React.useEffect(function(){
     if (isBoxes && lineQty) { setLineAmt((unitCost * (parseInt(lineQty)||0)).toFixed(2)); }
-  }, [lineBox, lineQty, isBoxes, dishVariant, unitCost]);
+  }, [lineBox, lineQty, isBoxes, unitCost]);
 
   React.useEffect(function(){
     var cb = _draftCbRef.current; if (!cb) return;
@@ -11515,15 +11531,14 @@ var ExpenseLineAdder = function ExpenseLineAdder(props) {
     var draft = null;
     if (isBoxes) {
       if (lineQty && parseInt(lineQty,10) > 0) {
-        var boxLabel = isDish ? dishInfo.label : lineBox;
-        draft = { type: typeLabel, description: "", boxType: lineBox, boxVariant: isDish ? dishVariant : null,
+        draft = { type: typeLabel, description: "", boxType: lineBox, boxLabel: selectedBoxCfg.label || lineBox,
           qty: parseInt(lineQty,10), unitCost: unitCost, amount: lineTotal };
       }
     } else if (lineAmt !== "" && lineAmt != null && parseFloat(lineAmt) > 0) {
       draft = { type: typeLabel, description: lineDesc, boxType: "", qty: null, unitCost: null, amount: lineTotal };
     }
     cb(draft);
-  }, [lineType, lineDesc, lineAmt, lineQty, lineBox, dishVariant, isBoxes, isDish, unitCost, lineTotal]);
+  }, [lineType, lineDesc, lineAmt, lineQty, lineBox, isBoxes, unitCost, lineTotal]);
 
   return /*#__PURE__*/React.createElement("div",{style:{background:"var(--bg3)",borderRadius:8,padding:12,marginBottom:12}},
     /*#__PURE__*/React.createElement("div",{className:"modal-section",style:{marginTop:0}},"Add Line Item"),
@@ -11536,11 +11551,13 @@ var ExpenseLineAdder = function ExpenseLineAdder(props) {
       ),
       isBoxes
         ? /*#__PURE__*/React.createElement("div",{className:"fg"},
-            /*#__PURE__*/React.createElement("label",{className:"fl"},"Box Size"),
+            /*#__PURE__*/React.createElement("label",{className:"fl"},"Box Type"),
             /*#__PURE__*/React.createElement("select",{className:"fi",value:lineBox,onChange:function(e){ setLineBox(e.target.value); setLineQty(""); }},
-              (boxConfig||[]).filter(function(b){ return b.active && ((boxUnitCosts||{})[b.key] || b.isDish); }).map(function(b){
-                var cost = b.isDish ? " (see variants)" : " ($" + ((boxUnitCosts||{})[b.key]||0).toFixed(2) + "/box)";
-                return /*#__PURE__*/React.createElement("option",{key:b.key,value:b.key},b.label||b.key,cost);
+              activeBoxOptions.map(function(b){
+                var cost = b.unitPrice != null
+                  ? (b.pricingMode === "pack" ? "$" + b.unitPrice.toFixed(2) + "/pack" : "$" + b.unitPrice.toFixed(2) + "/ea")
+                  : ("$" + ((boxUnitCosts||{})[b.key]||0).toFixed(2) + "/box");
+                return /*#__PURE__*/React.createElement("option",{key:b.key,value:b.key},(b.label||b.key) + " \u2014 " + cost);
               })
             )
           )
@@ -11558,28 +11575,16 @@ var ExpenseLineAdder = function ExpenseLineAdder(props) {
             /*#__PURE__*/React.createElement("input",{className:"fi",type:"number",value:lineAmt,onChange:function(e){ setLineAmt(e.target.value); },placeholder:"0.00"})
           )
     ),
-    isDish && /*#__PURE__*/React.createElement("div",{className:"row g8",style:{marginBottom:8}},
-      /*#__PURE__*/React.createElement("label",{className:"fl",style:{alignSelf:"center",fontSize:12}},"Dish variant:"),
-      DISH_VARIANTS.map(function(dv){
-        return /*#__PURE__*/React.createElement("button",{
-          key:dv.key, type:"button",
-          className:"btn btn-sm "+(dishVariant===dv.key?"btn-primary":"btn-ghost"),
-          onClick:function(){ setDishVariant(dv.key); setLineQty(""); }
-        }, dv.label, " \u2014 $", dv.unitCost.toFixed(2));
-      })
-    ),
     isBoxes && lineQty && /*#__PURE__*/React.createElement("div",{className:"mut xs",style:{marginBottom:8}},
-      isDish ? (dishInfo.label + ": $" + unitCost.toFixed(2) + " \xD7 " + (parseInt(lineQty)||0) + " = $" + lineTotal.toFixed(2))
-             : ("Unit: $" + unitCost.toFixed(2) + " \xD7 " + (parseInt(lineQty)||0) + " = $" + lineTotal.toFixed(2))
+      (selectedBoxCfg.label || lineBox) + ": $" + unitCost.toFixed(2) + " \xD7 " + (parseInt(lineQty)||0) + " = $" + lineTotal.toFixed(2)
     ),
     /*#__PURE__*/React.createElement("button",{
       type:"button", className:"btn btn-primary btn-sm",
       disabled: isBoxes ? !(lineQty && parseInt(lineQty)>0) : !(lineAmt!==""&&lineAmt!=null&&parseFloat(lineAmt)>0),
       onClick:function(){
         var typeLabel=(EXP_TYPES.find(function(t){ return t.key===lineType; })||{}).label||lineType;
-        var boxLabel = isDish ? dishInfo.label : lineBox;
         onAdd({type:typeLabel, description:isBoxes?"":lineDesc, boxType:isBoxes?lineBox:"",
-          boxVariant:isDish?dishVariant:null, boxLabel:isBoxes?boxLabel:"",
+          boxLabel:isBoxes?(selectedBoxCfg.label||lineBox):"",
           qty:isBoxes?parseInt(lineQty):null, unitCost:isBoxes?unitCost:null, amount:lineTotal});
         setLineDesc(""); setLineAmt(""); setLineQty("");
       }
@@ -11595,7 +11600,8 @@ var ShipmentExpensesPanel = function ShipmentExpensesPanel(props) {
   var _se1 = useState([]), _se2 = _slicedToArray(_se1,2), expenses = _se2[0], setExpenses = _se2[1];
   var _se3 = useState(false), _se4 = _slicedToArray(_se3,2), loading = _se4[0], setLoading = _se4[1];
   var _se5 = useState(null), _se6 = _slicedToArray(_se5,2), draftLine = _se6[0], setDraftLine = _se6[1];
-  var _se7 = useState(false), _se8 = _slicedToArray(_se7,2), showPrint = _se8[0], setShowPrint = _se8[1];
+  var _se7 = useState(false), _se8 = _slicedToArray(_se7,2), showHistory = _se8[0], setShowHistory = _se8[1];
+  var _se9 = useState(null), _se10 = _slicedToArray(_se9,2), viewingId = _se10[0], setViewingId = _se10[1];
 
   React.useEffect(function() {
     if (!shipment) return;
@@ -11629,8 +11635,7 @@ var ShipmentExpensesPanel = function ShipmentExpensesPanel(props) {
   };
 
   var handlePrint = function() {
-    setShowPrint(true);
-    setTimeout(function() { doPrint("printing-expense"); }, 80);
+    doPrint("printing-expense");
   };
 
   if (!shipment) return null;
@@ -11643,6 +11648,10 @@ var ShipmentExpensesPanel = function ShipmentExpensesPanel(props) {
       ),
       /*#__PURE__*/React.createElement("div", { className: "row g6" },
         expenses.length > 0 && /*#__PURE__*/React.createElement("span", { className: "badge ba" }, "$", total.toFixed(2), " total"),
+        expenses.length > 0 && /*#__PURE__*/React.createElement("button", {
+            className: "btn btn-ghost btn-sm",
+            onClick: function() { setShowHistory(function(v){ return !v; }); }
+          }, showHistory ? "\u25B4 Hide History" : "\u25BE Show History"),
         expenses.length > 0 && /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: handlePrint }, "\uD83D\uDDA8 Print Expenses")
       )
     ),
@@ -11654,28 +11663,35 @@ var ShipmentExpensesPanel = function ShipmentExpensesPanel(props) {
               /*#__PURE__*/React.createElement("table", null,
                 /*#__PURE__*/React.createElement("thead", null,
                   /*#__PURE__*/React.createElement("tr", null,
-                    ["Type","Description","Qty","Unit Cost","Amount",""].map(function(h) {
+                    ["ID","Date","Items","Total","View","Delete"].map(function(h) {
                       return /*#__PURE__*/React.createElement("th", { key: h }, h);
                     })
                   )
                 ),
                 /*#__PURE__*/React.createElement("tbody", null,
                   expenses.map(function(exp) {
+                    var dateStr = exp.createdAt ? new Date(exp.createdAt).toLocaleDateString() : "\u2014";
+                    var itemDesc = exp.type + (exp.boxLabel ? " \u00B7 " + exp.boxLabel : exp.description ? " \u00B7 " + exp.description : "");
                     return /*#__PURE__*/React.createElement("tr", { key: exp.id },
-                      /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "badge ba" }, exp.type)),
-                      /*#__PURE__*/React.createElement("td", null, exp.description || exp.boxLabel || exp.boxType || "\u2014"),
-                      /*#__PURE__*/React.createElement("td", null, exp.qty || "\u2014"),
-                      /*#__PURE__*/React.createElement("td", { className: "mono" }, exp.unitCost ? "$" + exp.unitCost.toFixed(2) : "\u2014"),
+                      /*#__PURE__*/React.createElement("td", { className: "tamb xs" }, exp.id.slice(-6)),
+                      /*#__PURE__*/React.createElement("td", { className: "xs mut" }, dateStr),
+                      /*#__PURE__*/React.createElement("td", null, itemDesc),
                       /*#__PURE__*/React.createElement("td", { className: "mono tb" }, "$", (exp.amount || 0).toFixed(2)),
+                      /*#__PURE__*/React.createElement("td", null,
+                        /*#__PURE__*/React.createElement("button", {
+                          className: "btn btn-ghost btn-xs",
+                          onClick: function() { setViewingId(function(v){ return v === exp.id ? null : exp.id; }); }
+                        }, viewingId === exp.id ? "Hide" : "View")
+                      ),
                       /*#__PURE__*/React.createElement("td", null,
                         /*#__PURE__*/React.createElement("button", { className: "btn btn-red btn-xs", onClick: function() { handleDelete(exp.id); } }, "\u00D7")
                       )
                     );
                   }),
                   /*#__PURE__*/React.createElement("tr", { style: { borderTop: "2px solid var(--border2)" } },
-                    /*#__PURE__*/React.createElement("td", { colSpan: 4, style: { textAlign: "right", fontWeight: 700, paddingRight: 12 } }, "TOTAL"),
+                    /*#__PURE__*/React.createElement("td", { colSpan: 3, style: { textAlign: "right", fontWeight: 700 } }, "TOTAL"),
                     /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--amber)", fontWeight: 700 } }, "$", total.toFixed(2)),
-                    /*#__PURE__*/React.createElement("td", null)
+                    /*#__PURE__*/React.createElement("td", null), /*#__PURE__*/React.createElement("td", null)
                   )
                 )
               )
@@ -11689,11 +11705,13 @@ var ShipmentExpensesPanel = function ShipmentExpensesPanel(props) {
           )
     ),
     /* Print printout — branded, hidden on screen */
-    showPrint && /*#__PURE__*/React.createElement("div", { className: "expense-printout" },
+    expenses.length > 0 && /*#__PURE__*/React.createElement("div", { className: "expense-printout" },
       /*#__PURE__*/React.createElement("div", { className: "exp-print-header" },
         /*#__PURE__*/React.createElement("div", null,
-          /*#__PURE__*/React.createElement("div", { className: "exp-print-co" }, (tenant && tenant.name) || "Casabe Connect"),
-          /*#__PURE__*/React.createElement("div", { style: { fontSize: "8pt", color: "#555", marginTop: 3 } }, "Shipment Expense Report")
+          (tenant && (tenant.logoUrl || tenant.logoMarkUrl))
+            ? /*#__PURE__*/React.createElement("img", { src: tenant.logoUrl || tenant.logoMarkUrl, style: { height: "0.4in", maxWidth: "1.8in", objectFit: "contain", display: "block", marginBottom: 4 } })
+            : /*#__PURE__*/React.createElement("div", { className: "exp-print-co" }, (tenant && tenant.name) || "Casabe Connect"),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: "8pt", color: "#555", marginTop: 3, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" } }, "Shipment Expense Report")
         ),
         /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", fontSize: "9pt", color: "#333" } },
           /*#__PURE__*/React.createElement("div", null, shipment.name || shipment.id),
@@ -11946,6 +11964,7 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     }, "\uD83D\uDCCB Manifest"), showManifest && /*#__PURE__*/React.createElement(ManifestModal, {
       shipment: selected,
       orders: orders,
+      tenant: tenant,
       onClose: function onClose() {
         return setShowManifest(false);
       }
