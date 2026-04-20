@@ -10641,10 +10641,10 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
     orders = _ref88.orders,
     onClose = _ref88.onClose;
   var shpOrders = orders.filter(function (o) {
-    return shipment.orderIds.includes(o.id);
+    return (shipment.orderIds || []).includes(o.id);
   });
   var totalValue = shpOrders.reduce(function (s, o) {
-    return s + (o.payment.amount || 0);
+    return s + ((o.payment && o.payment.amount) || 0);
   }, 0);
   var totalBoxes = shpOrders.reduce(function (s, o) {
     return s + (o.boxCount || 1);
@@ -10801,7 +10801,7 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
       }
     }, o.name), /*#__PURE__*/React.createElement("div", {
       className: "xs mut"
-    }, o.id, " \xB7 ", o.boxCount || 1, "x ", o.boxType, " \xB7 $", o.payment.amount)), /*#__PURE__*/React.createElement("span", {
+    }, o.id, " \xB7 ", o.boxCount || 1, "x ", o.boxType, " \xB7 $", (o.payment && o.payment.amount) || 0)), /*#__PURE__*/React.createElement("span", {
       className: "tag"
     }, o.destination));
   }))), /*#__PURE__*/React.createElement("div", {
@@ -10824,7 +10824,7 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
       marginBottom: 12
     }
   }, ["Shipment: ".concat(shipment.id, "  Container: ").concat(containerNum, "  Seal: ").concat(sealNum || "___"), "Destination: ".concat(shipment.destination, "  Line: ").concat(steamshipLine, "  Equipment: ").concat(equipment), "─".repeat(55)].concat(_toConsumableArray(shpOrders.map(function (o, i) {
-    return "".concat(String(i + 1).padStart(2), ". ").concat(o.name.padEnd(22), " ").concat(o.id.padEnd(12), " ").concat(o.boxCount || 1, "x ").concat(o.boxType.padEnd(8), " $").concat(o.payment.amount);
+    return "".concat(String(i + 1).padStart(2), ". ").concat((o.name||"").padEnd(22), " ").concat(o.id.padEnd(12), " ").concat(o.boxCount || 1, "x ").concat((o.boxType||"Small").padEnd(8), " $").concat((o.payment && o.payment.amount) || 0);
   })), ["─".repeat(55), "TOTAL BOXES: ".concat(totalBoxes, "    TOTAL VALUE: $").concat(totalValue)]).join("\n")), /*#__PURE__*/React.createElement("div", {
     className: "row g10"
   }, /*#__PURE__*/React.createElement("button", {
@@ -10890,7 +10890,7 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
             /*#__PURE__*/React.createElement("td", { style: { fontFamily: "monospace" } }, o.id),
             /*#__PURE__*/React.createElement("td", { style: { textAlign: "center" } }, o.boxCount || 1),
             /*#__PURE__*/React.createElement("td", null, o.boxType),
-            /*#__PURE__*/React.createElement("td", { style: { textAlign: "right" } }, "$", o.payment.amount)
+            /*#__PURE__*/React.createElement("td", { style: { textAlign: "right" } }, "$", (o.payment && o.payment.amount) || 0)
           );
         })
       )
