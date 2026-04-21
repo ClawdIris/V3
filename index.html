@@ -170,7 +170,7 @@ var DEFAULT_OFFICES = [
   { id: "off_ny",  name: "New York",         address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.20, rates: { Small: 40, Medium: 50, Large: 60, "Dish - Single": 5, "Dish - Pack of 10": 32, "Jumbo Drum": 60, Freight: 0 } }, notes: "Negotiated 2024" },
   { id: "off_dal", name: "Dallas",           address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.15, rates: { Small: 35, Medium: 45, Large: 55, "Dish - Single": 5, "Dish - Pack of 10": 30, "Jumbo Drum": 55, Freight: 0 } }, notes: "Standard" },
   { id: "off_atl", name: "Atlantic Travel",  address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.18, rates: { Small: 40, Medium: 50, Large: 60, "Dish - Single": 5, "Dish - Pack of 10": 32, "Jumbo Drum": 60, Freight: 0 } }, notes: "18% of gross charged" },
-  { id: "off_eff", name: "Effecty",          address: "", phone: "", active: true, commissionModel: { type: "per_box",   percentage: 0,    rates: { Small: 30, Medium: 40, Large: 50, "Dish - Single": 4, "Dish - Pack of 10": 25, "Jumbo Drum": 50, Freight: 0 } }, notes: "Per-box rates" },
+  { id: "off_eff", name: "Effecty",          address: "", phone: "", active: true, commissionModel: { type: "per_box",   percentage: 0,    rates: { Small: 40, Medium: 50, Large: 50, "Dish - Single": 5, "Dish - Pack of 10": 32, "Jumbo Drum": 60, Freight: 0 } }, notes: "Per-box rates: $40 Small, $50 Med/Lg" },
   { id: "off_san", name: "San Antonio",      address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0.10, rates: { Small: 30, Medium: 40, Large: 50, "Dish - Single": 4, "Dish - Pack of 10": 25, "Jumbo Drum": 50, Freight: 0 } }, notes: "Probationary" }
 ];
 var DEFAULT_DRIVERS = ["Carlos Vargas", "Mike Torres", "Jorge Ruiz", "Maria Santos", "David Pérez"];
@@ -10968,8 +10968,8 @@ var ManifestModal = function ManifestModal(_ref89) {
     doPrint("printing-manifest");
   };
 
-  var cs = {padding:"5px 8px",textAlign:"left",border:"1px solid var(--border)",fontSize:11,verticalAlign:"top"};
-  var ths = Object.assign({},cs,{fontWeight:700,background:"var(--bg2)",fontSize:10.5});
+  var cs = {padding:"5px 8px",textAlign:"left",border:"1px solid #ddd",fontSize:11,verticalAlign:"top",color:"#222"};
+  var ths = Object.assign({},cs,{fontWeight:700,background:"#f0f2f5",color:"#333",fontSize:10.5});
   var HDRS = ["Tracking Number","Receiver Name","Receiver Address","Receiver Phone Number","Box Type","Sender Name","Sender Phone Number"];
   return /*#__PURE__*/React.createElement("div",{className:"overlay",onClick:function(e){return e.target===e.currentTarget&&onClose();}},
     /*#__PURE__*/React.createElement(React.Fragment,null,
@@ -11074,7 +11074,7 @@ var ManifestModal = function ManifestModal(_ref89) {
                   /*#__PURE__*/React.createElement("thead",null,/*#__PURE__*/React.createElement("tr",null,HDRS.map(function(h){return /*#__PURE__*/React.createElement("th",{key:h,style:ths},h);}))),
                   /*#__PURE__*/React.createElement("tbody",null,
                     deptRows.map(function(r,ri){
-                      return /*#__PURE__*/React.createElement("tr",{key:r.trackingId+ri,style:{background:ri%2===0?"var(--bg3)":"var(--bg2)"}},
+                      return /*#__PURE__*/React.createElement("tr",{key:r.trackingId+ri,style:{background:ri%2===0?"#ffffff":"#f8f9fb"}},
                         /*#__PURE__*/React.createElement("td",{style:cs},/*#__PURE__*/React.createElement("span",{style:{fontFamily:"monospace",fontWeight:700}},r.trackingId)),
                         /*#__PURE__*/React.createElement("td",{style:cs},r.receiverName||/*#__PURE__*/React.createElement("span",{style:{color:"var(--red)"}},"\\u26A0 missing")),
                         /*#__PURE__*/React.createElement("td",{style:cs},r.receiverAddress),
@@ -11878,7 +11878,8 @@ var ShipmentsPage = function ShipmentsPage(_ref94) {
     _useStatePendingExp2 = _slicedToArray(_useStatePendingExp, 2),
     pendingExpDraft = _useStatePendingExp2[0],
     setPendingExpDraft = _useStatePendingExp2[1];
-  var BOX_UNIT_COSTS = {"Small":3.20,"Medium":10.00,"Large":12.25};
+  // BOX_UNIT_COSTS legacy fallback — $0 for all; real prices come from BOX_CONFIG.unitPrice
+var BOX_UNIT_COSTS = {};
   var _useState69b = useState(false),
     _useState70b = _slicedToArray(_useState69b, 2),
     showBroadcast = _useState70b[0],
@@ -14476,7 +14477,7 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
             /*#__PURE__*/React.createElement("table", null,
               /*#__PURE__*/React.createElement("thead", null,
                 /*#__PURE__*/React.createElement("tr", null,
-                  ["ID","Customer","Box Type","Charged","Paid","Commission","Status"].map(function(h){ return /*#__PURE__*/React.createElement("th", { key: h }, h); })
+                  ["Tracking Number","Customer","Box Type","Charged","Paid","Commission","Status"].map(function(h){ return /*#__PURE__*/React.createElement("th", { key: h }, h); })
                 )
               ),
               /*#__PURE__*/React.createElement("tbody", null,
@@ -14486,7 +14487,7 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
                   return /*#__PURE__*/React.createElement("tr", { key: o.id },
                     /*#__PURE__*/React.createElement("td", { className: "tamb" }, o.id),
                     /*#__PURE__*/React.createElement("td", { className: "tb" }, o.name),
-                    /*#__PURE__*/React.createElement("td", null, o.boxType || (o.boxes && o.boxes[0] && o.boxes[0].boxType)),
+                    /*#__PURE__*/React.createElement("td", null, (o.boxes && o.boxes.length > 0 ? o.boxes.map(function(b){ return b.boxType||"Small"; }).join(", ") : (o.boxType || "Small"))),
                     /*#__PURE__*/React.createElement("td", { className: "mono" }, "$", (o.payment && o.payment.amount || 0).toFixed(2)),
                     /*#__PURE__*/React.createElement("td", { className: "mono" }, "$", (o.payment && o.payment.paid || 0).toFixed(2)),
                     /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--amber)" } }, comm > 0 ? "$" + comm.toFixed(2) : "\u2014"),
