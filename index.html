@@ -2215,8 +2215,11 @@ var OrderForm = function OrderForm(_ref4) {
     // RISK #12: Stamp price at creation so future pricing changes don't affect this order
     // Zone: honour what the form already has (set by gtDept selector), only fall back to country-level if not set
     var zone = f.zone || (f.gtDept ? (function(){var d=GT_DEPARTMENTS.find(function(d){return d.dept===f.gtDept;});return d?d.zone:null;})() : null) || getZone(f.destination) || null;
+    var legacyCount = Math.max(1, parseInt(f.boxCount) || 1);
     var srcBoxes = (f.boxes && f.boxes.length > 0) ? f.boxes
-      : [{ boxType: f.boxType || "Small", destinationCountry: f.destination || "Guatemala", gtDept: f.gtDept || "", zone: zone, description: f.description || "", declaredValue: f.declaredValue || "", status: f.status, shipmentId: f.shipmentId || "" }];
+      : Array.from({ length: legacyCount }, function(_, i) {
+          return { boxType: f.boxType || "Small", destinationCountry: f.destination || "Guatemala", gtDept: f.gtDept || "", zone: zone, description: f.description || "", declaredValue: f.declaredValue || "", status: f.status, shipmentId: f.shipmentId || "" };
+        });
     var count = srcBoxes.length;
     var boxes = srcBoxes.map(function(box, i) {
       var boxDest = box.destinationCountry || f.destination || "Guatemala";
@@ -6300,7 +6303,8 @@ var HQOverview = function HQOverview(_ref51) {
     _ref51$destinations = _ref51.destinations,
     destinations = _ref51$destinations === void 0 ? DESTINATIONS : _ref51$destinations,
     _ref51$shipments = _ref51.shipments,
-    shipments = _ref51$shipments === void 0 ? [] : _ref51$shipments;
+    shipments = _ref51$shipments === void 0 ? [] : _ref51$shipments,
+    tenant = _ref51.tenant;
   var t = useT();
   // Shipment selector
   var sortedShipments = shipments.slice().sort(function(a,b){
@@ -6316,7 +6320,7 @@ var HQOverview = function HQOverview(_ref51) {
     : orders;
   var total = filtOrders.length;
   var revenue = filtOrders.reduce(function (s, o) {
-    return s + (o.payment.status === "paid" ? o.payment.amount : 0);
+    return s + (o.payment.status === "paid" ? calculateNetRevenue(o, tenant) : 0);
   }, 0);
   var inTransit = filtOrders.filter(function (o) {
     return ["en_route", "in_warehouse", "loaded_container"].includes(o.status);
@@ -6392,9 +6396,9 @@ var HQOverview = function HQOverview(_ref51) {
     i: "📦",
     c: "sc-a"
   }, {
-    l: t("Revenue Collected", "Ingresos Cobrados"),
+    l: t("Net Revenue", "Ingresos Netos"),
     v: "$".concat(revenue.toLocaleString()),
-    d: t("Paid orders", "Órdenes pagadas"),
+    d: t("After commissions (paid orders)", "Después de comisiones"),
     i: "💰",
     c: "sc-g"
   }, {
@@ -6719,6 +6723,7 @@ var HQAnalytics = function HQAnalytics(_ref52) {
   // ── KPI calculations ─────────────────────────────────────────────────────
   var totalPaid    = shpOrders.reduce(function(s,o){ return s + (o.payment.paid||0); }, 0);
   var totalCharged = shpOrders.reduce(function(s,o){ return s + (o.payment.amount||0); }, 0);
+  var totalNetRevenue = shpOrders.reduce(function(s,o){ return s + calculateNetRevenue(o, tenant); }, 0);
   var delivered    = shpOrders.filter(function(o){ return o.status === "delivered"; }).length;
   var total        = shpOrders.length;
   var successRate  = total > 0 ? Math.round(delivered / total * 100) : 0;
@@ -6727,21 +6732,22 @@ var HQAnalytics = function HQAnalytics(_ref52) {
 
   // ── Commission: use shared engine with tenant office config ──────────────
   function officeCommission(ordersArr, officeName, tenantRef) {
-    // Prefer snapshot if available (immutable historical data)
-    var totalFromSnapshot = ordersArr.reduce(function(s, o) {
+    return ordersArr.reduce(function(sum, o) {
       if (o.commissionSnapshot && typeof o.commissionSnapshot.commissionAmount === "number") {
-        return s + o.commissionSnapshot.commissionAmount;
+        return sum + o.commissionSnapshot.commissionAmount;
       }
-      return s + (o.payment && o.payment.commission ? o.payment.commission : 0);
-    }, 0);
-    if (totalFromSnapshot > 0) return Math.round(totalFromSnapshot * 100) / 100;
-    // Fall back to live config calculation
-    var offCfg = getOfficeById(tenantRef, officeName);
-    if (!offCfg) return 0;
-    return ordersArr.reduce(function(s, o) {
+      if (o.payment && typeof o.payment.commission === "number") {
+        return sum + o.payment.commission;
+      }
+      var offCfg = getOfficeById(tenantRef, officeName);
+      if (!offCfg) return sum;
       var gross = parseFloat(o.payment && o.payment.amount) || 0;
-      var boxes = o.boxes && o.boxes.length ? o.boxes : [{ boxType: o.boxType || "Small" }];
-      return s + calculateOfficeCommission(offCfg, gross, boxes);
+      var boxes = o.boxes && o.boxes.length
+        ? o.boxes
+        : Array.from({ length: Math.max(1, parseInt(o.boxCount) || 1) }, function() {
+            return { boxType: o.boxType || "Small" };
+          });
+      return sum + calculateOfficeCommission(offCfg, gross, boxes);
     }, 0);
   }
 
@@ -6838,7 +6844,7 @@ var HQAnalytics = function HQAnalytics(_ref52) {
     // ── KPI cards ───────────────────────────────────────────────────────────
     /*#__PURE__*/React.createElement("div", { className: "sg sg4 mb18" },
       [
-        { l: "Revenue Collected", v: "$" + totalPaid.toLocaleString(), d: Math.round(totalPaid / (totalCharged||1) * 100) + "% collection rate", i: "\uD83D\uDCB0", c: "sc-a" },
+        { l: "Net Revenue", v: "$" + totalNetRevenue.toLocaleString(), d: "After office commissions", i: "\uD83D\uDCB0", c: "sc-a" },
         { l: "Orders Total",      v: total,                             d: delivered + " delivered",                                               i: "\uD83D\uDCE6", c: "sc-g" },
         { l: "Delivery Success",  v: successRate + "%",                 d: "Completed orders",                                                     i: "\u2705",      c: "sc-b" },
         { l: t("Unpaid Balance", "Saldo Sin Cobrar"), v: "$" + unpaid.toLocaleString(), d: t("Outstanding", "Pendiente"),                          i: "\u26A0",      c: "sc-r" }
@@ -12945,7 +12951,7 @@ var BOX_UNIT_COSTS = {};
     c: "sc-b"
   }, {
     l: "Revenue",
-    v: "$".concat(totalRevenue.toLocaleString()),
+    v: fmtMoney(totalRevenue),
     i: "💰",
     c: "sc-g"
   }, {
@@ -12962,7 +12968,9 @@ var BOX_UNIT_COSTS = {};
     }, s.i), /*#__PURE__*/React.createElement("div", {
       className: "sc-lbl"
     }, t(s.l, ES[s.l] || s.l)), /*#__PURE__*/React.createElement("div", {
-      className: "sc-val"
+      className: "sc-val",
+      title: String(s.v),
+      style: {fontSize:"clamp(14px,2vw,24px)",fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}
     }, s.v));
   })), /*#__PURE__*/React.createElement("div", {
     className: "row g10 mb12"
@@ -14568,8 +14576,13 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
     _db.loadOfficeAuditLog(offCfg.id).then(setAuditLog).catch(function() {});
   }, [offCfg && offCfg.id]);
 
-  var totalPaid = payments.reduce(function(s, p) { return s + (p.amount || 0); }, 0);
-  var outstanding = Math.max(0, (office.commission || 0) - totalPaid);
+  var commissionOwedToOffice = office.commission || 0;
+  var grossCollectedByOffice = office.grossCollected || 0;
+  var expectedRemittance = Math.max(0, grossCollectedByOffice - commissionOwedToOffice);
+  var remittanceReceived = payments.reduce(function(s, p) {
+    return s + (p.netCollected != null ? Number(p.netCollected) : Number(p.amount || 0));
+  }, 0);
+  var remittanceOutstanding = Math.max(0, expectedRemittance - remittanceReceived);
 
   var handleLogPayment = function() {
     var amt = parseFloat(payForm.amount);
@@ -14596,10 +14609,16 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
     _db.saveOfficePayment(payment).then(function(saved) {
       setPayments(function(prev) { return [saved].concat(prev); });
       _db.saveOfficeAuditEntry({
-        officeId: payment.officeId, changedAt: payment.loggedAt,
-        changedBy: payment.loggedBy, event: "payment_logged", field: "payment",
-        from: null, to: "$" + payment.amount.toFixed(2) + " via " + payment.method,
-        paymentRef: saved.id || null, notes: payment.notes || ""
+        officeId: payment.officeId,
+        officeName: payment.officeName,
+        changedAt: payment.loggedAt,
+        changedBy: payment.loggedBy,
+        event: "payment_logged",
+        field: "payment_logged",
+        fromValue: "\u2014",
+        toValue: "$" + payment.amount.toFixed(2) + " received, $" + Number(payment.commissionDeducted || 0).toFixed(2) + " commission, $" + Number(payment.netCollected || 0).toFixed(2) + " net via " + payment.method,
+        paymentRef: saved.id || null,
+        notes: payment.notes || ""
       }).catch(function(){});
       setPayForm({ amount: "", method: "cash_pickup", notes: "", shipmentId: "", orderId: "", orderPlacedAt: "", paidInFullAt: "", commissionDeducted: "", netCollected: "" });
       setShowPayForm(false);
@@ -14624,9 +14643,9 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
       /*#__PURE__*/React.createElement("div", { className: "sg4 mb12" },
         [
           { lbl: "Gross Charged", val: "$" + (office.grossRev || 0).toLocaleString(), cls: "sc-b", ico: "\uD83D\uDCB3" },
-          { lbl: "Commission Owed", val: "$" + (office.commission || 0).toLocaleString(), cls: "sc-a", ico: "\uD83E\uDD1D" },
-          { lbl: "Payments Logged", val: "$" + totalPaid.toLocaleString(), cls: "sc-g", ico: "\u2705" },
-          { lbl: "Outstanding Balance", val: "$" + outstanding.toLocaleString(), cls: outstanding > 0 ? "sc-r" : "sc-g", ico: outstanding > 0 ? "\u26A0\uFE0F" : "\u2705" }
+          { lbl: "Commission Owed", val: "$" + commissionOwedToOffice.toLocaleString(), cls: "sc-a", ico: "\uD83E\uDD1D" },
+          { lbl: "Remittance Received", val: "$" + remittanceReceived.toLocaleString(), cls: "sc-g", ico: "\u2705" },
+          { lbl: "Remittance Outstanding", val: "$" + remittanceOutstanding.toLocaleString(), cls: remittanceOutstanding > 0 ? "sc-r" : "sc-g", ico: remittanceOutstanding > 0 ? "\u26A0\uFE0F" : "\u2705" }
         ].map(function(k) {
           return /*#__PURE__*/React.createElement("div", { key: k.lbl, className: "sc " + k.cls },
             /*#__PURE__*/React.createElement("div", { className: "sc-ico" }, k.ico),
@@ -14727,8 +14746,8 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
       tab === "payments" && /*#__PURE__*/React.createElement("div", null,
         /*#__PURE__*/React.createElement("div", { className: "row g10 mb12" },
           /*#__PURE__*/React.createElement("div", null,
-            /*#__PURE__*/React.createElement("span", { className: "badge " + (outstanding > 0 ? "br" : "bg"), style: { fontSize: 12 } },
-              outstanding > 0 ? "Outstanding: $" + outstanding.toFixed(2) : "Fully settled"
+            /*#__PURE__*/React.createElement("span", { className: "badge " + (remittanceOutstanding > 0 ? "br" : "bg"), style: { fontSize: 12 } },
+              remittanceOutstanding > 0 ? "Remittance Outstanding: $" + remittanceOutstanding.toFixed(2) : "Fully remitted"
             )
           ),
           /*#__PURE__*/React.createElement("button", {
@@ -14824,8 +14843,8 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
                       );
                     }),
                     /*#__PURE__*/React.createElement("tr", { style: { borderTop: "2px solid var(--border2)", fontWeight: 700 } },
-                      /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--green)" } }, "$", totalPaid.toFixed(2)),
-                      /*#__PURE__*/React.createElement("td", { colSpan: 8, style: { color: "var(--text3)", fontSize: 11 } }, "Total payments logged")
+                      /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--green)" } }, "$", remittanceReceived.toFixed(2)),
+                      /*#__PURE__*/React.createElement("td", { colSpan: 8, style: { color: "var(--text3)", fontSize: 11 } }, "Total remittance received")
                     )
                   )
                 )
@@ -14910,9 +14929,17 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     setEditOffices(function(offices) {
       return offices.map(function(o, i) {
         if (i !== idx) return o;
+        // Seed every active box type key so the rate table is always complete
+        var activeBoxKeys = (Array.isArray(editBoxCfg) ? editBoxCfg : BOX_CONFIG)
+          .filter(function(b){ return b.active && !b.legacy; })
+          .map(function(b){ return b.key; });
+        var seededRates = {};
+        activeBoxKeys.forEach(function(k){ seededRates[k] = 0; });
+        // Merge in any existing rates to preserve values already configured
+        var existingRates = Object.assign(seededRates, (o.commissionModel && o.commissionModel.rates) || {});
         var newModel = type === "percentage"
-          ? { type: "percentage", percentage: (o.commissionModel && o.commissionModel.percentage) || 0 }
-          : { type: "per_box", rates: (o.commissionModel && o.commissionModel.rates) || { Small: 0, Medium: 0, Large: 0, "Dish - Single": 0, "Dish - Pack of 10": 0, "Jumbo Drum": 0, Freight: 0 } };
+          ? { type: "percentage", percentage: (o.commissionModel && o.commissionModel.percentage) || 0, rates: existingRates }
+          : { type: "per_box", percentage: (o.commissionModel && o.commissionModel.percentage) || 0, rates: existingRates };
         return Object.assign({}, o, { commissionModel: newModel });
       });
     });
@@ -21363,7 +21390,8 @@ setOrders(function (prev) {
     if (page === "overview") return /*#__PURE__*/React.createElement(HQOverview, {
       orders: orders,
       destinations: destinations,
-      shipments: shipments
+      shipments: shipments,
+      tenant: tenant
     });
     if (page === "analytics") return /*#__PURE__*/React.createElement(HQAnalytics, {
       orders: orders,
