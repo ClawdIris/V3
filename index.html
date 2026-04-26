@@ -273,7 +273,7 @@ var BOX_CONFIG = [
   {key:"Medium",           code:"74",   dims:"24x26x24", label:"(74) 24x26x24",            active:true,  isDish:false, pricingMode:"single", unitPrice:null, unitLabel:null},
   {key:"Large",            code:"88",   dims:"34x26x28", label:"(88) 34x26x28",            active:true,  isDish:false, pricingMode:"single", unitPrice:null, unitLabel:null},
   {key:"Dish - Single",    code:"DS",   dims:"18x18x28", label:"Dish – Single (each)",     active:true,  isDish:true,  pricingMode:"single", unitPrice:5.00,  unitLabel:"each"},
-  {key:"Dish - Pack of 10",code:"DP10", dims:"18x18x28", label:"Dish – Pack of 10 packs",  active:true,  isDish:true,  pricingMode:"pack",   unitPrice:32.00, unitLabel:"pack of 10"},
+  {key:"Dish - Pack of 10",code:"DP10", dims:"18x18x28", label:"Dish – Pack of 10",  active:true,  isDish:true,  pricingMode:"pack",   unitPrice:32.00, unitLabel:"pack of 10"},
   {key:"Jumbo Drum",       code:"JD",   dims:"",         label:"Jumbo Drum",               active:true,  isDish:false, pricingMode:"single", unitPrice:60.00, unitLabel:null},
   {key:"Freight",          code:"FR",   dims:"",         label:"Freight",                  active:true,  isDish:false, pricingMode:"single", unitPrice:null, unitLabel:null},
   {key:"Unknown",          code:"",     dims:"",         label:"Unknown",                  active:true,  isDish:false, pricingMode:"single", unitPrice:null, unitLabel:null},
@@ -290,6 +290,9 @@ var DEFAULT_PRICING = {
     Small: 75,
     Medium: 120,
     Large: 185,
+    "Dish - Single": 5,
+    "Dish - Pack of 10": 32,
+    "Jumbo Drum": 60,
     Freight: 320,
     Electronics: 250,
     surcharge: 0,
@@ -299,6 +302,9 @@ var DEFAULT_PRICING = {
     Small: 200,
     Medium: 260,
     Large: 360,
+    "Dish - Single": 5,
+    "Dish - Pack of 10": 32,
+    "Jumbo Drum": 60,
     Freight: 320,
     Electronics: 250,
     surcharge: 0,
@@ -308,6 +314,9 @@ var DEFAULT_PRICING = {
     Small: 80,
     Medium: 125,
     Large: 190,
+    "Dish - Single": 5,
+    "Dish - Pack of 10": 32,
+    "Jumbo Drum": 60,
     Freight: 330,
     Electronics: 260,
     surcharge: 10,
@@ -317,6 +326,9 @@ var DEFAULT_PRICING = {
     Small: 80,
     Medium: 125,
     Large: 190,
+    "Dish - Single": 5,
+    "Dish - Pack of 10": 32,
+    "Jumbo Drum": 60,
     Freight: 330,
     Electronics: 260,
     surcharge: 10,
@@ -326,6 +338,9 @@ var DEFAULT_PRICING = {
     Small: 90,
     Medium: 135,
     Large: 200,
+    "Dish - Single": 5,
+    "Dish - Pack of 10": 32,
+    "Jumbo Drum": 60,
     Freight: 350,
     Electronics: 280,
     surcharge: 20,
@@ -335,6 +350,9 @@ var DEFAULT_PRICING = {
     Small: 70,
     Medium: 110,
     Large: 175,
+    "Dish - Single": 5,
+    "Dish - Pack of 10": 32,
+    "Jumbo Drum": 60,
     Freight: 300,
     Electronics: 240,
     surcharge: 0,
@@ -344,6 +362,9 @@ var DEFAULT_PRICING = {
     Small: 85,
     Medium: 130,
     Large: 195,
+    "Dish - Single": 5,
+    "Dish - Pack of 10": 32,
+    "Jumbo Drum": 60,
     Freight: 340,
     Electronics: 265,
     surcharge: 15,
@@ -20994,7 +21015,14 @@ function AppShell(_ref130) {
       if (dbReceipts.length  > 0) setReceipts(dbReceipts);
       if (dbTenant)               setTenant(dbTenant);
       if (dbPricing)              setPricing(mergePricingWithBoxKeys(dbPricing, dbBoxConfig && Array.isArray(dbBoxConfig) ? dbBoxConfig : null));
-      if (dbBoxConfig && Array.isArray(dbBoxConfig)) setAppBoxConfig(dbBoxConfig);
+      if (dbBoxConfig && Array.isArray(dbBoxConfig)) {
+        // Merge: add any BOX_CONFIG entries missing from tenant's saved list (by key)
+        var savedKeys = dbBoxConfig.map(function(b){ return b.key; });
+        var merged = dbBoxConfig.concat(BOX_CONFIG.filter(function(b){
+          return !savedKeys.includes(b.key);
+        }));
+        setAppBoxConfig(merged);
+      }
       if (dbDests && Array.isArray(dbDests))         setAppDestinations(dbDests);
     }).catch(function(e) {
       console.error("[db] initial data load failed:", e);
