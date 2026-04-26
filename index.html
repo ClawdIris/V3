@@ -12066,12 +12066,22 @@ var BOX_UNIT_COSTS = {};
       return ids.includes(o.id);
     });
   };
-  var totalRevenue = shipments.reduce(function (s, sh) {
-    return s + sh.revenue;
-  }, 0);
-  var totalBoxes = shipments.reduce(function (s, sh) {
-    return s + sh.totalBoxes;
-  }, 0);
+  var fmtMoney = function fmtMoney(val) {
+    return "$" + (parseFloat(val) || 0).toLocaleString(undefined, {minimumFractionDigits:2,maximumFractionDigits:2});
+  };
+  var getShipmentMetrics = function getShipmentMetrics(shp) {
+    var shpOrds = getOrdersInShipment(shp);
+    var rev = shpOrds.reduce(function(sum,o){ return sum + calculateNetRevenue(o, tenant); }, 0);
+    var cst = (shp.expenseForms||[]).length > 0
+      ? (shp.expenseForms||[]).reduce(function(sum,ef){ return sum + (parseFloat(ef.total)||0); }, 0)
+      : (parseFloat(shp.cost)||0);
+    var pft = rev - cst;
+    var mgn = rev > 0 ? Math.round((pft / rev) * 100) : 0;
+    return { orders:shpOrds, orderCount:shpOrds.length, revenue:rev, cost:cst, profit:pft, margin:mgn };
+  };
+  var allMetrics = shipments.map(getShipmentMetrics);
+  var totalRevenue = allMetrics.reduce(function(s,m){ return s + m.revenue; }, 0);
+  var totalBoxes   = allMetrics.reduce(function(s,m){ return s + m.orderCount; }, 0);
   var delivered = shipments.filter(function (s) {
     return s.status === "delivered";
   }).length;
@@ -12080,10 +12090,12 @@ var BOX_UNIT_COSTS = {};
   }).length;
   if (selected) {
     var _SHIPMENT_STATUS$sele, _SHIPMENT_STATUS$sele2;
-    var shpOrders = getOrdersInShipment(selected);
-    var liveRevenue = shpOrders.reduce(function(s,o){return s+((o.payment&&o.payment.amount)||0);},0);
-    var profit = liveRevenue - (selected.cost||0);
-    var margin = liveRevenue > 0 ? Math.round(profit / liveRevenue * 100) : 0;
+    var _sm = getShipmentMetrics(selected);
+    var shpOrders  = _sm.orders;
+    var liveRevenue = _sm.revenue;
+    var liveCost   = _sm.cost;
+    var profit     = _sm.profit;
+    var margin     = _sm.margin;
     return /*#__PURE__*/React.createElement("div", {
       className: "fu"
     }, /*#__PURE__*/React.createElement("div", {
@@ -12187,39 +12199,48 @@ var BOX_UNIT_COSTS = {};
         return setShowManifest(false);
       }
     }))), /*#__PURE__*/React.createElement("div", {
-      className: "sg sg4 mb18"
+      style: {display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:12,marginBottom:18}
     }, [{
       l: "Orders",
-      v: shpOrders.length,
+      v: String(shpOrders.length),
       i: "📦",
       c: "sc-a"
     }, {
       l: "Revenue",
-      v: "$".concat(shpOrders.reduce(function(s,o){return s+((o.payment&&o.payment.amount)||0);},0).toLocaleString()),
+      v: fmtMoney(liveRevenue),
       i: "💰",
       c: "sc-g"
     }, {
       l: "Cost",
-      v: "$".concat((selected.cost||0).toLocaleString()),
+      v: fmtMoney(liveCost),
       i: "📉",
       c: "sc-r"
     }, {
       l: "Profit",
-      v: "$".concat(profit.toLocaleString(), " (").concat(margin, "%)"),
+      v: (profit < 0 ? "-" + fmtMoney(Math.abs(profit)) : fmtMoney(profit)) + " (" + margin + "%)",
       i: "📈",
-      c: "sc-b"
+      c: profit < 0 ? "sc-r" : "sc-b"
     }].map(function (s, i) {
       return /*#__PURE__*/React.createElement("div", {
         key: i,
-        className: "sc ".concat(s.c)
+        className: "sc " + s.c,
+        style: {minWidth:0,overflow:"hidden"}
       }, /*#__PURE__*/React.createElement("div", {
         className: "sc-ico"
       }, s.i), /*#__PURE__*/React.createElement("div", {
         className: "sc-lbl"
       }, t(s.l, ES[s.l] || s.l)), /*#__PURE__*/React.createElement("div", {
-        className: "sc-val",
+        title: s.v,
         style: {
-          fontSize: selected.l && selected.l.length && selected.l.length > 8 ? 16 : 24
+          fontFamily: "'Syne',sans-serif",
+          fontWeight: 800,
+          fontSize: "clamp(11px,1.7vw,22px)",
+          fontVariantNumeric: "tabular-nums",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          lineHeight: 1.2,
+          color: s.c === "sc-r" && i > 0 ? "var(--red)" : "var(--text)"
         }
       }, s.v));
     })), function () {
@@ -13003,14 +13024,11 @@ var BOX_UNIT_COSTS = {};
     }
   }, filtered.map(function (shp) {
     var _SHIPMENT_STATUS$shp$, _SHIPMENT_STATUS$shp$2;
-    var shpLiveOrders = orders.filter(function(o) { return shp.orderIds.includes(o.id); });
-    var shpLiveRevenue = shpLiveOrders.reduce(function(s,o){return s+calculateNetRevenue(o,tenant);},0);
-    var shpLiveCost = (shp.expenseForms||[]).length > 0
-      ? (shp.expenseForms||[]).reduce(function(s,ef){return s+(ef.total||0);},0)
-      : (shp.cost||0);
-    var shpLiveBoxes = shpLiveOrders.length;
-    var profit = shpLiveRevenue - shpLiveCost;
-    var margin = shpLiveRevenue > 0 ? Math.round(profit / shpLiveRevenue * 100) : 0;
+    var _lm = getShipmentMetrics(shp);
+    var shpLiveRevenue = _lm.revenue;
+    var shpLiveCost    = _lm.cost;
+    var shpLiveBoxes   = _lm.orderCount;
+    var margin         = _lm.margin;
     return /*#__PURE__*/React.createElement("div", {
       key: shp.id,
       style: {
@@ -13060,22 +13078,36 @@ var BOX_UNIT_COSTS = {};
     }, "\uD83D\uDCC5 ", shp.date))), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
-        gridTemplateColumns: "repeat(4,minmax(80px,auto))",
+        gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))",
         gap: 8,
-        textAlign: "center"
+        textAlign: "center",
+        minWidth: 0
       }
-    }, [["Orders", shpLiveBoxes], ["Revenue", "$".concat(shpLiveRevenue.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}))], ["Cost", "$".concat(shpLiveCost.toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0}))], ["Margin", "".concat(margin, "%")]].map(function (_ref99) {
-      var _ref100 = _slicedToArray(_ref99, 2),
-        k = _ref100[0],
-        v = _ref100[1];
+    }, [
+      ["Orders",  String(shpLiveBoxes),  false],
+      ["Revenue", fmtMoney(shpLiveRevenue), false],
+      ["Cost",    fmtMoney(shpLiveCost),    false],
+      ["Margin",  margin + "%",             margin < 0]
+    ].map(function(kv) {
+      var k=kv[0], v=kv[1], isNeg=kv[2];
+      var color = k === "Margin"
+        ? (isNeg ? "var(--red)" : margin >= 35 ? "var(--green)" : "var(--amber)")
+        : (k === "Revenue" ? "var(--text)" : "var(--text)");
       return /*#__PURE__*/React.createElement("div", {
-        key: k
+        key: k,
+        style: { minWidth: 0, overflow: "hidden", textAlign: "center" }
       }, /*#__PURE__*/React.createElement("div", {
+        title: v,
         style: {
           fontFamily: "'Syne',sans-serif",
           fontWeight: 800,
-          fontSize: 15,
-          color: k === "Margin" ? margin >= 35 ? "var(--green)" : "var(--amber)" : "var(--text)"
+          fontSize: "clamp(11px,1.7vw,15px)",
+          fontVariantNumeric: "tabular-nums",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          lineHeight: 1.15,
+          color: color
         }
       }, v), /*#__PURE__*/React.createElement("div", {
         className: "xs mut"
