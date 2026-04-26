@@ -1,4 +1,9 @@
 <!DOCTYPE html>
+<!-- DEPENDENCY NOTE (accepted launch risk):
+     React, ReactDOM, and Supabase JS client load from CDN (unpkg/cdn.jsdelivr.net).
+     For production SaaS release, these should be bundled locally.
+     Current status: accepted for prototype/MVP phase. Bundle before v1.0 GA.
+-->
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
@@ -212,15 +217,29 @@ var getCommissionBoxes = function getCommissionBoxes(order) {
   return Array.from({ length: count }, function() { return { boxType: bt }; });
 };
 
-// ── Shared: shipment membership — combines orderIds, shipmentId, shipmentIds ─
+// ── Shared: shipment membership — combines orderIds, shipmentId, shipmentIds,
+//   and child boxes where box.shipmentId === shipment.id ──────────────────────
 var getOrdersForShipment = function getOrdersForShipment(shipment, allOrders) {
   var id = shipment.id;
   var seen = {};
   var result = [];
   allOrders.forEach(function(o) {
     if (seen[o.id]) return;
-    var inList = (shipment.orderIds || []).includes(o.id);
-    var byShipId = o.shipmentId === id;
+    if (o.voided) return; // voided orders excluded from all shipment views
+    // If any child box has a shipmentId, box assignments are authoritative.
+    // Only include the order when at least one box is explicitly assigned to this shipment.
+    // Ignore orderIds/shipmentId/shipmentIds for split orders — they may be stale.
+    var anyBoxAssigned = (o.boxes || []).some(function(b){ return b.shipmentId; });
+    if (anyBoxAssigned) {
+      if ((o.boxes || []).some(function(b){ return b.shipmentId === id; })) {
+        seen[o.id] = true;
+        result.push(o);
+      }
+      return;
+    }
+    // Legacy order — no child boxes have shipmentId; use order-level membership fields
+    var inList    = (shipment.orderIds || []).includes(o.id);
+    var byShipId  = o.shipmentId === id;
     var byShipIds = (o.shipmentIds || []).includes(id);
     if (inList || byShipId || byShipIds) {
       seen[o.id] = true;
@@ -228,6 +247,26 @@ var getOrdersForShipment = function getOrdersForShipment(shipment, allOrders) {
     }
   });
   return result;
+};
+
+// ── Shared: return only the boxes of an order assigned to a specific shipment ─
+var getBoxesForShipment = function getBoxesForShipment(order, shipmentId) {
+  if (!order.boxes || order.boxes.length === 0) return null; // null = legacy whole-order, no box array
+  // If NO box has a shipmentId, this is a legacy unsplit order — caller uses whole order
+  var anyAssigned = order.boxes.some(function(b){ return b.shipmentId; });
+  if (!anyAssigned) return null;
+  // Child box assignments are the source of truth — return only boxes for this shipment.
+  // Return [] (not null) when none match, so callers cannot fall back to the full order.
+  return order.boxes.filter(function(b){ return b.shipmentId === shipmentId; });
+};
+
+// ── Shared: effective box list for a shipment — null→whole, []→none, [x]→these ─
+var getShipmentBoxRows = function getShipmentBoxRows(order, shipmentId) {
+  if (order.boxes && order.boxes.length > 0) {
+    var boxesForShipment = getBoxesForShipment(order, shipmentId);
+    return boxesForShipment === null ? order.boxes : boxesForShipment;
+  }
+  return getCommissionBoxes(order);
 };
 
 // ── Commission engine (unchanged core, uses expanded boxes) ─────────────────
@@ -266,16 +305,22 @@ var isValidSnapshot = function isValidSnapshot(snap, order) {
 
 // ── Shared: single source for per-order commission amount ───────────────────
 var getOrderCommission = function getOrderCommission(order, tenant, officeNameOverride) {
-  // 1. Trust snapshot only if valid (v2, gross-based, internally consistent)
+  // 1. Trust snapshot only if valid v2 (gross-based, internally consistent)
   if (isValidSnapshot(order.commissionSnapshot, order)) {
     return order.commissionSnapshot.commissionAmount;
   }
-  // 2. Stored payment.commission field (legacy fallback)
-  if (order.payment && typeof order.payment.commission === "number" && order.payment.commission > 0) {
-    return order.payment.commission;
+  // 2. If snapshot EXISTS but is INVALID, skip payment.commission entirely —
+  //    it may have been copied from the bad snapshot (collected cash instead of gross).
+  //    Fall straight through to live recalculation.
+  if (!order.commissionSnapshot) {
+    // No snapshot at all — legacy fallback: stored payment.commission is probably correct
+    if (order.payment && typeof order.payment.commission === "number" && order.payment.commission > 0) {
+      return order.payment.commission;
+    }
   }
-  // 3. Live calculation — use expanded boxes so multi-box legacy orders count correctly
-  // Prefer commissionConfigSnapshot if available (captures office config at order time)
+  // 3. Live calculation using gross payment.amount + expanded boxes
+  // Prefer commissionConfigSnapshot from the (invalid) snapshot if present —
+  // it still captures the correct office config even when the amounts were wrong.
   var officeName = officeNameOverride || order.officeNameSnapshot || order.officeId || order.office;
   var offCfg = (order.commissionSnapshot && order.commissionSnapshot.commissionConfigSnapshot)
     || getOfficeById(tenant, officeName);
@@ -283,6 +328,40 @@ var getOrderCommission = function getOrderCommission(order, tenant, officeNameOv
   var gross = parseFloat(order.payment && order.payment.amount) || 0;
   var boxes = getCommissionBoxes(order);
   return Math.round(calculateOfficeCommission(offCfg, gross, boxes) * 100) / 100;
+};
+
+// ── Shared shipment metrics helper (pure, pass tenant explicitly) ────────────
+var computeShipmentMetrics = function computeShipmentMetrics(shipment, allOrders, tenant) {
+  var shpOrds = getOrdersForShipment(shipment, allOrders);
+  var totGross = 0, totComm = 0, totBoxes = 0;
+  shpOrds.forEach(function(o) {
+    var hereBoxes = getShipmentBoxRows(o, shipment.id);
+    var hereCount = hereBoxes.length;
+    if (hereCount <= 0) return; // split order — no boxes in this shipment
+    var fullBoxes = getCommissionBoxes(o);
+    var fullBoxCount = Math.max(1, fullBoxes.length);
+    var fullGross = parseFloat(o.payment&&o.payment.amount)||0;
+    var pricedBoxes = hereBoxes.filter(function(b){ return b.price !== undefined && b.price !== ""; });
+    var fraction = fullBoxCount > 0 ? hereCount / fullBoxCount : 1;
+    var allocGross = pricedBoxes.length === hereCount
+      ? Math.round(pricedBoxes.reduce(function(s,b){ return s + (parseFloat(b.price)||0); }, 0) * 100) / 100
+      : Math.round(fullGross * fraction * 100) / 100;
+    totBoxes += hereCount;
+    totGross += allocGross;
+    var officeName = o.officeNameSnapshot || o.officeId || o.office;
+    var offCfg = (o.commissionSnapshot && o.commissionSnapshot.commissionConfigSnapshot)
+      || getOfficeById(tenant, officeName);
+    if (offCfg) {
+      totComm += Math.round(calculateOfficeCommission(offCfg, allocGross, hereBoxes) * 100) / 100;
+    }
+  });
+  var rev = totGross - totComm;
+  var cst = (shipment.expenseForms||[]).length > 0
+    ? (shipment.expenseForms||[]).reduce(function(s,ef){ return s+(parseFloat(ef.total)||0); }, 0)
+    : (parseFloat(shipment.cost)||0);
+  var pft = rev - cst;
+  var mgn = rev > 0 ? Math.round((pft/rev)*100) : 0;
+  return { orders:shpOrds, orderCount:shpOrds.length, boxCount:totBoxes, gross:totGross, commission:totComm, revenue:rev, cost:cst, profit:pft, margin:mgn };
 };
 
 // ── Net revenue — uses getOrderCommission so legacy multi-box is correct ────
@@ -10732,15 +10811,29 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
   var shipment = _ref88.shipment,
     orders = _ref88.orders,
     onClose = _ref88.onClose;
-  var shpOrders = orders.filter(function (o) {
-    return getOrdersForShipment(shipment, orders).some(function(mo){ return mo.id === o.id; });
-  });
-  var totalValue = shpOrders.reduce(function (s, o) {
-    return s + ((o.payment && o.payment.amount) || 0);
+  var shpOrders = getOrdersForShipment(shipment, orders);
+  // Helper: returns split-aware count/type/value for one order in this shipment
+  var getShipmentOrderDocValues = function(o) {
+    var hereBoxes = getShipmentBoxRows(o, shipment.id);
+    var hereCount = hereBoxes.length;
+    var fullBoxes = getCommissionBoxes(o);
+    var fullBoxCount = Math.max(1, fullBoxes.length);
+    var hereType = hereCount > 0
+      ? Array.from(new Set(hereBoxes.map(function(b){ return b.boxType || o.boxType || "Small"; }))).join(", ")
+      : "—";
+    var pricedBoxes = hereBoxes.filter(function(b){ return b.price !== undefined && b.price !== ""; });
+    var hereValue = pricedBoxes.length === hereCount && hereCount > 0
+      ? Math.round(pricedBoxes.reduce(function(s,b){ return s + (parseFloat(b.price)||0); }, 0) * 100) / 100
+      : Math.round(((o.payment && o.payment.amount) || 0) * (hereCount / fullBoxCount) * 100) / 100;
+    return { count: hereCount, type: hereType, value: hereValue };
+  };
+  var totalValue = shpOrders.reduce(function(s, o) {
+    return s + getShipmentOrderDocValues(o).value;
   }, 0);
-  var totalBoxes = shpOrders.reduce(function (s, o) {
-    return s + (o.boxCount || 1);
+  var totalBoxes = shpOrders.reduce(function(s, o) {
+    return s + getShipmentOrderDocValues(o).count;
   }, 0);
+
   var _useState31 = useState(shipment.id),
     _useState32 = _slicedToArray(_useState31, 2),
     containerNum = _useState32[0],
@@ -10764,12 +10857,14 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
 
   // Build the manifest data
   var manifestLines = shpOrders.map(function (o) {
-    return "".concat(o.boxCount || 1, " box(es) - ").concat(o.boxType, " - Personal effects & household items for ").concat(o.name);
+    var v = getShipmentOrderDocValues(o);
+    return "".concat(v.count, " box(es) - ").concat(v.type, " - Personal effects & household items for ").concat(o.name);
   });
   var copyManifest = function copyManifest() {
     var _navigator$clipboard3;
     var text = ["=== CASABE CONNECT — SHIPPING MANIFEST ===", "Shipment: ".concat(shipment.id), "Date: ".concat(shipment.date), "Destination: ".concat(shipment.destination), "Container #: ".concat(containerNum), "Seal #: ".concat(sealNum), "Steamship Line: ".concat(steamshipLine), "Equipment: ".concat(equipment), "", "PACKING LIST:"].concat(_toConsumableArray(shpOrders.map(function (o, i) {
-      return "".concat(i + 1, ". ").concat(o.name, " | ").concat(o.phone, " | ").concat(o.boxCount || 1, "x ").concat(o.boxType, " | $").concat(o.payment.amount, " | ").concat(o.id);
+      var v = getShipmentOrderDocValues(o);
+      return "".concat(i + 1, ". ").concat(o.name, " | ").concat(o.phone, " | ").concat(v.count, "x ").concat(v.type, " | $").concat(v.value, " | ").concat(o.id);
     })), ["", "TOTAL BOXES: ".concat(totalBoxes), "TOTAL VALUE: $".concat(totalValue)]).join("\n");
     (_navigator$clipboard3 = navigator.clipboard) === null || _navigator$clipboard3 === void 0 || _navigator$clipboard3.writeText(text);
     setCopied(true);
@@ -10867,6 +10962,7 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
       overflowY: "auto"
     }
   }, shpOrders.map(function (o, i) {
+    var v = getShipmentOrderDocValues(o);
     return /*#__PURE__*/React.createElement("div", {
       key: o.id,
       style: {
@@ -10893,7 +10989,7 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
       }
     }, o.name), /*#__PURE__*/React.createElement("div", {
       className: "xs mut"
-    }, o.id, " \xB7 ", o.boxCount || 1, "x ", o.boxType, " \xB7 $", (o.payment && o.payment.amount) || 0)), /*#__PURE__*/React.createElement("span", {
+    }, o.id, " \xB7 ", v.count, "x ", v.type, " \xB7 $", v.value)), /*#__PURE__*/React.createElement("span", {
       className: "tag"
     }, o.destination));
   }))), /*#__PURE__*/React.createElement("div", {
@@ -10916,7 +11012,8 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
       marginBottom: 12
     }
   }, ["Shipment: ".concat(shipment.id, "  Container: ").concat(containerNum, "  Seal: ").concat(sealNum || "___"), "Destination: ".concat(shipment.destination, "  Line: ").concat(steamshipLine, "  Equipment: ").concat(equipment), "─".repeat(55)].concat(_toConsumableArray(shpOrders.map(function (o, i) {
-    return "".concat(String(i + 1).padStart(2), ". ").concat((o.name||"").padEnd(22), " ").concat(o.id.padEnd(12), " ").concat(o.boxCount || 1, "x ").concat((o.boxType||"Small").padEnd(8), " $").concat((o.payment && o.payment.amount) || 0);
+    var _v = getShipmentOrderDocValues(o);
+    return "".concat(String(i + 1).padStart(2), ". ").concat((o.name||"").padEnd(22), " ").concat(o.id.padEnd(12), " ").concat(_v.count, "x ").concat(_v.type.padEnd(8), " $").concat(_v.value);
   })), ["─".repeat(55), "TOTAL BOXES: ".concat(totalBoxes, "    TOTAL VALUE: $").concat(totalValue)]).join("\n")), /*#__PURE__*/React.createElement("div", {
     className: "row g10"
   }, /*#__PURE__*/React.createElement("button", {
@@ -10975,14 +11072,15 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
       ),
       /*#__PURE__*/React.createElement("tbody", null,
         shpOrders.map(function(o, i) {
+          var _pv = getShipmentOrderDocValues(o);
           return /*#__PURE__*/React.createElement("tr", { key: o.id },
             /*#__PURE__*/React.createElement("td", null, i + 1),
             /*#__PURE__*/React.createElement("td", { style: { fontWeight: 700 } }, o.name),
             /*#__PURE__*/React.createElement("td", null, o.phone),
             /*#__PURE__*/React.createElement("td", { style: { fontFamily: "monospace" } }, o.id),
-            /*#__PURE__*/React.createElement("td", { style: { textAlign: "center" } }, o.boxCount || 1),
-            /*#__PURE__*/React.createElement("td", null, o.boxType),
-            /*#__PURE__*/React.createElement("td", { style: { textAlign: "right" } }, "$", (o.payment && o.payment.amount) || 0)
+            /*#__PURE__*/React.createElement("td", { style: { textAlign: "center" } }, _pv.count),
+            /*#__PURE__*/React.createElement("td", null, _pv.type),
+            /*#__PURE__*/React.createElement("td", { style: { textAlign: "right" } }, "$", _pv.value)
           );
         })
       )
@@ -11002,33 +11100,21 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
 ════════════════════════════════════════════ */
 var ManifestModal = function ManifestModal(_ref89) {
   var shipment = _ref89.shipment, orders = _ref89.orders, onClose = _ref89.onClose, tenant = _ref89.tenant;
-  var shpOrders = (shipment.orderIds || []).reduce(function(acc, id) {
-    var o = orders.find(function(x){ return x.id === id; }); if (o) acc.push(o); return acc;
-  }, []);
+  var shpOrders = getOrdersForShipment(shipment, orders);
   var rows = [];
   shpOrders.forEach(function(o) {
-    var hasBoxes = o.boxes && o.boxes.length > 0;
-    if (hasBoxes) {
-      o.boxes.forEach(function(box, i) {
-        var dept = box.gtDept || o.gtDept || "";
-        var dest = box.destinationCountry || o.destination || "Unknown";
-        var zoneKey = box.zone || (GT_DEPARTMENTS.find(function(d){ return d.dept === dept; }) || {}).zone || "unknown";
-        rows.push({ orderId:o.id, trackingId:box.subId||(o.id+"-"+(i+1)), boxType:box.boxType||o.boxType||"Small",
-          destination:dest, dept:dept, zone:zoneKey, senderName:o.name||"", senderPhone:o.phone||"",
-          receiverName:o.consigneeName||"", receiverPhone:o.consigneePhone||o.phone||"",
-          receiverAddress:o.consigneeAddress||o.address||"", description:box.description||"" });
-      });
-    } else {
-      var dept0 = o.gtDept || ""; var dest0 = o.destination || "Unknown";
-      var zoneKey0 = o.zone || (GT_DEPARTMENTS.find(function(d){ return d.dept===dept0; })||{}).zone || "unknown";
-      var bc = parseInt(o.boxCount)||1;
-      for (var i=0;i<bc;i++) {
-        rows.push({ orderId:o.id, trackingId:bc>1?(o.id+"-"+(i+1)):o.id, boxType:o.boxType||"Small",
-          destination:dest0, dept:dept0, zone:zoneKey0, senderName:o.name||"", senderPhone:o.phone||"",
-          receiverName:o.consigneeName||"", receiverPhone:o.consigneePhone||o.phone||"",
-          receiverAddress:o.consigneeAddress||o.address||"", description:"" });
-      }
-    }
+    var renderBoxes = getShipmentBoxRows(o, shipment.id);
+    renderBoxes.forEach(function(box, i) {
+      var dept = box.gtDept || o.gtDept || "";
+      var dest = box.destinationCountry || o.destination || "Unknown";
+      var zoneKey = box.zone || (GT_DEPARTMENTS.find(function(d){ return d.dept === dept; }) || {}).zone || "unknown";
+      rows.push({ orderId:o.id,
+        trackingId: box.subId || (renderBoxes.length > 1 ? o.id+"-"+(i+1) : o.id),
+        boxType: box.boxType || o.boxType || "Small",
+        destination:dest, dept:dept, zone:zoneKey, senderName:o.name||"", senderPhone:o.phone||"",
+        receiverName:o.consigneeName||"", receiverPhone:o.consigneePhone||o.phone||"",
+        receiverAddress:o.consigneeAddress||o.address||"", description:box.description||"" });
+    });
   });
   var warnings = rows.filter(function(r){ return !r.receiverName||!r.receiverPhone; });
   var ZONE_ORDER = ["yellow","green","blue","orange","red","unknown"];
@@ -11250,11 +11336,9 @@ var ContainerReconcileModal = function ContainerReconcileModal(_ref92) {
     orders = _ref92.orders,
     onConfirm = _ref92.onConfirm,
     onCancel = _ref92.onCancel;
-  var shpOrders = orders.filter(function (o) {
-    return shipment.orderIds.includes(o.id);
-  });
+  var shpOrders = getOrdersForShipment(shipment, orders);
   var systemCount = shpOrders.reduce(function (s, o) {
-    return s + (o.boxes && o.boxes.length > 0 ? o.boxes.length : (parseInt(o.boxCount) || 1));
+    return s + getShipmentBoxRows(o, shipment.id).length;
   }, 0);
   var _useState41 = useState(""),
     _useState42 = _slicedToArray(_useState41, 2),
@@ -12123,18 +12207,11 @@ var BOX_UNIT_COSTS = {};
     return "$" + (parseFloat(val) || 0).toLocaleString(undefined, {minimumFractionDigits:2,maximumFractionDigits:2});
   };
   var getShipmentMetrics = function getShipmentMetrics(shp) {
-    var shpOrds = getOrdersInShipment(shp);
-    var rev = shpOrds.reduce(function(sum,o){ return sum + calculateNetRevenue(o, tenant); }, 0);
-    var cst = (shp.expenseForms||[]).length > 0
-      ? (shp.expenseForms||[]).reduce(function(sum,ef){ return sum + (parseFloat(ef.total)||0); }, 0)
-      : (parseFloat(shp.cost)||0);
-    var pft = rev - cst;
-    var mgn = rev > 0 ? Math.round((pft / rev) * 100) : 0;
-    return { orders:shpOrds, orderCount:shpOrds.length, revenue:rev, cost:cst, profit:pft, margin:mgn };
+    return computeShipmentMetrics(shp, orders, tenant);
   };
   var allMetrics = shipments.map(getShipmentMetrics);
   var totalRevenue = allMetrics.reduce(function(s,m){ return s + m.revenue; }, 0);
-  var totalBoxes   = allMetrics.reduce(function(s,m){ return s + m.orderCount; }, 0);
+  var totalBoxes   = allMetrics.reduce(function(s,m){ return s + m.boxCount; }, 0);
   var delivered = shipments.filter(function (s) {
     return s.status === "delivered";
   }).length;
@@ -12299,7 +12376,7 @@ var BOX_UNIT_COSTS = {};
     })), function () {
       var cap = 200;
       var used = shpOrders.reduce(function(s, o) {
-        return s + (o.boxes && o.boxes.length > 0 ? o.boxes.length : (parseInt(o.boxCount) || 1));
+        return s + getShipmentBoxRows(o, selected.id).length;
       }, 0);
       var pct = Math.round(used / cap * 100);
       var color = pct >= 100 ? "var(--red)" : pct >= 90 ? "var(--amber)" : "var(--green)";
@@ -12370,6 +12447,23 @@ var BOX_UNIT_COSTS = {};
     }, "\uD83D\uDCE6 Orders in This Shipment (", shpOrders.length, ")")), /*#__PURE__*/React.createElement("div", {
       className: "tbl"
     }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, t("Tracking ID", "ID de Rastreo")), /*#__PURE__*/React.createElement("th", null, "Customer"), /*#__PURE__*/React.createElement("th", null, "Box"), /*#__PURE__*/React.createElement("th", null, "Destination"), /*#__PURE__*/React.createElement("th", null, "Zone"), /*#__PURE__*/React.createElement("th", null, "Status"), /*#__PURE__*/React.createElement("th", null, "Payment"), /*#__PURE__*/React.createElement("th", null, "Office"))), /*#__PURE__*/React.createElement("tbody", null, shpOrders.length > 0 ? shpOrders.map(function (o) {
+      var rowBoxes = getShipmentBoxRows(o, selected.id);
+      var rowBoxTypes = rowBoxes.length > 0
+        ? Array.from(new Set(rowBoxes.map(function(b){ var cfg=BOX_CONFIG.find(function(x){return x.key===b.boxType;}); return cfg?cfg.label:(b.boxType||"\u2014"); })))
+        : [BOX_CONFIG.find(function(x){return x.key===o.boxType;})?BOX_CONFIG.find(function(x){return x.key===o.boxType;}).label:(o.boxType||"\u2014")];
+      var rowDests = rowBoxes.length > 0
+        ? Array.from(new Set(rowBoxes.map(function(b){ return b.destinationCountry||o.destination||"\u2014"; })))
+        : [o.destination||"\u2014"];
+      var rowZones = rowBoxes.length > 0
+        ? Array.from(new Set(rowBoxes.map(function(b){ return b.zone||getZone(b.destinationCountry||o.destination)||""; })))
+        : [o.zone||""];
+      var rowStatuses = rowBoxes.length > 0
+        ? Array.from(new Set(rowBoxes.map(function(b){ return b.status||o.status; })))
+        : [o.status];
+      var rowBoxLabel = rowBoxTypes.length > 1 ? rowBoxTypes.join("/") : rowBoxTypes[0]||"\u2014";
+      var rowDestLabel = rowDests.length > 1 ? t("Mixed","Mixto") : rowDests[0]||"\u2014";
+      var rowZoneKey = rowZones.length > 1 ? null : rowZones[0];
+      var rowStatus = rowStatuses.length > 1 ? "mixed" : rowStatuses[0];
       return /*#__PURE__*/React.createElement("tr", {
         key: o.id
       }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
@@ -12382,28 +12476,16 @@ var BOX_UNIT_COSTS = {};
         className: "xs mut"
       }, o.phone)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
         className: "tag"
-      }, (function(){
-        var bx=(o.boxes&&o.boxes.length>0)?o.boxes:null;
-        if(!bx){var c=BOX_CONFIG.find(function(x){return x.key===o.boxType;}); return c?c.label:(o.boxType||"—");}
-        var ts=Array.from(new Set(bx.map(function(b){var c=BOX_CONFIG.find(function(x){return x.key===b.boxType;}); return c?c.label:(b.boxType||"—");})));
-        return ts.length>1?ts.join("/"):ts[0]||"—";
-      })())), /*#__PURE__*/React.createElement("td", {
+      }, rowBoxLabel)), /*#__PURE__*/React.createElement("td", {
         className: "mut"
-      }, (function(){
-        if(!o.boxes||o.boxes.length<=1) return o.destination||"—";
-        var ds=Array.from(new Set(o.boxes.map(function(b){return b.destinationCountry||o.destination||"";})));
-        return ds.length>1?t("Mixed","Mixto"):ds[0]||o.destination||"—";
-      })()), /*#__PURE__*/React.createElement("td", null, (function(){
-        if(!o.boxes||o.boxes.length<=1) return o.zone && ZONE_CONFIG[o.zone] ? /*#__PURE__*/React.createElement("span", {style:{background:ZONE_CONFIG[o.zone].bg,color:ZONE_CONFIG[o.zone].color,padding:"1px 6px",borderRadius:4,fontSize:11,fontWeight:700}}, ZONE_CONFIG[o.zone].emoji, " ", ZONE_CONFIG[o.zone].label) : /*#__PURE__*/React.createElement("span",{className:"mut"},"\u2014");
-        var zs=Array.from(new Set(o.boxes.map(function(b){return b.zone||getZone(b.destinationCountry||o.destination);})));
-        if(zs.length>1) return /*#__PURE__*/React.createElement("span",{className:"tag"},"Mixed");
-        var z=zs[0]; return z&&ZONE_CONFIG[z]?/*#__PURE__*/React.createElement("span",{style:{background:ZONE_CONFIG[z].bg,color:ZONE_CONFIG[z].color,padding:"1px 6px",borderRadius:4,fontSize:11,fontWeight:700}},ZONE_CONFIG[z].emoji," ",ZONE_CONFIG[z].label):/*#__PURE__*/React.createElement("span",{className:"mut"},"\u2014");
-      })()), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Sbadge, {
-        s: (function(){
-          if(!o.boxes||o.boxes.length<=1) return o.status;
-          var ss=Array.from(new Set(o.boxes.map(function(b){return b.status||o.status;})));
-          return ss.length>1?"mixed":ss[0];
-        })()
+      }, rowDestLabel), /*#__PURE__*/React.createElement("td", null,
+        rowZones.length > 1
+          ? /*#__PURE__*/React.createElement("span",{className:"tag"},"Mixed")
+          : rowZoneKey && ZONE_CONFIG[rowZoneKey]
+            ? /*#__PURE__*/React.createElement("span",{style:{background:ZONE_CONFIG[rowZoneKey].bg,color:ZONE_CONFIG[rowZoneKey].color,padding:"1px 6px",borderRadius:4,fontSize:11,fontWeight:700}},ZONE_CONFIG[rowZoneKey].emoji," ",ZONE_CONFIG[rowZoneKey].label)
+            : /*#__PURE__*/React.createElement("span",{className:"mut"},"\u2014")
+      ), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Sbadge, {
+        s: rowStatus
       })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(PayBadge, {
         s: o.payment.status
       })), /*#__PURE__*/React.createElement("td", {
@@ -12467,10 +12549,7 @@ var BOX_UNIT_COSTS = {};
       className: "card-bd"
     }, BOX_TYPES.map(function (bt) {
       var count = shpOrders.reduce(function(sum, o) {
-        if (o.boxes && o.boxes.length > 0) {
-          return sum + o.boxes.filter(function(b){ return b.boxType === bt; }).length;
-        }
-        return sum + (o.boxType === bt ? 1 : 0);
+        return sum + getShipmentBoxRows(o, selected.id).filter(function(b){ return b.boxType === bt; }).length;
       }, 0);
       if (!count) return null;
       return /*#__PURE__*/React.createElement("div", {
@@ -12490,7 +12569,7 @@ var BOX_UNIT_COSTS = {};
       }, /*#__PURE__*/React.createElement("div", {
         className: "prog-fill",
         style: {
-          width: "".concat(count / Math.max(1, shpOrders.reduce(function(s,o){return s+((o.boxes&&o.boxes.length>0)?o.boxes.length:(o.boxCount||1));},0)) * 100, "%"),
+          width: "".concat(count / Math.max(1, shpOrders.reduce(function(s,o){ return s+getShipmentBoxRows(o,selected.id).length; },0)) * 100, "%"),
           background: "var(--amber)"
         }
       }))), /*#__PURE__*/React.createElement("span", {
@@ -14080,7 +14159,7 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
     fetch(QB_CONNECT_URL + "?action=status&tenantId=" + tenantId)
       .then(function(r){ return r.json(); })
       .then(function(data){ setQbStatus(data); })
-      .catch(function(e){ console.warn("[async op]", e); });
+      .catch(function(e){ console.error("[quickbooks status]", e); setErr("Could not load QuickBooks status. Check connection."); });
   }, []);
 
   function checkStatus() {
@@ -14106,7 +14185,7 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
       setSmsStatus(r.sms || null);
       setLoading(false);
     })
-    .catch(function(e){ setErr(String(e)); setLoading(false); });
+    .catch(function(e){ console.error("[quickbooks send-test]", e); setErr("Could not load QuickBooks status. Check connection."); setLoading(false); });
   }
 
   function retryRow(row) {
@@ -14147,7 +14226,7 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
       .then(function(){ return fetch(QB_CONNECT_URL + "?action=status&tenantId=" + tenantId); })
       .then(function(r){ return r.json(); })
       .then(function(data){ setQbStatus(data); setQbLoading(false); })
-      .catch(function(){ setQbLoading(false); });
+      .catch(function(e){ console.error("[quickbooks disconnect]", e); setQbLoading(false); setErr("QuickBooks disconnect failed. Check connection."); });
   }
 
   function statusBadge(result) {
@@ -14421,7 +14500,11 @@ var QuickBooksPage = function QuickBooksPage(props) {
     fetch(QB_CONNECT_URL + "?action=status&tenantId=" + tenantId)
       .then(function(r){ return r.json(); })
       .then(function(data){ setStatus(data); setLoading(false); })
-      .catch(function(){ setLoading(false); });
+      .catch(function(e){
+        console.error("[quickbooks status]", e);
+        setLoading(false);
+        setActionMsg({ type: "error", text: "Could not load QuickBooks status. Check connection." });
+      });
   }
 
   React.useEffect(function() {
@@ -14615,13 +14698,20 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
   var _ps9 = useState({ amount: "", method: "cash_pickup", notes: "", shipmentId: "", orderId: "", orderPlacedAt: "", paidInFullAt: "", commissionDeducted: "", netCollected: "" }),
       _ps10 = _slicedToArray(_ps9,2), payForm = _ps10[0], setPayForm = _ps10[1];
   var _ps11 = useState(false), _ps12 = _slicedToArray(_ps11,2), savingPay = _ps12[0], setSavingPay = _ps12[1];
+  var _ps13 = useState(null), _ps14 = _slicedToArray(_ps13,2), payLoadErr = _ps14[0], setPayLoadErr = _ps14[1];
 
   var offCfg = getOfficeById(tenant, office.name);
 
   React.useEffect(function() {
     if (!offCfg) return;
-    _db.loadOfficePayments(offCfg.id).then(setPayments).catch(function() {});
-    _db.loadOfficeAuditLog(offCfg.id).then(setAuditLog).catch(function() {});
+    _db.loadOfficePayments(offCfg.id).then(setPayments).catch(function(e) {
+      console.error("[office payments load]", e);
+      setPayLoadErr("Could not load office payments. Check connection.");
+    });
+    _db.loadOfficeAuditLog(offCfg.id).then(setAuditLog).catch(function(e) {
+      console.error("[office audit load]", e);
+      setPayLoadErr("Could not load office audit log. Check connection.");
+    });
   }, [offCfg && offCfg.id]);
 
   var commissionOwedToOffice = office.commission || 0;
@@ -14711,6 +14801,7 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
       ),
 
       // Overview tab
+      payLoadErr && /*#__PURE__*/React.createElement("div", {className: "alert alert-r", style:{margin:"8px 0"}}, "⚠ ", payLoadErr),
       tab === "overview" && /*#__PURE__*/React.createElement("div", null,
         // Commission model badge
         offCfg && /*#__PURE__*/React.createElement("div", { className: "alert alert-b mb12" },
@@ -20086,9 +20177,9 @@ var MobileHeader = function MobileHeader(_ref124) {
   }, role !== null && role !== void 0 && (_role$titles = role.titles) !== null && _role$titles !== void 0 && _role$titles[page] ? t(role.titles[page], ES[role.titles[page]] || role.titles[page]) : (tenant === null || tenant === void 0 ? void 0 : tenant.name) || "Casabe Connect"), /*#__PURE__*/React.createElement("span", {
     className: "mob-pill",
     style: {
-      background: "color-mix(in srgb,".concat(roleColors[roleKey] || "var(--amber)", " 15%,transparent)").replace ? "color-mix(in srgb,".concat(roleColors[roleKey] || "var(--amber)", " 15%,transparent)") : "rgba(255,159,28,0.15)",
+      background: (typeof CSS !== "undefined" && CSS.supports && CSS.supports("background","color-mix(in srgb,red 1%,transparent)") ? "color-mix(in srgb,".concat(roleColors[roleKey] || "var(--amber)", " 15%,transparent)") : "rgba(255,159,28,0.12)").replace ? (typeof CSS !== "undefined" && CSS.supports && CSS.supports("background","color-mix(in srgb,red 1%,transparent)") ? "color-mix(in srgb,".concat(roleColors[roleKey] || "var(--amber)", " 15%,transparent)") : "rgba(255,159,28,0.12)") : "rgba(255,159,28,0.15)",
       color: roleColors[roleKey] || "var(--amber)",
-      border: "1px solid color-mix(in srgb,".concat(roleColors[roleKey] || "var(--amber)", " 30%,transparent)")
+      border: "1px solid " + (typeof CSS!=="undefined"&&CSS.supports&&CSS.supports("background","color-mix(in srgb,red 1%,transparent)") ? "color-mix(in srgb,".concat(roleColors[roleKey] || "var(--amber)", " 30%,transparent)") : "rgba(255,159,28,0.28)")
     }
   }, (role === null || role === void 0 ? void 0 : role.label) || "HQ"), /*#__PURE__*/React.createElement("button", {
     className: "mob-icon-btn",
@@ -20264,7 +20355,7 @@ var MobileNav = function MobileNav(_ref125) {
       style: roleKey === r.k ? {
         borderColor: r.c,
         color: r.c,
-        background: "color-mix(in srgb,".concat(r.c, " 12%,transparent)")
+        background: (typeof CSS !== "undefined" && CSS.supports && CSS.supports("background","color-mix(in srgb,red 1%,transparent)") ? "color-mix(in srgb,".concat(r.c, " 12%,transparent)") : "rgba(255,159,28,0.10)")
       } : {},
       onClick: function onClick() {
         setRoleKey(r.k);
@@ -21231,9 +21322,7 @@ function AppShell(_ref130) {
         return s.status === "open";
       });
       if (openBatch) {
-        var batchCount = orders.filter(function (o) {
-          return openBatch.orderIds.includes(o.id);
-        }).length;
+        var batchCount = computeShipmentMetrics(openBatch, orders, tenant).boxCount;
         if (batchCount >= 200) {
           var newBatchId = "BATCH-" + String(shipments.length + 1).padStart(3, "0");
           var _newBatch = {
@@ -21242,7 +21331,7 @@ function AppShell(_ref130) {
             status: "open",
             createdAt: today(),
             orderIds: [order.id],
-            totalBoxes: 1,
+            totalBoxes: getCommissionBoxes(order).length,
             revenue: 0,
             cost: 0,
             notes: "Auto-created — overflow from " + openBatch.id
@@ -21306,10 +21395,8 @@ setOrders(function (prev) {
           if (!affectedShipIds.includes(shp.id)) return shp;
           // Use the updated orderIds already computed by the membership block above
           var currentShp = prev.find(function(s) { return s.id === shp.id; }) || shp;
-          var shpOrds = getOrdersForShipment(currentShp, allOrders);
-          var newRev = shpOrds.reduce(function(s,o){return s+calculateNetRevenue(o,session&&session.tenant);},0);
-          var newBoxes = shpOrds.reduce(function(s,o){return s+(o.boxes&&o.boxes.length>0?o.boxes.length:Math.max(1,parseInt(o.boxCount)||1));},0);
-          var updated = Object.assign({}, currentShp, { revenue: newRev, totalBoxes: newBoxes });
+          var _cm = computeShipmentMetrics(currentShp, allOrders, tenant);
+          var updated = Object.assign({}, currentShp, { revenue: _cm.revenue, totalBoxes: _cm.boxCount });
           if (session && session.tenantId) {
             _db.init(session.tenantId);
             _db.upsert("shipments", shp.id, updated).catch(function(e){ console.error("[shipment save]", e); });
@@ -21344,20 +21431,42 @@ setOrders(function (prev) {
     setBackwardGate = _useState164[1]; // {id, fromStatus, toStatus, driver}
 
   var doVoidOrder = function doVoidOrder(order) {
-    var voided = Object.assign({}, order, { voided: true, status: "cancelled", voidedAt: now() });
+    var voided = Object.assign({}, order, {
+      voided: true,
+      status: "cancelled",
+      voidedAt: now(),
+      shipmentId: null,
+      shipmentIds: [],
+      boxes: (order.boxes || []).map(function(b) {
+        return Object.assign({}, b, { shipmentId: "" });
+      })
+    });
     setOrders(function(prev){ return prev.map(function(o){ return o.id === order.id ? voided : o; }); });
     _db.upsert("orders", order.id, voided).catch(function(e){ console.error("[void order]", e); });
-    if (order.shipmentId) {
-      setShipments(function(prev) {
-        return prev.map(function(shp) {
-          if (shp.id !== order.shipmentId) return shp;
-          var newIds = (shp.orderIds || []).filter(function(id){ return id !== order.id; });
-          var updated = Object.assign({}, shp, { orderIds: newIds, totalBoxes: newIds.length });
-          _db.upsert("shipments", shp.id, updated).catch(function(e){ console.error("[shipment save]", e); });
-          return updated;
+    // Collect all shipment IDs this order belonged to (from all membership paths)
+    var affectedShipIds = Array.from(new Set(
+      [order.shipmentId].concat(order.shipmentIds || [])
+        .concat((order.boxes || []).map(function(b){ return b.shipmentId; }))
+        .filter(Boolean)
+    ));
+    setOrders(function(prev) {
+      var updatedOrders = prev.map(function(o){ return o.id === order.id ? voided : o; });
+      // Recompute affected shipments — voided order is now excluded by getOrdersForShipment
+      if (affectedShipIds.length > 0) {
+        setShipments(function(prevShps) {
+          return prevShps.map(function(s) {
+            if (!affectedShipIds.includes(s.id)) return s;
+            var newIds = (s.orderIds || []).filter(function(id){ return id !== order.id; });
+            var _shpForCalc = Object.assign({}, s, { orderIds: newIds });
+            var met = computeShipmentMetrics(_shpForCalc, updatedOrders, tenant);
+            var updated = Object.assign({}, s, { orderIds: newIds, revenue: met.revenue, totalBoxes: met.boxCount });
+            _db.upsert("shipments", s.id, updated).catch(function(e){ console.error("[shipment save]", e); });
+            return updated;
+          });
         });
-      });
-    }
+      }
+      return updatedOrders;
+    });
     setVoidTarget(null);
     setSelectedOrder(null);
     notify("\u26A0\uFE0F Order " + order.id + " voided and hidden from active views");
@@ -21569,32 +21678,48 @@ setOrders(function (prev) {
       },
       onBulkAssignShipment: function onBulkAssignShipment(fromId, toId, movingOrders) {
         var target = shipments.find(function(s) { return s.id === toId; });
+        // One shared move helper — used for both postMoveOrders and setOrders
+        var movingIds = movingOrders.map(function(o){ return o.id; });
+        var applyShipmentMoveToOrder = function(o) {
+          var prevIds = Array.isArray(o.shipmentIds) ? o.shipmentIds : (o.shipmentId ? [o.shipmentId] : []);
+          var newIds = prevIds.filter(function(id){ return id !== fromId; });
+          if (!newIds.includes(toId)) newIds.push(toId);
+          var newBoxes = (o.boxes || []).map(function(b) {
+            if (b.shipmentId && b.shipmentId !== fromId) return b;
+            return Object.assign({}, b, { shipmentId: toId });
+          });
+          return Object.assign({}, o, {
+            shipmentId: toId,
+            shipmentIds: newIds,
+            boxes: newBoxes.length > 0 ? newBoxes : o.boxes
+          });
+        };
+        // Build post-move order list with full box/shipmentId updates BEFORE computing metrics
+        var postMoveOrders = orders.map(function(o) {
+          return movingIds.includes(o.id) ? applyShipmentMoveToOrder(o) : o;
+        });
         setShipments(function(prev) {
           return prev.map(function(s) {
             var updated;
             if (s.id === fromId) {
-              // Remove moved order IDs from source, recalc metrics
               var remainingIds = s.orderIds.filter(function(id) {
-                return !movingOrders.find(function(o) { return o.id === id; });
+                return !movingIds.includes(id);
               });
-              var remainingOrders = orders.filter(function(o) { return remainingIds.includes(o.id); });
+              var _remShp = Object.assign({}, s, { orderIds: remainingIds });
+              var _remMet = computeShipmentMetrics(_remShp, postMoveOrders, tenant);
               updated = Object.assign({}, s, {
                 orderIds: remainingIds,
-                totalBoxes: remainingOrders.length,
-                revenue: remainingOrders.reduce(function(sum, o) { return sum + calculateNetRevenue(o, null); }, 0)
+                totalBoxes: _remMet.boxCount,
+                revenue: _remMet.revenue
               });
             } else if (s.id === toId) {
-              // Add moved order IDs to target, de-duplicate, recalc metrics
-              var merged = Array.from(new Set([].concat(s.orderIds, movingOrders.map(function(o) { return o.id; }))));
-              var mergedOrders = orders.filter(function(o) { return merged.includes(o.id); });
-              // also include the moving orders themselves in case they aren't in state yet
-              movingOrders.forEach(function(mo) {
-                if (!mergedOrders.find(function(o) { return o.id === mo.id; })) mergedOrders.push(mo);
-              });
+              var merged = Array.from(new Set([].concat(s.orderIds, movingIds)));
+              var _merShp = Object.assign({}, s, { orderIds: merged });
+              var _merMet = computeShipmentMetrics(_merShp, postMoveOrders, tenant);
               updated = Object.assign({}, s, {
                 orderIds: merged,
-                totalBoxes: mergedOrders.length,
-                revenue: mergedOrders.reduce(function(sum, o) { return sum + calculateNetRevenue(o, null); }, 0)
+                totalBoxes: _merMet.boxCount,
+                revenue: _merMet.revenue
               });
             } else {
               return s;
@@ -21608,14 +21733,17 @@ setOrders(function (prev) {
             return updated;
           });
         });
-        // Update each moved order's shipmentId
+        // Reuse applyShipmentMoveToOrder — no duplicated move logic
         setOrders(function(prev) {
           return prev.map(function(o) {
-            if (!movingOrders.find(function(mo) { return mo.id === o.id; })) return o;
-            var updated = Object.assign({}, o, { shipmentId: toId });
+            if (!movingIds.includes(o.id)) return o;
+            var updated = applyShipmentMoveToOrder(o);
             if (session && session.tenantId) {
               _db.init(session.tenantId);
-              _db.upsert("orders", o.id, updated).catch(function() {});
+              _db.upsert("orders", o.id, updated).catch(function(e) {
+                console.error("[bulk move order sync]", e);
+                notify("\u26A0 Order moved locally but failed to sync. Check connection.");
+              });
             }
             return updated;
           });
@@ -21644,11 +21772,12 @@ setOrders(function (prev) {
         var shp = shipments.find(function (s) {
           return s.id === id;
         });
-        if (shp && shp.orderIds) {
-          shp.orderIds.forEach(function (oid) {
-            return changeStatus(oid, newStatus || "loaded_container");
+        if (shp) {
+          var lockOrders = getOrdersForShipment(shp, orders);
+          lockOrders.forEach(function(o) {
+            return changeStatus(o.id, newStatus || "loaded_container");
           });
-          notify("⚡ " + shp.orderIds.length + " orders updated · WhatsApp messages queued for all customers");
+          notify("⚡ " + lockOrders.length + " orders updated · WhatsApp messages queued for all customers");
         }
         setShipments(function (prev) {
           return prev.map(function (s) {
@@ -22221,12 +22350,12 @@ setOrders(function (prev) {
         setShipments(function(prev) {
           return prev.map(function(shp) {
             if (shp.id !== o.shipmentId) return shp;
-            var shpOrds = orders.map(function(ord) {
+            var _updatedOrders = orders.map(function(ord) {
               if (ord.id !== o.id || !_posUpdated) return ord;
               return _posUpdated;
-            }).filter(function(ord) { return shp.orderIds.includes(ord.id); });
-            var newRev = shpOrds.reduce(function(s,ord){return s+calculateNetRevenue(ord,null);},0);
-            return Object.assign({}, shp, { revenue: newRev });
+            });
+            var _posMet = computeShipmentMetrics(shp, _updatedOrders, tenant);
+            return Object.assign({}, shp, { revenue: _posMet.revenue, totalBoxes: _posMet.boxCount });
           });
         });
       }
@@ -22320,8 +22449,8 @@ setOrders(function (prev) {
   }, t("Viewing as", "Viendo como")), /*#__PURE__*/React.createElement("div", {
     style: {
       padding: "6px 10px",
-      background: "color-mix(in srgb, ".concat(role.color, " 10%, transparent)"),
-      border: "1px solid color-mix(in srgb, ".concat(role.color, " 25%, transparent)"),
+      background: (typeof CSS!=="undefined"&&CSS.supports&&CSS.supports("background","color-mix(in srgb,red 1%,transparent)")?"color-mix(in srgb, ".concat(role.color," 10%, transparent)"):"rgba(255,159,28,0.10)"),
+      border: "1px solid " + (typeof CSS!=="undefined"&&CSS.supports&&CSS.supports("background","color-mix(in srgb,red 1%,transparent)") ? "color-mix(in srgb, ".concat(role.color, " 25%, transparent)") : "rgba(255,159,28,0.22)") + "",
       borderRadius: 7
     }
   }, /*#__PURE__*/React.createElement("div", {
