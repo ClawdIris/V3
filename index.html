@@ -15,7 +15,8 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet"/ crossorigin="anonymous">
+  <style>html{font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif}</style>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; overflow: hidden; }
@@ -211,6 +212,24 @@ var getCommissionBoxes = function getCommissionBoxes(order) {
   return Array.from({ length: count }, function() { return { boxType: bt }; });
 };
 
+// ── Shared: shipment membership — combines orderIds, shipmentId, shipmentIds ─
+var getOrdersForShipment = function getOrdersForShipment(shipment, allOrders) {
+  var id = shipment.id;
+  var seen = {};
+  var result = [];
+  allOrders.forEach(function(o) {
+    if (seen[o.id]) return;
+    var inList = (shipment.orderIds || []).includes(o.id);
+    var byShipId = o.shipmentId === id;
+    var byShipIds = (o.shipmentIds || []).includes(id);
+    if (inList || byShipId || byShipIds) {
+      seen[o.id] = true;
+      result.push(o);
+    }
+  });
+  return result;
+};
+
 // ── Commission engine (unchanged core, uses expanded boxes) ─────────────────
 var calculateOfficeCommission = function calculateOfficeCommission(officeConfig, grossAmount, boxes) {
   if (!officeConfig) return 0;
@@ -232,19 +251,34 @@ var calculateOfficeCommission = function calculateOfficeCommission(officeConfig,
   return 0;
 };
 
+// ── Snapshot validation: only trust v2 snapshots based on gross order amount ─
+var isValidSnapshot = function isValidSnapshot(snap, order) {
+  if (!snap || typeof snap.commissionAmount !== "number") return false;
+  // Must be v2 (gross-based); v1 snapshots were based on collected cash — reject them
+  if (snap.version !== 2 || snap.basis !== "gross_order_amount") return false;
+  // grossRevenue must match the order's actual payment.amount (within $0.01)
+  var gross = parseFloat(order.payment && order.payment.amount) || 0;
+  if (Math.abs((snap.grossRevenue || 0) - gross) > 0.01) return false;
+  // netRevenue must equal grossRevenue - commissionAmount (within $0.01)
+  if (Math.abs((snap.netRevenue || 0) - (snap.grossRevenue - snap.commissionAmount)) > 0.01) return false;
+  return true;
+};
+
 // ── Shared: single source for per-order commission amount ───────────────────
 var getOrderCommission = function getOrderCommission(order, tenant, officeNameOverride) {
-  // 1. Prefer immutable snapshot
-  if (order.commissionSnapshot && typeof order.commissionSnapshot.commissionAmount === "number") {
+  // 1. Trust snapshot only if valid (v2, gross-based, internally consistent)
+  if (isValidSnapshot(order.commissionSnapshot, order)) {
     return order.commissionSnapshot.commissionAmount;
   }
-  // 2. Stored payment.commission field
+  // 2. Stored payment.commission field (legacy fallback)
   if (order.payment && typeof order.payment.commission === "number" && order.payment.commission > 0) {
     return order.payment.commission;
   }
   // 3. Live calculation — use expanded boxes so multi-box legacy orders count correctly
+  // Prefer commissionConfigSnapshot if available (captures office config at order time)
   var officeName = officeNameOverride || order.officeNameSnapshot || order.officeId || order.office;
-  var offCfg = getOfficeById(tenant, officeName);
+  var offCfg = (order.commissionSnapshot && order.commissionSnapshot.commissionConfigSnapshot)
+    || getOfficeById(tenant, officeName);
   if (!offCfg) return 0;
   var gross = parseFloat(order.payment && order.payment.amount) || 0;
   var boxes = getCommissionBoxes(order);
@@ -253,7 +287,8 @@ var getOrderCommission = function getOrderCommission(order, tenant, officeNameOv
 
 // ── Net revenue — uses getOrderCommission so legacy multi-box is correct ────
 var calculateNetRevenue = function calculateNetRevenue(order, tenant) {
-  if (order.commissionSnapshot) return order.commissionSnapshot.netRevenue;
+  // Only use snapshot if it passes validation
+  if (isValidSnapshot(order.commissionSnapshot, order)) return order.commissionSnapshot.netRevenue;
   var gross = parseFloat(order.payment && order.payment.amount) || 0;
   var comm = getOrderCommission(order, tenant);
   return gross - comm;
@@ -1657,7 +1692,9 @@ var CalendarPicker = function CalendarPicker(props) {
 var PAID_INVOICE_EDGE_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/send-paid-invoice";
 var LOG_BOX_STATUS_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/log-box-status";
 var QB_CONNECT_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/quickbooks-connect";
-var SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4YXlpZnhicWR1aHN4bW1zbnhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzM3NTgxNjMsImV4cCI6MjA0OTMzNDE2M30.LyBSJj2lrpJV1FBBKflpxXzBcW0UQb-e6ABlz2gQCNA";
+// SUPABASE_ANON_KEY is set at init time (line 28) — use that single source.
+// The JWT below is kept as a comment for reference only; REST calls use the same publishable key.
+// JWT: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 var SUPABASE_REST_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/rest/v1";
 
 /* ════════════════════════════════════════════
@@ -2282,6 +2319,8 @@ var OrderForm = function OrderForm(_ref4) {
       officeNameSnapshot: _offCfg ? _offCfg.name : (f.office || ""),
       commissionConfigSnapshot: _offCfg ? JSON.parse(JSON.stringify(_offCfg.commissionModel || {})) : {},
       commissionAmount: Math.round(_commAmt * 100) / 100,
+      version: 2,
+      basis: "gross_order_amount",
       grossRevenue: Math.round(_grossRev * 100) / 100,  // full order charge
       grossCollected: Math.round(paidAmt * 100) / 100,  // what has actually been paid
       netRevenue: Math.round(_netRev * 100) / 100,
@@ -10694,7 +10733,7 @@ var ShippingDocsModal = function ShippingDocsModal(_ref88) {
     orders = _ref88.orders,
     onClose = _ref88.onClose;
   var shpOrders = orders.filter(function (o) {
-    return (shipment.orderIds || []).includes(o.id);
+    return getOrdersForShipment(shipment, orders).some(function(mo){ return mo.id === o.id; });
   });
   var totalValue = shpOrders.reduce(function (s, o) {
     return s + ((o.payment && o.payment.amount) || 0);
@@ -12078,10 +12117,7 @@ var BOX_UNIT_COSTS = {};
     return s.status === filter;
   });
   var getOrdersInShipment = function getOrdersInShipment(shp) {
-    var ids = shp.orderIds || [];
-    return orders.filter(function (o) {
-      return ids.includes(o.id);
-    });
+    return getOrdersForShipment(shp, orders);
   };
   var fmtMoney = function fmtMoney(val) {
     return "$" + (parseFloat(val) || 0).toLocaleString(undefined, {minimumFractionDigits:2,maximumFractionDigits:2});
@@ -13068,7 +13104,8 @@ var BOX_UNIT_COSTS = {};
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
-        flex: 1
+        flex: 1,
+        minWidth: 0
       }
     }, /*#__PURE__*/React.createElement("div", {
       className: "row g10",
@@ -13097,7 +13134,7 @@ var BOX_UNIT_COSTS = {};
     }, "\uD83D\uDCC5 ", shp.date))), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
-        gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+        gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))",
         gap: 8,
         textAlign: "center",
         minWidth: 0
@@ -13111,7 +13148,7 @@ var BOX_UNIT_COSTS = {};
       var k=kv[0], v=kv[1], isNeg=kv[2];
       var color = k === "Margin"
         ? (isNeg ? "var(--red)" : margin >= 35 ? "var(--green)" : "var(--amber)")
-        : (k === "Revenue" ? "var(--text)" : "var(--text)");
+        : "var(--text)";
       return /*#__PURE__*/React.createElement("div", {
         key: k,
         style: { minWidth: 0, overflow: "hidden", textAlign: "center" }
@@ -14038,12 +14075,12 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
     supaFetch("/send_log?order=ts.desc&limit=50")
       .then(function(r){ return r.json(); })
       .then(function(data){ if (Array.isArray(data)) setSendLog(data); })
-      .catch(function(){});
+      .catch(function(e){ console.warn("[async op]", e); });
     // Load QB status
     fetch(QB_CONNECT_URL + "?action=status&tenantId=" + tenantId)
       .then(function(r){ return r.json(); })
       .then(function(data){ setQbStatus(data); })
-      .catch(function(){});
+      .catch(function(e){ console.warn("[async op]", e); });
   }, []);
 
   function checkStatus() {
@@ -14392,7 +14429,7 @@ var QuickBooksPage = function QuickBooksPage(props) {
     supaFetch("/qb_sync_log?tenant_id=eq." + encodeURIComponent(tenantId) + "&order=ts.desc&limit=20")
       .then(function(r){ return r.json(); })
       .then(function(data){ if(Array.isArray(data)) setSyncLog(data); })
-      .catch(function(){});
+      .catch(function(e){ console.warn("[async op]", e); });
   }, []);
 
   function handleConnect() {
@@ -14630,11 +14667,11 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
         toValue: "$" + payment.amount.toFixed(2) + " received, $" + Number(payment.commissionDeducted || 0).toFixed(2) + " commission, $" + Number(payment.netCollected || 0).toFixed(2) + " net via " + payment.method,
         paymentRef: saved.id || null,
         notes: payment.notes || ""
-      }).catch(function(){});
+      }).catch(function(e){ console.warn("[audit log]", e); });
       setPayForm({ amount: "", method: "cash_pickup", notes: "", shipmentId: "", orderId: "", orderPlacedAt: "", paidInFullAt: "", commissionDeducted: "", netCollected: "" });
       setShowPayForm(false);
       setSavingPay(false);
-    }).catch(function() { setSavingPay(false); });
+    }).catch(function(e){ console.error("[payment save]", e); setSavingPay(false); });
   };
 
   var boxRows = Object.entries(office.boxBreakdown || {}).filter(function(e){ return e[1].count > 0; });
@@ -15056,7 +15093,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
           fromValue: prevModel.type || "none",
           toValue: newModel.type,
           changedBy: changedBy, changedAt: changedAt
-        }).catch(function(){});
+        }).catch(function(e){ console.warn("[audit log]", e); });
       }
       // Log percentage change
       if (newModel.type === "percentage" && prevModel.percentage !== newModel.percentage) {
@@ -15066,7 +15103,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
           fromValue: Math.round((prevModel.percentage || 0) * 100) + "%",
           toValue: Math.round((newModel.percentage || 0) * 100) + "%",
           changedBy: changedBy, changedAt: changedAt
-        }).catch(function(){});
+        }).catch(function(e){ console.warn("[audit log]", e); });
       }
       // Log per-box rate changes
       if (newModel.type === "per_box") {
@@ -15080,7 +15117,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
               fromValue: prevRates[boxKey] !== undefined ? "$" + prevRates[boxKey] : "none",
               toValue: "$" + newRates[boxKey],
               changedBy: changedBy, changedAt: changedAt
-            }).catch(function(){});
+            }).catch(function(e){ console.warn("[audit log]", e); });
           }
         });
       }
@@ -15092,7 +15129,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
           fromValue: prev.notes || "",
           toValue: newOff.notes || "",
           changedBy: changedBy, changedAt: changedAt
-        }).catch(function(){});
+        }).catch(function(e){ console.warn("[audit log]", e); });
       }
     });
     if (onUpdateTenant) {
@@ -20049,7 +20086,7 @@ var MobileHeader = function MobileHeader(_ref124) {
   }, role !== null && role !== void 0 && (_role$titles = role.titles) !== null && _role$titles !== void 0 && _role$titles[page] ? t(role.titles[page], ES[role.titles[page]] || role.titles[page]) : (tenant === null || tenant === void 0 ? void 0 : tenant.name) || "Casabe Connect"), /*#__PURE__*/React.createElement("span", {
     className: "mob-pill",
     style: {
-      background: "color-mix(in srgb,".concat(roleColors[roleKey] || "var(--amber)", " 15%,transparent)"),
+      background: "color-mix(in srgb,".concat(roleColors[roleKey] || "var(--amber)", " 15%,transparent)").replace ? "color-mix(in srgb,".concat(roleColors[roleKey] || "var(--amber)", " 15%,transparent)") : "rgba(255,159,28,0.15)",
       color: roleColors[roleKey] || "var(--amber)",
       border: "1px solid color-mix(in srgb,".concat(roleColors[roleKey] || "var(--amber)", " 30%,transparent)")
     }
@@ -21269,12 +21306,13 @@ setOrders(function (prev) {
           if (!affectedShipIds.includes(shp.id)) return shp;
           // Use the updated orderIds already computed by the membership block above
           var currentShp = prev.find(function(s) { return s.id === shp.id; }) || shp;
-          var shpOrds = allOrders.filter(function(o) { return currentShp.orderIds.includes(o.id); });
-          var newRev = shpOrds.reduce(function(s,o){return s+((o.payment&&o.payment.amount)||0);},0);
-          var updated = Object.assign({}, currentShp, { revenue: newRev, totalBoxes: shpOrds.length });
+          var shpOrds = getOrdersForShipment(currentShp, allOrders);
+          var newRev = shpOrds.reduce(function(s,o){return s+calculateNetRevenue(o,session&&session.tenant);},0);
+          var newBoxes = shpOrds.reduce(function(s,o){return s+(o.boxes&&o.boxes.length>0?o.boxes.length:Math.max(1,parseInt(o.boxCount)||1));},0);
+          var updated = Object.assign({}, currentShp, { revenue: newRev, totalBoxes: newBoxes });
           if (session && session.tenantId) {
             _db.init(session.tenantId);
-            _db.upsert("shipments", shp.id, updated).catch(function(){});
+            _db.upsert("shipments", shp.id, updated).catch(function(e){ console.error("[shipment save]", e); });
           }
           return updated;
         });
@@ -21308,14 +21346,14 @@ setOrders(function (prev) {
   var doVoidOrder = function doVoidOrder(order) {
     var voided = Object.assign({}, order, { voided: true, status: "cancelled", voidedAt: now() });
     setOrders(function(prev){ return prev.map(function(o){ return o.id === order.id ? voided : o; }); });
-    _db.upsert("orders", order.id, voided).catch(function(){});
+    _db.upsert("orders", order.id, voided).catch(function(e){ console.error("[void order]", e); });
     if (order.shipmentId) {
       setShipments(function(prev) {
         return prev.map(function(shp) {
           if (shp.id !== order.shipmentId) return shp;
           var newIds = (shp.orderIds || []).filter(function(id){ return id !== order.id; });
           var updated = Object.assign({}, shp, { orderIds: newIds, totalBoxes: newIds.length });
-          _db.upsert("shipments", shp.id, updated).catch(function(){});
+          _db.upsert("shipments", shp.id, updated).catch(function(e){ console.error("[shipment save]", e); });
           return updated;
         });
       });
@@ -21543,7 +21581,7 @@ setOrders(function (prev) {
               updated = Object.assign({}, s, {
                 orderIds: remainingIds,
                 totalBoxes: remainingOrders.length,
-                revenue: remainingOrders.reduce(function(sum, o) { return sum + ((o.payment && o.payment.amount) || 0); }, 0)
+                revenue: remainingOrders.reduce(function(sum, o) { return sum + calculateNetRevenue(o, null); }, 0)
               });
             } else if (s.id === toId) {
               // Add moved order IDs to target, de-duplicate, recalc metrics
@@ -21556,7 +21594,7 @@ setOrders(function (prev) {
               updated = Object.assign({}, s, {
                 orderIds: merged,
                 totalBoxes: mergedOrders.length,
-                revenue: mergedOrders.reduce(function(sum, o) { return sum + ((o.payment && o.payment.amount) || 0); }, 0)
+                revenue: mergedOrders.reduce(function(sum, o) { return sum + calculateNetRevenue(o, null); }, 0)
               });
             } else {
               return s;
@@ -22187,7 +22225,7 @@ setOrders(function (prev) {
               if (ord.id !== o.id || !_posUpdated) return ord;
               return _posUpdated;
             }).filter(function(ord) { return shp.orderIds.includes(ord.id); });
-            var newRev = shpOrds.reduce(function(s,ord){return s+((ord.payment&&ord.payment.amount)||0);},0);
+            var newRev = shpOrds.reduce(function(s,ord){return s+calculateNetRevenue(ord,null);},0);
             return Object.assign({}, shp, { revenue: newRev });
           });
         });
