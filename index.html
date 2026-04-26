@@ -203,10 +203,18 @@ var getOfficeById = function getOfficeById(tenant, idOrName) {
 /* ════════════════════════════════════════════
    COMMISSION ENGINE — shared calculator
 ════════════════════════════════════════════ */
+// ── Shared: expand legacy orders into a proper boxes array ─────────────────
+var getCommissionBoxes = function getCommissionBoxes(order) {
+  if (order.boxes && order.boxes.length > 0) return order.boxes;
+  var count = Math.max(1, parseInt(order.boxCount) || 1);
+  var bt = order.boxType || "Small";
+  return Array.from({ length: count }, function() { return { boxType: bt }; });
+};
+
+// ── Commission engine (unchanged core, uses expanded boxes) ─────────────────
 var calculateOfficeCommission = function calculateOfficeCommission(officeConfig, grossAmount, boxes) {
   if (!officeConfig) return 0;
   var model = officeConfig.commissionModel || officeConfig;
-  // Legacy fallback: plain rate number
   if (typeof model === "number") return Math.round(grossAmount * model * 100) / 100;
   if (!model || !model.type) return 0;
   if (model.type === "percentage") {
@@ -223,15 +231,32 @@ var calculateOfficeCommission = function calculateOfficeCommission(officeConfig,
   }
   return 0;
 };
+
+// ── Shared: single source for per-order commission amount ───────────────────
+var getOrderCommission = function getOrderCommission(order, tenant, officeNameOverride) {
+  // 1. Prefer immutable snapshot
+  if (order.commissionSnapshot && typeof order.commissionSnapshot.commissionAmount === "number") {
+    return order.commissionSnapshot.commissionAmount;
+  }
+  // 2. Stored payment.commission field
+  if (order.payment && typeof order.payment.commission === "number" && order.payment.commission > 0) {
+    return order.payment.commission;
+  }
+  // 3. Live calculation — use expanded boxes so multi-box legacy orders count correctly
+  var officeName = officeNameOverride || order.officeNameSnapshot || order.officeId || order.office;
+  var offCfg = getOfficeById(tenant, officeName);
+  if (!offCfg) return 0;
+  var gross = parseFloat(order.payment && order.payment.amount) || 0;
+  var boxes = getCommissionBoxes(order);
+  return Math.round(calculateOfficeCommission(offCfg, gross, boxes) * 100) / 100;
+};
+
+// ── Net revenue — uses getOrderCommission so legacy multi-box is correct ────
 var calculateNetRevenue = function calculateNetRevenue(order, tenant) {
-  var gross = order.commissionSnapshot ? order.commissionSnapshot.grossRevenue : (parseFloat(order.payment && order.payment.amount) || 0);
-  var comm = order.commissionSnapshot ? order.commissionSnapshot.commissionAmount : (parseFloat(order.payment && order.payment.commission) || 0);
   if (order.commissionSnapshot) return order.commissionSnapshot.netRevenue;
-  if (!tenant) return gross - comm;
-  var offCfg = getOfficeById(tenant, order.officeId || order.office);
-  var boxes = order.boxes || [];
-  var commCalc = calculateOfficeCommission(offCfg, gross, boxes);
-  return gross - commCalc;
+  var gross = parseFloat(order.payment && order.payment.amount) || 0;
+  var comm = getOrderCommission(order, tenant);
+  return gross - comm;
 };
 var DRIVERS_LIST = DEFAULT_DRIVERS;
 var ITEM_TYPES = {
@@ -6733,21 +6758,7 @@ var HQAnalytics = function HQAnalytics(_ref52) {
   // ── Commission: use shared engine with tenant office config ──────────────
   function officeCommission(ordersArr, officeName, tenantRef) {
     return ordersArr.reduce(function(sum, o) {
-      if (o.commissionSnapshot && typeof o.commissionSnapshot.commissionAmount === "number") {
-        return sum + o.commissionSnapshot.commissionAmount;
-      }
-      if (o.payment && typeof o.payment.commission === "number") {
-        return sum + o.payment.commission;
-      }
-      var offCfg = getOfficeById(tenantRef, officeName);
-      if (!offCfg) return sum;
-      var gross = parseFloat(o.payment && o.payment.amount) || 0;
-      var boxes = o.boxes && o.boxes.length
-        ? o.boxes
-        : Array.from({ length: Math.max(1, parseInt(o.boxCount) || 1) }, function() {
-            return { boxType: o.boxType || "Small" };
-          });
-      return sum + calculateOfficeCommission(offCfg, gross, boxes);
+      return sum + getOrderCommission(o, tenantRef, officeName);
     }, 0);
   }
 
@@ -6782,10 +6793,10 @@ var HQAnalytics = function HQAnalytics(_ref52) {
     var growth = selOrds.length === 0 && prevCount === 0 ? null
                : prevCount === 0 ? "New"
                : Math.round((selOrds.length - prevCount) / prevCount * 100);
-    // Per-box breakdown for detail view
+    // Per-box breakdown for detail view — use getCommissionBoxes so legacy multi-box orders count correctly
     var boxBreakdown = {};
     selOrds.forEach(function(o) {
-      var bxArr = o.boxes && o.boxes.length ? o.boxes : [{ boxType: o.boxType || "Small" }];
+      var bxArr = getCommissionBoxes(o);
       bxArr.forEach(function(box) {
         var bt = box.boxType || "Small";
         if (!boxBreakdown[bt]) boxBreakdown[bt] = { count: 0, commissionPerBox: 0, totalCommission: 0 };
@@ -13086,7 +13097,7 @@ var BOX_UNIT_COSTS = {};
     }, "\uD83D\uDCC5 ", shp.date))), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit,minmax(120px,1fr))",
+        gridTemplateColumns: "repeat(4,minmax(0,1fr))",
         gap: 8,
         textAlign: "center",
         minWidth: 0
@@ -14588,8 +14599,8 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
     var amt = parseFloat(payForm.amount);
     if (!amt || amt <= 0) { alert("Enter a valid amount."); return; }
     setSavingPay(true);
-    var _commDed = parseFloat(payForm.commissionDeducted) || amt;
-    var _netColl = parseFloat(payForm.netCollected) || (amt - _commDed);
+    var _commDed = payForm.commissionDeducted !== "" ? (parseFloat(payForm.commissionDeducted) || 0) : 0;
+    var _netColl = payForm.netCollected !== "" ? (parseFloat(payForm.netCollected) || 0) : (amt - _commDed);
     var payment = {
       officeId: offCfg ? offCfg.id : office.name,
       officeName: office.name,
@@ -14720,12 +14731,11 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
               ),
               /*#__PURE__*/React.createElement("tbody", null,
                 (office.orders || []).map(function(o) {
-                  var snap = o.commissionSnapshot || {};
-                  var comm = snap.commissionAmount || (o.payment && o.payment.commission) || 0;
+                  var comm = getOrderCommission(o, tenant, office.name);
                   return /*#__PURE__*/React.createElement("tr", { key: o.id },
                     /*#__PURE__*/React.createElement("td", { className: "tamb" }, o.id),
                     /*#__PURE__*/React.createElement("td", { className: "tb" }, o.name),
-                    /*#__PURE__*/React.createElement("td", null, (o.boxes && o.boxes.length > 0 ? o.boxes.map(function(b){ return b.boxType||"Small"; }).join(", ") : (o.boxType || "Small"))),
+                    /*#__PURE__*/React.createElement("td", null, getCommissionBoxes(o).map(function(b){ return b.boxType||"Small"; }).join(", ")),
                     /*#__PURE__*/React.createElement("td", { className: "mono" }, "$", (o.payment && o.payment.amount || 0).toFixed(2)),
                     /*#__PURE__*/React.createElement("td", { className: "mono" }, "$", (o.payment && o.payment.paid || 0).toFixed(2)),
                     /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--amber)" } }, comm > 0 ? "$" + comm.toFixed(2) : "\u2014"),
