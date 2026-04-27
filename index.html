@@ -11123,6 +11123,10 @@ var ManifestModal = function ManifestModal(_ref89) {
     var z=r.zone||"unknown", d=r.dept||r.destination||"Unknown";
     if(!grouped[z])grouped[z]={}; if(!grouped[z][d])grouped[z][d]=[]; grouped[z][d].push(r);
   });
+  var _useState_mlayout = useState(shipment.defaultManifestLayout || "compact"),
+    _useState_mlayout2 = _slicedToArray(_useState_mlayout, 2),
+    manifestLayout = _useState_mlayout2[0],
+    setManifestLayout = _useState_mlayout2[1];
   var printManifest = function() {
     if (warnings.length > 0) {
       var ok = window.confirm("\u26A0 " + warnings.length + " box(es) missing receiver info. Print anyway?");
@@ -11134,14 +11138,14 @@ var ManifestModal = function ManifestModal(_ref89) {
     var logoHtml = logoSrc
       ? '<img src="' + logoSrc + '" style="height:.45in;max-width:2in;object-fit:contain;display:block;margin-bottom:4pt">'
       : '<div style="font-family:Syne,Arial,sans-serif;font-size:18pt;font-weight:900;letter-spacing:.04em;color:#000">' + coName + '</div>';
-    var zonesHtml = (["yellow","green","blue","orange","red","unknown"]).filter(function(z){return grouped[z];}).map(function(zKey){
+    var zonesHtml = (["yellow","green","blue","orange","red","unknown"]).filter(function(z){return grouped[z];}).map(function(zKey, zIdx){
       var zCfg = (typeof ZONE_CONFIG !== "undefined" && ZONE_CONFIG[zKey]) || {label:"Unknown",color:"#888",bg:"#f0f0f0",emoji:"\u2B1C",days:""};
       var zTotal = Object.values(grouped[zKey]).reduce(function(s,a){return s+a.length;},0);
-      var deptsHtml = Object.entries(grouped[zKey]).map(function(ent){
+      var deptsHtml = Object.entries(grouped[zKey]).map(function(ent, deptIdx){
         var dept=ent[0], deptRows=ent[1];
         var rowsHtml = deptRows.map(function(r){
           return '<tr style="background:#fff">'
-            +'<td style="font-family:monospace;font-weight:700">'+r.trackingId+'</td>'
+            +'<td class="tracking-cell" style="font-family:monospace;font-weight:700">'+r.trackingId+'</td>'
             +'<td>'+(r.receiverName||'<span style="color:#cc0000">&#9888; missing</span>')+'</td>'
             +'<td>'+(r.receiverAddress||'\u2014')+'</td>'
             +'<td>'+(r.receiverPhone||'<span style="color:#cc0000">&#9888; missing</span>')+'</td>'
@@ -11150,20 +11154,21 @@ var ManifestModal = function ManifestModal(_ref89) {
             +'<td>'+r.senderPhone+'</td>'
             +'</tr>';
         }).join('');
-        return '<div style="border-left:3pt solid '+zCfg.color+';background:'+zCfg.bg+';color:'+zCfg.color+';padding:4px 12px;font-weight:700;font-size:9.5pt;display:flex;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact">'
+        return '<div class="manifest-city '+(zIdx===0 && deptIdx===0 ? 'manifest-city-first' : '')+'">'
+          +'<div style="border-left:3pt solid '+zCfg.color+';background:'+zCfg.bg+';color:'+zCfg.color+';padding:4px 12px;font-weight:700;font-size:9.5pt;display:flex;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact">'
           +'<span>\uD83D\uDCCD '+dept+'</span><span>'+deptRows.length+' box'+(deptRows.length!==1?'es':'')+'</span></div>'
-          +'<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:4px">'
+          +'<table class="manifest-table" style="width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:4px">'
           +'<thead><tr style="background:'+zCfg.color+';color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact">'
-          +'<th style="padding:4px 6px;text-align:left">Tracking Number</th>'
+          +'<th class="tracking-col" style="padding:4px 6px;text-align:left">Tracking Number</th>'
           +'<th style="padding:4px 6px;text-align:left">Receiver Name</th>'
           +'<th style="padding:4px 6px;text-align:left">Receiver Address</th>'
           +'<th style="padding:4px 6px;text-align:left">Receiver Phone Number</th>'
           +'<th style="padding:4px 6px;text-align:left">Box Type</th>'
           +'<th style="padding:4px 6px;text-align:left">Sender Name</th>'
           +'<th style="padding:4px 6px;text-align:left">Sender Phone Number</th>'
-          +'</tr></thead><tbody>'+rowsHtml+'</tbody></table>';
+          +'</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>';
       }).join('');
-      return '<div style="margin-bottom:.15in;page-break-inside:avoid">'
+      return '<div class="manifest-zone '+(zIdx===0 ? 'manifest-zone-first' : '')+'" style="margin-bottom:.15in">'
         +'<div style="background:'+zCfg.color+';color:#fff;padding:7px 14px;font-family:Syne,Arial,sans-serif;font-weight:700;font-size:11pt;display:flex;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact">'
         +'<span>'+zCfg.emoji+' '+zCfg.label+' Zone \u2014 '+zCfg.days+'</span>'
         +'<span style="font-weight:400;font-size:9pt">'+zTotal+' box'+(zTotal!==1?'es':'')+' total</span>'
@@ -11178,8 +11183,16 @@ var ManifestModal = function ManifestModal(_ref89) {
       +'.hdr-right{text-align:right;font-size:9pt;color:#333;line-height:1.6}'
       +'.meta{font-size:9pt;color:#555;margin-bottom:.15in}'
       +'table td{border:1px solid #ddd;padding:4px 6px;vertical-align:top}'
+      +'.manifest-table td.tracking-cell,.manifest-table th.tracking-col{white-space:nowrap;word-break:keep-all;overflow-wrap:normal;font-variant-numeric:tabular-nums;min-width:11ch}'
+      +'.manifest-zone,.manifest-city{break-inside:auto;page-break-inside:auto}'
+      +'.manifest-zone>*:first-child,.manifest-city>*:first-child{break-after:avoid;page-break-after:avoid}'
+      +'.manifest-layout-zone .manifest-zone{break-before:page;page-break-before:always}'
+      +'.manifest-layout-zone .manifest-zone.manifest-zone-first{break-before:auto;page-break-before:auto}'
+      +'.manifest-layout-city .manifest-city{break-before:page;page-break-before:always}'
+      +'.manifest-layout-city .manifest-city.manifest-city-first{break-before:auto;page-break-before:auto}'
       +'@page{margin:.4in}'
       +'</style></head><body>'
+      +'<div class="manifest-root manifest-layout-'+manifestLayout+'">'
       +'<div class="hdr">'
       +'<div>'+logoHtml+'<div style="font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;margin-top:3pt">Shipment Manifest</div></div>'
       +'<div class="hdr-right"><strong>'+( shipment.name||shipment.id)+'</strong>'
@@ -11188,6 +11201,7 @@ var ManifestModal = function ManifestModal(_ref89) {
       +'</div></div>'
       +'<div class="meta">'+rows.length+' boxes \u00B7 '+shpOrders.length+' orders \u00B7 '+Object.keys(grouped).length+' zone(s) \u00A0|\u00A0 Generated '+new Date().toLocaleDateString()+'</div>'
       +zonesHtml
+      +'</div>'
       +'</body></html>';
     var iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:none;z-index:99998;background:#fff;';
@@ -11227,7 +11241,7 @@ var ManifestModal = function ManifestModal(_ref89) {
       ),
       ZONE_ORDER.filter(function(z){return grouped[z];}).map(function(zKey){
         var zCfg=ZONE_CONFIG[zKey]||{label:"Unknown",color:"#888",bg:"#f5f5f5",emoji:"\u2B1C",days:""};
-        return /*#__PURE__*/React.createElement("div",{key:zKey,style:{marginBottom:"0.2in",pageBreakInside:"avoid"}},
+        return /*#__PURE__*/React.createElement("div",{key:zKey,className:"manifest-zone",style:{marginBottom:"0.2in"}},
           /*#__PURE__*/React.createElement("div",{style:{background:zCfg.color,color:"#fff",padding:"6px 12px",fontFamily:"'Syne',Arial,sans-serif",fontWeight:700,fontSize:"11pt",display:"flex",justifyContent:"space-between",WebkitPrintColorAdjust:"exact",printColorAdjust:"exact"}},
             /*#__PURE__*/React.createElement("span",null,zCfg.emoji," ",zCfg.label," Zone \u2014 ",zCfg.days),
             /*#__PURE__*/React.createElement("span",{style:{fontWeight:400,fontSize:"9pt"}},
@@ -11235,23 +11249,23 @@ var ManifestModal = function ManifestModal(_ref89) {
           ),
           Object.entries(grouped[zKey]).map(function(ent){
             var dept=ent[0],deptRows=ent[1];
-            return /*#__PURE__*/React.createElement("div",{key:dept},
+            return /*#__PURE__*/React.createElement("div",{key:dept,className:"manifest-city"},
               /*#__PURE__*/React.createElement("div",{style:{background:zCfg.bg,color:zCfg.color,padding:"4px 12px",fontSize:"9.5pt",fontWeight:700,borderLeft:"3pt solid "+zCfg.color,display:"flex",justifyContent:"space-between",WebkitPrintColorAdjust:"exact",printColorAdjust:"exact"}},
                 /*#__PURE__*/React.createElement("span",null,"\uD83D\uDCCD ",dept),
                 /*#__PURE__*/React.createElement("span",null,deptRows.length," box",deptRows.length!==1?"es":"")
               ),
-              /*#__PURE__*/React.createElement("table",{className:"exp-print-tbl"},
+              /*#__PURE__*/React.createElement("table",{className:"exp-print-tbl manifest-table"},
                 /*#__PURE__*/React.createElement("thead",null,
                   /*#__PURE__*/React.createElement("tr",null,
-                    ["Tracking Number","Receiver Name","Receiver Address","Receiver Phone Number","Box Type","Sender Name","Sender Phone Number"].map(function(h){
-                      return /*#__PURE__*/React.createElement("th",{key:h},h);
+                    ["Tracking Number","Receiver Name","Receiver Address","Receiver Phone Number","Box Type","Sender Name","Sender Phone Number"].map(function(h,hi){
+                      return /*#__PURE__*/React.createElement("th",{key:h,className:hi===0?"tracking-col":undefined},h);
                     })
                   )
                 ),
                 /*#__PURE__*/React.createElement("tbody",null,
                   deptRows.map(function(r,ri){
                     return /*#__PURE__*/React.createElement("tr",{key:r.trackingId+ri},
-                      /*#__PURE__*/React.createElement("td",{style:{fontFamily:"monospace",fontWeight:700}},r.trackingId),
+                      /*#__PURE__*/React.createElement("td",{className:"tracking-cell",style:{fontFamily:"monospace",fontWeight:700}},r.trackingId),
                       /*#__PURE__*/React.createElement("td",null,r.receiverName||/*#__PURE__*/React.createElement("span",{style:{color:"#cc0000"}},"\u26A0 missing")),
                       /*#__PURE__*/React.createElement("td",null,r.receiverAddress||"\u2014"),
                       /*#__PURE__*/React.createElement("td",null,r.receiverPhone||/*#__PURE__*/React.createElement("span",{style:{color:"#cc0000"}},"\u26A0 missing")),
@@ -11278,6 +11292,25 @@ var ManifestModal = function ManifestModal(_ref89) {
           /*#__PURE__*/React.createElement("button",{className:"btn btn-primary btn-sm",onClick:printManifest},"\uD83D\uDDA8 Print Manifest"),
           /*#__PURE__*/React.createElement("button",{className:"btn btn-ghost btn-sm",onClick:onClose},"\u2715 Close")
         )
+      ),
+      /*#__PURE__*/React.createElement("div",{className:"row g14 mb12",style:{flexWrap:"wrap",alignItems:"center",fontSize:11.5,color:"var(--text2)"}},
+        /*#__PURE__*/React.createElement("span",{style:{fontSize:10.5,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".06em"}},"Print layout"),
+        [
+          {key:"compact",label:"Compact"},
+          {key:"zone",label:"Page per zone"},
+          {key:"city",label:"Page per city"}
+        ].map(function(opt){
+          return /*#__PURE__*/React.createElement("label",{key:opt.key,style:{display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer"}},
+            /*#__PURE__*/React.createElement("input",{
+              type:"radio",
+              name:"manifestLayout",
+              value:opt.key,
+              checked:manifestLayout===opt.key,
+              onChange:function(){ setManifestLayout(opt.key); }
+            }),
+            opt.label
+          );
+        })
       ),
       warnings.length>0&&/*#__PURE__*/React.createElement("div",{className:"alert alert-a mb12",style:{fontSize:12}},
         "\u26A0 ",/*#__PURE__*/React.createElement("strong",null,"Missing receiver info: "),warnings.map(function(w){return w.trackingId;}).join(", ")
@@ -11547,7 +11580,8 @@ var NewShipmentModal = function NewShipmentModal(_ref93ns) {
       revenue: 0,
       cost: 0,
       expenseForms: [],
-      notes: ""
+      notes: "",
+      defaultManifestLayout: "compact"
     });
   };
   return /*#__PURE__*/React.createElement("div", {
@@ -11650,6 +11684,9 @@ var EditShipmentModal = function EditShipmentModal(_ref_esm) {
   var _useState_esm11 = useState(shipment.notes || ""),
     _useState_esm12 = _slicedToArray(_useState_esm11, 2),
     notes = _useState_esm12[0], setNotes = _useState_esm12[1];
+  var _useState_esm13 = useState(shipment.defaultManifestLayout || "compact"),
+    _useState_esm14 = _slicedToArray(_useState_esm13, 2),
+    defaultManifestLayout = _useState_esm14[0], setDefaultManifestLayout = _useState_esm14[1];
   return /*#__PURE__*/React.createElement("div", {
     className: "overlay",
     onClick: function onClick(e) { return e.target === e.currentTarget && onClose(); }
@@ -11706,6 +11743,17 @@ var EditShipmentModal = function EditShipmentModal(_ref_esm) {
         placeholder: "Optional notes..."
       })
     ),
+    /*#__PURE__*/React.createElement("div", { className: "fg" },
+      /*#__PURE__*/React.createElement("label", { className: "fl" }, "Default Manifest Layout"),
+      /*#__PURE__*/React.createElement("select", {
+        className: "fi", value: defaultManifestLayout,
+        onChange: function onChange(e) { return setDefaultManifestLayout(e.target.value); }
+      },
+        /*#__PURE__*/React.createElement("option", { value: "compact" }, "Compact (all zones flow together)"),
+        /*#__PURE__*/React.createElement("option", { value: "zone" }, "Page per zone"),
+        /*#__PURE__*/React.createElement("option", { value: "city" }, "Page per city")
+      )
+    ),
     /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 18 } },
       /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost", onClick: onClose }, "Cancel"),
       /*#__PURE__*/React.createElement("button", {
@@ -11715,7 +11763,8 @@ var EditShipmentModal = function EditShipmentModal(_ref_esm) {
           onSave(Object.assign({}, shipment, {
             name: name.trim(), date: date,
             destination: destination, eta: eta,
-            status: status, notes: notes
+            status: status, notes: notes,
+            defaultManifestLayout: defaultManifestLayout
           }));
           onClose();
         }
