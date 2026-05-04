@@ -305,6 +305,57 @@ var calculateOfficeCommission = function calculateOfficeCommission(officeConfig,
 };
 
 // ── Invoice box rows helper — produces per-box blocks ────────────────────────
+// ── Company name helper ──────────────────────────────────────────────────────
+var getCompanyName = function getCompanyName(tenant) {
+  return (tenant && tenant.name) || "Casabe Connect";
+};
+
+// ── Message template system ──────────────────────────────────────────────────
+var DEFAULT_MESSAGE_TEMPLATES = {
+  order_placed:      { en: "Hi [Name]! Your order [ID] is confirmed. Track: [TrackURL] — [Company]", es: "¡Hola [Name]! Tu orden [ID] está confirmada. Rastrea: [TrackURL] — [Company]" },
+  need_box:          { en: "Hi [Name]! We'll drop off your empty box within 2 business days. — [Company]", es: "¡Hola [Name]! Tu caja vacía llegará en 2 días. — [Company]" },
+  box_dropped_off:   { en: "Hi [Name]! Your box [ID] was delivered. Fill it up and call us when ready for pickup! — [Company]", es: "¡Hola [Name]! Tu caja [ID] fue entregada. ¡Llama cuando esté lista! — [Company]" },
+  ready_pickup:      { en: "Hi [Name]! Your box [ID] pickup is scheduled. Your driver will call before arriving. — [Company]", es: "¡Hola [Name]! La recogida de tu caja [ID] está programada. — [Company]" },
+  in_warehouse:      { en: "Hi [Name]! Your box [ID] is safely in our warehouse and will be shipped soon. — [Company]", es: "¡Hola [Name]! Tu caja [ID] está en nuestro almacén y será enviada pronto. — [Company]" },
+  loaded_container:  { en: "Hi [Name]! Your box [ID] is loaded in the container. Shipment is underway. Track: [TrackURL] — [Company]", es: "¡Hola [Name]! Tu caja [ID] está en el contenedor. Track: [TrackURL] — [Company]" },
+  en_route:          { en: "Hi [Name]! Your box [ID] is heading to [Destination]! We'll update you when it clears customs. — [Company]", es: "¡Hola [Name]! Tu caja [ID] va rumbo a [Destination]. — [Company]" },
+  in_customs:        { en: "Hi [Name]! Your box [ID] is clearing customs in [Destination]. Est. 2-5 business days. — [Company]", es: "¡Hola [Name]! Tu caja [ID] está en aduana en [Destination]. — [Company]" },
+  customs_released:  { en: "Hi [Name]! Great news — your box [ID] cleared customs! Moving to local delivery now. — [Company]", es: "¡Hola [Name]! Tu caja [ID] pasó aduana. ¡Ya viene! — [Company]" },
+  sorting:           { en: "Hi [Name]! Your box [ID] is being sorted for local delivery. Almost there! — [Company]", es: "¡Hola [Name]! Tu caja [ID] está siendo clasificada para entrega. ¡Ya casi! — [Company]" },
+  out_for_delivery:  { en: "Hi [Name]! 🚛 Your box [ID] is out for delivery! Expect it within 48 hours. — [Company]", es: "¡Hola [Name]! 🚛 Tu caja [ID] está en camino. Espérala en 48 horas. — [Company]" },
+  delivered:         { en: "Hi [Name]! ✅ Your box [ID] has been delivered! Thank you for shipping with us. — [Company]", es: "¡Hola [Name]! ✅ ¡Tu caja [ID] fue entregada! Gracias por confiar en nosotros. — [Company]" }
+};
+
+var renderMessageTemplate = function renderMessageTemplate(status, tenant, order, box) {
+  var templates = (tenant && tenant.messageTemplates) || DEFAULT_MESSAGE_TEMPLATES;
+  var tpl = templates[status] || DEFAULT_MESSAGE_TEMPLATES[status];
+  if (!tpl) return "";
+  var lang = (order && order.language) || (tenant && tenant.defaultLanguage) || "en";
+  var tmpl = (lang === "es" && tpl.es) ? tpl.es : tpl.en;
+  if (!tmpl) return "";
+  var coName = getCompanyName(tenant);
+  var trackBase = (tenant && tenant.trackingUrl) || "https://casabe-connect.netlify.app";
+  var trackId = (box && box.subId) || (order && order.id) || "";
+  var trackURL = trackBase + "?number=" + encodeURIComponent(trackId);
+  var firstName = ((order && order.name) || "").split(" ")[0] || "";
+  var dest = (box && box.destinationCountry) || (order && order.destination) || "";
+  return tmpl
+    .replace(/\[Name\]/g, firstName)
+    .replace(/\[ID\]/g, trackId)
+    .replace(/\[TrackURL\]/g, trackURL)
+    .replace(/\[Company\]/g, coName)
+    .replace(/\[Destination\]/g, dest);
+};
+
+// ── Sender-only notification target helper ────────────────────────────────────
+var getSenderNotificationTarget = function getSenderNotificationTarget(order, box) {
+  return {
+    targetRole: "sender",
+    name: (box && box.senderName) || (order && order.name) || "",
+    phone: (box && box.senderPhone) || (order && order.whatsapp) || (order && order.phone) || ""
+  };
+};
+
 var getInvoiceBoxRows = function getInvoiceBoxRows(order, tenant) {
   var boxes = order.boxes && order.boxes.length ? order.boxes : [{
     subId: order.id,
@@ -2103,10 +2154,11 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
   var _stRes = useState(null), _stRes2 = _slicedToArray(_stRes,2),
       sendResult = _stRes2[0], setSendResult = _stRes2[1];
 
-  var phone  = order.consigneePhone || order.phone || "";
+  var _senderTarget = getSenderNotificationTarget(order, null);
+  var phone  = _senderTarget.phone;
   var phoneOk = phone.trim().length >= 7;
-  var toName = order.consigneeName || order.name || "";
-  var coName = (tenant && tenant.name) || "Casabe Xpress";
+  var toName = _senderTarget.name || order.name || "";
+  var coName = getCompanyName(tenant);
 
   // Rendered message preview
   var msgPreview = "Hi " + toName + ", your " + coName + " invoice for order " + order.id + " is confirmed paid.\n\n"
@@ -2198,6 +2250,7 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
         tenantId:    (tenant && tenant.id) || "casabe-xpress",
         channels:    channels,
         phone:       phone.trim(),
+        targetRole:  "sender",
         invoiceHtml: buildInvoiceHtml(),
         messageBody: msgPreview,
         source: "paid_modal",
@@ -2240,7 +2293,7 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
         className: "alert alert-a mb12", style: { fontSize: 12.5 }
       },
         "\u26A0\uFE0F ", /*#__PURE__*/React.createElement("strong", null, "No phone number on this order."),
-        " Cannot send without a customer phone. Cancel, update the order, then mark as Paid."
+        " Sender phone is required before sending WhatsApp invoice. Cancel, update the order with a sender phone, then mark as Paid."
       ),
 
       // ── Invoice preview ──────────────────────────────────────────────
@@ -2692,6 +2745,17 @@ var OrderForm = function OrderForm(_ref4) {
       }),
       "Send customer box status updates by WhatsApp/SMS",
       /*#__PURE__*/React.createElement("span", { className: "mut", style: { fontSize: 10 } }, "(only when box status changes)")
+    )
+  ),
+  f.notifyOnStatusChange && /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginTop: 4 } },
+    /*#__PURE__*/React.createElement("label", { className: "fl" }, "Customer Language / Idioma"),
+    /*#__PURE__*/React.createElement("select", {
+      className: "fi", style: { maxWidth: 200 },
+      value: f.language || "en",
+      onChange: function(e) { set("language", e.target.value); }
+    },
+      /*#__PURE__*/React.createElement("option", { value: "en" }, "English"),
+      /*#__PURE__*/React.createElement("option", { value: "es" }, "Español")
     )
   ),
   /*#__PURE__*/React.createElement("div", {
@@ -4238,14 +4302,14 @@ var OrderDetail = function OrderDetail(_ref22) {
     className: "btn btn-green btn-sm",
     onClick: function onClick() {
       var ph = (order.whatsapp || order.phone || "").replace(/\D/g, "");
-      var msg = "Hi " + (order.name || "").split(" ")[0] + "! Your shipment " + order.id + " is on its way to " + order.destination + ". Questions? Reply here. — Casabe Xpress";
+      var _coName2 = (typeof tenant !== "undefined" && tenant && tenant.name) || "Casabe Connect"; var msg = "Hi " + (order.name || "").split(" ")[0] + "! Your shipment " + order.id + " is on its way to " + order.destination + ". Questions? Reply here. \u2014 " + _coName2;
       window.open("https://wa.me/" + ph + "?text=" + encodeURIComponent(msg), "_blank");
     }
   }, "💬 WhatsApp"), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost btn-sm",
     onClick: function onClick() {
       var ph = (order.whatsapp || order.phone || "").replace(/[^0-9+]/g, "");
-      var msg = "Hi " + (order.name || "").split(" ")[0] + "! Your shipment " + order.id + " update from Casabe Xpress. Questions? Call or text us back.";
+      var _coName3 = (typeof tenant !== "undefined" && tenant && tenant.name) || "Casabe Connect"; var msg = "Hi " + (order.name || "").split(" ")[0] + "! Your shipment " + order.id + " update from " + _coName3 + ". Questions? Call or text us back.";
       window.open("sms:" + ph + "?body=" + encodeURIComponent(msg));
     }
   }, "📱 SMS"), isHQ && onVoid && /*#__PURE__*/React.createElement("button", {
@@ -4975,22 +5039,30 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
     showRecon = _React$useState12[0],
     setShowRecon = _React$useState12[1];
 
-  // Sort stops by zip proximity (consistent with v6 optimization)
-  var allStops = [].concat(_toConsumableArray(myPickups), _toConsumableArray(myDropoffs));
-  var optimized = React.useMemo(function () {
-    return allStops.length <= 1 ? allStops : _toConsumableArray(allStops).sort(function (a, b) {
-      return (a.zip || "").localeCompare(b.zip || "");
+  // ── Auto-group duplicate-address stops ─────────────────────────────────
+  var groupedStops = React.useMemo(function() {
+    var allOrders = [].concat(_toConsumableArray(myPickups), _toConsumableArray(myDropoffs));
+    return groupStops(allOrders, null).slice().sort(function(a,b) {
+      if (a.type !== b.type) return a.type === "pickup" ? -1 : 1;
+      return (a.zip||"").localeCompare(b.zip||"");
     });
   }, [myPickups.length, myDropoffs.length]);
+  // Legacy flat order list for stat cards / ETA tracking
+  var allStops = React.useMemo(function() {
+    return groupedStops.reduce(function(acc,g){ return acc.concat(g.orders); }, []);
+  }, [groupedStops]);
+  var optimized = groupedStops;
 
-  // Full route URL for Google Maps
+  // Google Maps — one waypoint per grouped stop (not per order)
   var googleRouteUrl = React.useMemo(function () {
-    if (!optimized.length) return null;
-    var stops = optimized.map(function (o) {
-      return encodeURIComponent("".concat(o.address, ", ").concat(o.city, " ").concat(o.state));
+    if (!groupedStops.length) return null;
+    var waypts = groupedStops.map(function(g) {
+      return encodeURIComponent((g.address + ", " + g.city + " " + g.state).trim());
     });
-    return stops.length === 1 ? "https://www.google.com/maps/dir/?api=1&origin=current+location&destination=".concat(stops[0], "&travelmode=driving") : "https://www.google.com/maps/dir/?api=1&origin=current+location&destination=".concat(stops[stops.length - 1], "&waypoints=").concat(stops.slice(0, -1).join("|"), "&travelmode=driving");
-  }, [optimized]);
+    return waypts.length === 1
+      ? "https://www.google.com/maps/dir/?api=1&origin=current+location&destination=" + waypts[0] + "&travelmode=driving"
+      : "https://www.google.com/maps/dir/?api=1&origin=current+location&destination=" + waypts[waypts.length-1] + "&waypoints=" + waypts.slice(0,-1).join("|") + "&travelmode=driving";
+  }, [groupedStops]);
 
   // ── GPS TRACKING ──────────────────────────────────────
   var startGps = function startGps() {
@@ -5374,7 +5446,7 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
       fontWeight: 700,
       fontSize: 13
     }
-  }, "Route Optimized \u2014 ", optimized.length, " stops"), /*#__PURE__*/React.createElement("div", {
+  }, "Route Optimized \u2014 ", groupedStops.length, " stop", groupedStops.length !== 1 ? "s" : "", groupedStops.some(function(g){return g.merged;}) && /*#__PURE__*/React.createElement("span", { className: "badge bg", style: { marginLeft: 6, fontSize: 10 } }, groupedStops.filter(function(g){return g.merged;}).reduce(function(s,g){return s+g.orders.length-1;},0) + " merged")), /*#__PURE__*/React.createElement("div", {
     style: {
       fontSize: 11,
       color: "var(--text3)",
@@ -5398,199 +5470,104 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
     onClick: function onClick() {
       return setShowQR(true);
     }
-  }, "\uD83D\uDCF7 Scan")), myPickups.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Syne',sans-serif",
-      fontWeight: 700,
-      fontSize: 13,
-      marginBottom: 10
-    }
-  }, "\uD83D\uDE9A My Pickups Today"), myPickups.map(function (o, idx) {
-    var eta = etas[o.id];
-    var borderColor = (eta === null || eta === void 0 ? void 0 : eta.status) === "late" ? "var(--red)" : (eta === null || eta === void 0 ? void 0 : eta.status) === "tight" ? "var(--amber)" : "transparent";
+  }, "\uD83D\uDCF7 Scan")), groupedStops.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null,
+  groupedStops.map(function(grp, idx) {
+    var isPickup  = grp.type === "pickup";
+    var repOrder  = grp.orders[0];
+    var allEtas   = grp.orders.map(function(o){ return etas[o.id]; }).filter(Boolean);
+    var worstEta  = allEtas.find(function(e){ return e.status === "late"; }) || allEtas.find(function(e){ return e.status === "tight"; });
+    var borderColor = worstEta && worstEta.status === "late" ? "var(--red)" : worstEta && worstEta.status === "tight" ? "var(--amber)" : "transparent";
+    var totalCollect = grp.orders.reduce(function(s,o){ return s + (o.payment.status !== "paid" ? (o.payment.amount - (o.payment.paid||0)) : 0); }, 0);
+    var allPaid = grp.orders.every(function(o){ return o.payment.status === "paid"; });
     return /*#__PURE__*/React.createElement("div", {
-      key: o.id,
-      className: "route-card pickup",
-      style: {
-        border: "2px solid ".concat(borderColor),
-        transition: "border-color .4s"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "row g10"
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: 26,
-        height: 26,
-        borderRadius: "50%",
-        background: "var(--amber)",
-        color: "white",
-        fontSize: 12,
-        fontWeight: 800,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0
-      }
-    }, idx + 1), /*#__PURE__*/React.createElement("div", {
-      style: {
-        flex: 1
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontWeight: 700,
-        color: "var(--text)",
-        fontSize: 13.5
-      }
-    }, o.name), /*#__PURE__*/React.createElement("div", {
-      className: "mut xs"
-    }, o.address, ", ", o.city, " ", o.state, " ", o.zip), /*#__PURE__*/React.createElement("div", {
-      className: "mut xs",
-      style: {
-        marginTop: 2
-      }
-    }, "\uD83D\uDCDE ", o.phone, " ", o.pickupWindow && "· ⏰ " + o.pickupWindow), o.notes && /*#__PURE__*/React.createElement("div", {
-      className: "mut xs",
-      style: {
-        marginTop: 4,
-        color: "var(--amber)"
-      }
-    }, "\uD83D\uDCDD ", o.notes), o.consigneeDangerZone && /*#__PURE__*/React.createElement("div", {
-      style: {
-        marginTop: 5,
-        background: "rgba(239,68,68,.15)",
-        border: "1px solid var(--red)",
-        borderRadius: 6,
-        padding: "4px 8px",
-        fontSize: 11,
-        color: "var(--red)",
-        fontWeight: 700
-      }
-    }, "\u26A0\uFE0F DANGER ZONE \u2014 Customer must come outside. Do NOT enter."), /*#__PURE__*/React.createElement(EtaBadge, {
-      orderId: o.id
-    })), /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "right",
-        flexShrink: 0
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "tag"
-    }, o.boxType), o.payment.status === "paid" ? /*#__PURE__*/React.createElement("div", {
-      style: {
-        marginTop: 4
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        background: "rgba(16,185,129,.15)",
-        color: "var(--green)",
-        fontWeight: 700,
-        fontSize: 10,
-        padding: "2px 7px",
-        borderRadius: 20
-      }
-    }, "\u2705 PAID")) : /*#__PURE__*/React.createElement("div", {
-      style: {
-        marginTop: 4
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        background: "rgba(239,68,68,.15)",
-        color: "var(--red)",
-        fontWeight: 700,
-        fontSize: 10,
-        padding: "2px 7px",
-        borderRadius: 20
-      }
-    }, "\uD83D\uDCB5 COLLECT $", (o.payment.amount - (o.payment.paid || 0)).toFixed(0))))), /*#__PURE__*/React.createElement("div", {
-      className: "row g6",
-      style: {
-        marginTop: 10,
-        flexWrap: "wrap"
-      }
-    }, /*#__PURE__*/React.createElement("button", {
-      className: "btn btn-green btn-sm",
-      onClick: function onClick() {
-        return onReceipt(o);
-      }
-    }, "\u2713 Picked Up"), /*#__PURE__*/React.createElement("button", {
-      className: "btn btn-ghost btn-sm",
-      onClick: function onClick() {
-        return onStatusChange(o.id, "attempted");
-      }
-    }, "\uD83D\uDD04 No Answer"), /*#__PURE__*/React.createElement(MapsMenu, {
-      order: o
-    }), /*#__PURE__*/React.createElement("button", {
-      className: "btn btn-ghost btn-sm",
-      onClick: function onClick() {
-        return onRunningLate && onRunningLate(o.id);
-      }
-    }, "\u23F1 Running Late"), /*#__PURE__*/React.createElement("button", {
-      className: "btn btn-ghost btn-sm",
-      title: "Copy customer tracking link",
-      onClick: function onClick() {
-        var _navigator$clipboard;
-        var link = "".concat(window.location.href.split("#")[0], "#track/").concat(o.id);
-        (_navigator$clipboard = navigator.clipboard) === null || _navigator$clipboard === void 0 || _navigator$clipboard.writeText(link).then(function () {
-          return alert("Track link copied! Send to " + o.name);
-        });
-      }
-    }, "\uD83D\uDD17 Share ETA")));
-  })), myDropoffs.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Syne',sans-serif",
-      fontWeight: 700,
-      fontSize: 13,
-      margin: "14px 0 10px"
-    }
-  }, "\uD83D\uDCE6 My Drop-Offs Today"), myDropoffs.map(function (o) {
-    return /*#__PURE__*/React.createElement("div", {
-      key: o.id,
-      className: "route-card dropoff"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "row g10"
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontSize: 18
-      }
-    }, "\uD83D\uDCEB"), /*#__PURE__*/React.createElement("div", {
-      style: {
-        flex: 1
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontWeight: 700,
-        color: "var(--text)",
-        fontSize: 13.5
-      }
-    }, o.name), /*#__PURE__*/React.createElement("div", {
-      className: "mut xs"
-    }, o.address, ", ", o.city, " ", o.state), /*#__PURE__*/React.createElement("div", {
-      className: "mut xs",
-      style: {
-        marginTop: 2
-      }
-    }, "\uD83D\uDCDE ", o.phone), /*#__PURE__*/React.createElement(EtaBadge, {
-      orderId: o.id
-    })), /*#__PURE__*/React.createElement("span", {
-      className: "tag tag-b"
-    }, o.boxType === "Unknown" ? "Size TBD" : o.boxType)), /*#__PURE__*/React.createElement("div", {
-      className: "row g6",
-      style: {
-        marginTop: 10
-      }
-    }, /*#__PURE__*/React.createElement("button", {
-      className: "btn btn-blue btn-sm",
-      onClick: function onClick() {
-        return onStatusChange(o.id, "box_dropped_off");
-      }
-    }, "\u2713 Box Delivered"), /*#__PURE__*/React.createElement("button", {
-      className: "btn btn-ghost btn-sm",
-      onClick: function onClick() {
-        return onStatusChange(o.id, "attempted");
-      }
-    }, "\uD83D\uDD04 No Answer"), /*#__PURE__*/React.createElement(MapsMenu, {
-      order: o
-    })));
-  })), myPickups.length === 0 && myDropoffs.length === 0 && /*#__PURE__*/React.createElement("div", {
+      key: grp.id,
+      className: "route-card " + (isPickup ? "pickup" : "dropoff"),
+      style: { border: "2px solid " + borderColor, transition: "border-color .4s" }
+    },
+      /*#__PURE__*/React.createElement("div", { className: "row g10" },
+        /*#__PURE__*/React.createElement("div", {
+          style: { width: 26, height: 26, borderRadius: "50%",
+            background: isPickup ? "var(--amber)" : "var(--blue)",
+            color: "white", fontSize: 12, fontWeight: 800,
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }
+        }, idx + 1),
+        /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
+          /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, color: "var(--text)", fontSize: 13.5 } },
+            grp.merged
+              ? grp.orders.length + " orders \u2014 " + (grp.address || repOrder.name)
+              : repOrder.name
+          ),
+          /*#__PURE__*/React.createElement("div", { className: "mut xs" },
+            grp.address, ", ", grp.city, " ", grp.state, " ", grp.zip),
+          grp.orders.map(function(o) {
+            return /*#__PURE__*/React.createElement("div", { key: o.id,
+              style: { marginTop: 6, padding: "5px 8px", background: "var(--bg)", borderRadius: 6, border: "1px solid var(--border)" }
+            },
+              /*#__PURE__*/React.createElement("div", { className: "row g10" },
+                /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
+                  grp.merged && /*#__PURE__*/React.createElement("div", { style: { fontWeight: 600, fontSize: 12 } }, o.name),
+                  /*#__PURE__*/React.createElement("div", { className: "mut xs" },
+                    "\uD83D\uDCDE ", o.phone,
+                    o.pickupWindow ? " \xB7 " + o.pickupWindow : ""),
+                  o.notes && /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { color: "var(--amber)" } }, o.notes),
+                  o.consigneeDangerZone && /*#__PURE__*/React.createElement("div", {
+                    style: { marginTop: 3, fontSize: 10, color: "var(--red)", fontWeight: 700 }
+                  }, "\u26A0\uFE0F DANGER ZONE"),
+                  /*#__PURE__*/React.createElement(EtaBadge, { orderId: o.id })
+                ),
+                /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", flexShrink: 0 } },
+                  /*#__PURE__*/React.createElement("span", { className: "tag" + (isPickup ? "" : " tag-b") }, o.boxType || "\u2014"),
+                  /*#__PURE__*/React.createElement("div", { style: { marginTop: 3 } },
+                    o.payment.status === "paid"
+                      ? /*#__PURE__*/React.createElement("span", {
+                          style: { background: "rgba(16,185,129,.15)", color: "var(--green)",
+                                   fontWeight: 700, fontSize: 10, padding: "2px 7px", borderRadius: 20 }
+                        }, "\u2705 PAID")
+                      : /*#__PURE__*/React.createElement("span", {
+                          style: { background: "rgba(239,68,68,.15)", color: "var(--red)",
+                                   fontWeight: 700, fontSize: 10, padding: "2px 7px", borderRadius: 20 }
+                        }, "$", (o.payment.amount - (o.payment.paid||0)).toFixed(0))
+                  )
+                )
+              ),
+              grp.merged && /*#__PURE__*/React.createElement("div", { className: "row g6", style: { marginTop: 6 } },
+                /*#__PURE__*/React.createElement("button", { className: "btn btn-green btn-sm",
+                  onClick: function() { return isPickup ? onReceipt(o) : onStatusChange(o.id, "in_warehouse"); }
+                }, isPickup ? "\u2713 Picked Up" : "\u2713 Dropped Off"),
+                /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm",
+                  onClick: function() { return onStatusChange(o.id, "attempted"); }
+                }, "No Answer")
+              )
+            );
+          }),
+          grp.merged && !allPaid && /*#__PURE__*/React.createElement("div", {
+            style: { marginTop: 6, fontWeight: 700, fontSize: 11.5, color: "var(--red)" }
+          }, "Collect total at this stop: $", totalCollect.toFixed(0))
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "row g6", style: { marginTop: 10, flexWrap: "wrap" } },
+        !grp.merged && /*#__PURE__*/React.createElement(React.Fragment, null,
+          isPickup
+            ? /*#__PURE__*/React.createElement("button", { className: "btn btn-green btn-sm",
+                onClick: function() { return onReceipt(repOrder); }
+              }, "\u2713 Picked Up")
+            : /*#__PURE__*/React.createElement("button", { className: "btn btn-green btn-sm",
+                onClick: function() { return onStatusChange(repOrder.id, "in_warehouse"); }
+              }, "\u2713 Dropped Off"),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm",
+            onClick: function() { return onStatusChange(repOrder.id, "attempted"); }
+          }, "No Answer"),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm",
+            onClick: function() { return onRunningLate && onRunningLate(repOrder.id); }
+          }, "\u23F1 Running Late")
+        ),
+        grp.merged && /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { fontSize: 10 } },
+          grp.orders.length + " orders at this address"),
+        /*#__PURE__*/React.createElement(MapsMenu, { order: repOrder })
+      )
+    );
+  })
+), myPickups.length === 0 && myDropoffs.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "alert alert-g"
   }, "\u2705 All stops complete! Head back to the warehouse."), myAttempted.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -6619,6 +6596,148 @@ var InvoiceModal = function InvoiceModal(_ref48) {
     }
   }, "\uD83D\uDDA8\uFE0F Print Invoice"))));
 };
+// ── Public Tracking Lookup Page ──────────────────────────────────────────────
+var TrackingPage = function TrackingPage(_ref_tp) {
+  var orders = _ref_tp.orders || [];
+  var initialQuery = _ref_tp.initialQuery || "";
+  var _stQ = useState(initialQuery), _stQ2 = _slicedToArray(_stQ, 2), query = _stQ2[0], setQuery = _stQ2[1];
+  var _stR = useState(null), _stR2 = _slicedToArray(_stR, 2), result = _stR2[0], setResult = _stR2[1];
+  var _stS = useState("idle"), _stS2 = _slicedToArray(_stS, 2), searched = _stS2[0], setSearched = _stS2[1];
+
+  // Auto-search when initialQuery is set (public URL: ?number=XXX)
+  React.useEffect(function() {
+    if (initialQuery && orders.length > 0) { doSearch(initialQuery); }
+  }, [orders.length]);
+
+  var STATUS_LABELS = {
+    order_placed:"Order Placed",ready_pickup:"Ready for Pickup",picked_up:"Picked Up",
+    in_warehouse:"In Warehouse",loaded_container:"Loaded in Container",en_route:"En Route",
+    in_customs:"In Customs",customs_released:"Released from Customs",sorting:"Sorting / Preparing",
+    out_for_delivery:"Out for Delivery",delivered:"Delivered",cancelled:"Cancelled",
+    need_box:"Need a Box",rerouted:"Rerouted"
+  };
+  var statusLabel = function(s){ return STATUS_LABELS[s] || s || "Unknown"; };
+  var statusDot = function(s){
+    if (["delivered","customs_released"].includes(s)) return "var(--green)";
+    if (["en_route","in_customs","sorting","out_for_delivery","loaded_container"].includes(s)) return "var(--amber)";
+    if (["cancelled"].includes(s)) return "var(--red)";
+    return "var(--blue)";
+  };
+
+  var doSearch = function doSearch(overrideQ) {
+    var q = (overrideQ || query).trim().toUpperCase();
+    if (!q) return;
+    setSearched("searching");
+    // Search child box subId first
+    var boxMatch = null, parentOrder = null;
+    for (var i = 0; i < orders.length; i++) {
+      var o = orders[i];
+      if (o.boxes && o.boxes.length > 0) {
+        var b = o.boxes.find(function(bx){ return (bx.subId||"").toUpperCase() === q; });
+        if (b) { boxMatch = b; parentOrder = o; break; }
+      }
+    }
+    // Then search parent order id
+    var orderMatch = !boxMatch ? orders.find(function(o){ return (o.id||"").toUpperCase() === q; }) : null;
+
+    if (boxMatch) {
+      setResult({ type: "box", box: boxMatch, order: parentOrder });
+    } else if (orderMatch) {
+      setResult({ type: "order", order: orderMatch });
+    } else {
+      setResult({ type: "notfound" });
+    }
+    setSearched("done");
+  };
+
+  var renderTimeline = function(history) {
+    if (!history || !history.length) return /*#__PURE__*/React.createElement("div", { style:{color:"var(--text3)",fontSize:12,marginTop:8} }, "No history available.");
+    var sorted = history.slice().sort(function(a,b){ return (a.at||a.time||"") < (b.at||b.time||"") ? 1 : -1; });
+    return /*#__PURE__*/React.createElement("div", { className: "tl", style:{marginTop:10} },
+      sorted.map(function(ev, i) {
+        var label = ev.label || statusLabel(ev.status || ev.type || "") || "Update";
+        var ts = ev.at || ev.time || ev.date || "";
+        var source = ev.by || ev.source || ev.actor || "";
+        var notes = ev.notes || ev.note || "";
+        return /*#__PURE__*/React.createElement("div", { key: i, className: "tl-step" },
+          /*#__PURE__*/React.createElement("div", { className: "tl-dot " + (i === 0 ? "cur" : "done") }),
+          /*#__PURE__*/React.createElement("div", { className: "tl-lbl" }, label),
+          ts && /*#__PURE__*/React.createElement("div", { className: "tl-time" }, ts),
+          source && /*#__PURE__*/React.createElement("div", { className: "tl-desc" }, "via ", source),
+          notes && /*#__PURE__*/React.createElement("div", { className: "tl-desc" }, notes)
+        );
+      })
+    );
+  };
+
+  var renderBox = function(box, order, idx) {
+    var tracking = box.subId || (order && order.id ? order.id + "-" + (idx||1) : "—");
+    var dest = box.destinationCountry || (order && order.destination) || "—";
+    var dept = box.gtDept || (order && order.gtDept) || "";
+    var boxType = box.boxType || (order && order.boxType) || "—";
+    var status = box.orderStatus || box.status || (order && order.status) || "—";
+    var updated = box.statusUpdatedAt || (order && order.updatedAt) || "";
+    var history = box.statusLog || (order && order.history) || [];
+    return /*#__PURE__*/React.createElement("div", { key: tracking, style:{background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:12} },
+      /*#__PURE__*/React.createElement("div", { className: "row g10", style:{marginBottom:10} },
+        /*#__PURE__*/React.createElement("div", { style:{fontFamily:"'IBM Plex Mono',monospace",fontSize:15,fontWeight:700,color:"var(--amber)"} }, tracking),
+        /*#__PURE__*/React.createElement("div", { style:{width:8,height:8,borderRadius:"50%",background:statusDot(status),flexShrink:0} }),
+        /*#__PURE__*/React.createElement("div", { style:{fontWeight:600,fontSize:13} }, statusLabel(status))
+      ),
+      /*#__PURE__*/React.createElement("div", { style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"6px 12px",fontSize:12,marginBottom:8} },
+        /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {style:{color:"var(--text3)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em"}}, "Box Type"), /*#__PURE__*/React.createElement("div", {style:{fontWeight:600}}, boxType)),
+        /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {style:{color:"var(--text3)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em"}}, "Destination"), /*#__PURE__*/React.createElement("div", {style:{fontWeight:600}}, [dest, dept].filter(Boolean).join(" · "))),
+        updated && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {style:{color:"var(--text3)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.06em"}}, "Last Updated"), /*#__PURE__*/React.createElement("div", {style:{fontWeight:600,fontSize:11}}, updated))
+      ),
+      history.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null,
+        /*#__PURE__*/React.createElement("div", {style:{fontSize:10,fontWeight:700,color:"var(--text4)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:6,marginTop:4,borderTop:"1px solid var(--border)",paddingTop:8}}, "Timeline"),
+        renderTimeline(history)
+      )
+    );
+  };
+
+  return /*#__PURE__*/React.createElement("div", { className: "page fu" },
+    /*#__PURE__*/React.createElement("div", { style:{maxWidth:680,margin:"0 auto"} },
+      /*#__PURE__*/React.createElement("div", { style:{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,marginBottom:4} }, "\uD83D\uDCE6 Track a Package"),
+      /*#__PURE__*/React.createElement("div", { className:"mut xs", style:{marginBottom:20} }, "Enter a tracking number or order number to see package status and history."),
+      /*#__PURE__*/React.createElement("div", { className:"row g10", style:{marginBottom:20} },
+        /*#__PURE__*/React.createElement("input", {
+          className:"fi", style:{flex:1,fontSize:14,letterSpacing:"0.05em"},
+          placeholder:"e.g. CC-0001-1 or CC-0001",
+          value: query,
+          onChange: function(e){ setQuery(e.target.value.toUpperCase()); },
+          onKeyDown: function(e){ if (e.key === "Enter") doSearch(); }
+        }),
+        /*#__PURE__*/React.createElement("button", { className:"btn btn-primary", onClick: doSearch }, "\uD83D\uDD0D Search")
+      ),
+      searched === "done" && result && (function(){
+        if (result.type === "notfound") return /*#__PURE__*/React.createElement("div", {
+          className:"alert alert-a", style:{fontSize:13}
+        }, "\u26A0\uFE0F No package found for \"", query, "\". Check the tracking number and try again.");
+
+        if (result.type === "box") {
+          return /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", {className:"modal-section",style:{marginTop:0}}, "Box Tracking"),
+            renderBox(result.box, result.order, null),
+            /*#__PURE__*/React.createElement("div", {className:"mut xs",style:{marginTop:8}},
+              "Order: ", /*#__PURE__*/React.createElement("span", {style:{fontFamily:"'IBM Plex Mono',monospace",color:"var(--amber)"}}, result.order && result.order.id)
+            )
+          );
+        }
+
+        if (result.type === "order") {
+          var o = result.order;
+          var boxes = (o.boxes && o.boxes.length > 0) ? o.boxes : [{ subId: o.id, boxType: o.boxType, destinationCountry: o.destination, gtDept: o.gtDept, orderStatus: o.status, statusUpdatedAt: o.updatedAt, statusLog: o.history }];
+          return /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", {className:"modal-section",style:{marginTop:0}}, "Order ", o.id, " \u2014 ", boxes.length, " box", boxes.length > 1 ? "es" : ""),
+            boxes.map(function(b, i){ return renderBox(b, o, i+1); })
+          );
+        }
+      })()
+    )
+  );
+};
+
 var HQOverview = function HQOverview(_ref51) {
   var _boxMix$find;
   var orders = _ref51.orders,
@@ -6759,7 +6878,7 @@ var HQOverview = function HQOverview(_ref51) {
       return g.map(function (o) {
         return o.id;
       }).join("+");
-    }).join(", "), ". Consider grouping these into one stop.");
+    }).join(", "), ". These are auto-grouped into single stops on driver routes.");
   }(), /*#__PURE__*/React.createElement("div", {
     className: "alert alert-a mb18"
   }, t("☀️ Today:", "☀️ Hoy:"), " ", pickups, " ", t("pickup(s) pending", "recogida(s) pendiente(s)"), ", ", dropoffs, " ", t("box drop-off(s) needed", "entrega(s) de caja pendiente(s)"), ", ", unpaid, " ", t("unpaid order(s)", "orden(es) sin pagar"), ". ", t("Batch-ready:", "Listos para lote:"), " ", /*#__PURE__*/React.createElement("strong", null, batchReady, " ", t("boxes", "cajas")), "."), /*#__PURE__*/React.createElement("div", {
@@ -8639,14 +8758,14 @@ var TrackingConfirmModal = function TrackingConfirmModal(_ref70) {
     className: "btn btn-green btn-sm",
     onClick: function onClick() {
       var ph = (order.whatsapp || order.phone || "").replace(/\D/g, "");
-      var msg = "Hi " + (order.name || "").split(" ")[0] + "! Your shipment " + order.id + " is on its way to " + order.destination + ". Questions? Reply here. — Casabe Xpress";
+      var msg = "Hi " + (order.name || "").split(" ")[0] + "! Your shipment " + order.id + " is on its way to " + order.destination + ". Questions? Reply here. — " + getCompanyName(typeof tenant !== "undefined" ? tenant : {});
       window.open("https://wa.me/" + ph + "?text=" + encodeURIComponent(msg), "_blank");
     }
   }, "💬 WhatsApp"), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost btn-sm",
     onClick: function onClick() {
       var ph = (order.whatsapp || order.phone || "").replace(/[^0-9+]/g, "");
-      var msg = "Hi " + (order.name || "").split(" ")[0] + "! Your shipment " + order.id + " update from Casabe Xpress. Questions? Call or text us back.";
+      var msg = "Hi " + (order.name || "").split(" ")[0] + "! Your shipment " + order.id + " update from " + getCompanyName(typeof tenant !== "undefined" ? tenant : {}) + ". Questions? Call or text us back.";
       window.open("sms:" + ph + "?body=" + encodeURIComponent(msg));
     }
   }, "📱 SMS"))));
@@ -9750,20 +9869,41 @@ var QRScanner = function QRScanner(_ref79) {
 /* ════════════════════════════════════════════
    DUPLICATE ADDRESS DETECTOR (utility)
 ════════════════════════════════════════════ */
+// ── Address normalization key ────────────────────────────────────────────
+var normalizeAddress = function normalizeAddress(o) {
+  return [(o.address||"").toLowerCase().replace(/\s+/g," ").trim(),
+          (o.city||"").toLowerCase().trim(),
+          (o.state||"").toLowerCase().trim(),
+          (o.zip||"").trim().slice(0,5)].join("|");
+};
+var stopType = function stopType(o) { return o.status === "need_box" ? "dropoff" : "pickup"; };
+
+// ── Group stops by address+type — returns [{id,type,address,city,state,zip,orders,merged}] ──
+var groupStops = function groupStops(orders, driverName) {
+  var eligible = orders.filter(function(o) {
+    return !["delivered","cancelled","attempted"].includes(o.status) &&
+           (!driverName || !o.assignedDriver || o.assignedDriver === driverName);
+  });
+  var buckets = {};
+  eligible.forEach(function(o) {
+    var addrKey = normalizeAddress(o);
+    if (!addrKey.replace(/\|/g,"").trim()) return;
+    var type = stopType(o);
+    var key = addrKey + "|" + type;
+    if (!buckets[key]) buckets[key] = { key: key, type: type, orders: [], addrKey: addrKey };
+    buckets[key].orders.push(o);
+  });
+  return Object.values(buckets).map(function(b) {
+    var rep = b.orders[0];
+    return { id: b.key, type: b.type,
+             address: rep.address||"", city: rep.city||"", state: rep.state||"", zip: rep.zip||"",
+             phone: rep.phone||"", orders: b.orders, merged: b.orders.length > 1 };
+  });
+};
+
+// ── Backwards-compat: dashboard alert still calls this ───────────────────
 var findDuplicateAddresses = function findDuplicateAddresses(orders) {
-  var active = orders.filter(function (o) {
-    return !["delivered", "cancelled"].includes(o.status);
-  });
-  var groups = {};
-  active.forEach(function (o) {
-    var key = "".concat((o.address || "").toLowerCase().replace(/\s+/g, ""), ",").concat((o.city || "").toLowerCase());
-    if (key.length < 5) return;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(o);
-  });
-  return Object.values(groups).filter(function (g) {
-    return g.length > 1;
-  });
+  return groupStops(orders, null).filter(function(g){ return g.merged; }).map(function(g){ return g.orders; });
 };
 
 /* ════════════════════════════════════════════
@@ -12793,19 +12933,20 @@ var BOX_UNIT_COSTS = {};
     }, t("Box Mix", "Mezcla de Cajas"))), /*#__PURE__*/React.createElement("div", {
       className: "card-bd"
     }, BOX_CONFIG.filter(function(b){ return b.active && !b.legacy; }).map(function (bt) {
+      var btKey = bt.key; var btLabel = bt.label || bt.key;
       var count = shpOrders.reduce(function(sum, o) {
-        return sum + getShipmentBoxRows(o, selected.id).filter(function(b){ return b.boxType === bt; }).length;
+        return sum + getShipmentBoxRows(o, selected.id).filter(function(b){ return b.boxType === btKey; }).length;
       }, 0);
       if (!count) return null;
       return /*#__PURE__*/React.createElement("div", {
-        key: bt,
+        key: btKey,
         className: "row g10",
         style: {
           padding: "5px 0"
         }
       }, /*#__PURE__*/React.createElement("span", {
         className: "tag"
-      }, bt), /*#__PURE__*/React.createElement("div", {
+      }, btLabel), /*#__PURE__*/React.createElement("div", {
         style: {
           flex: 1
         }
@@ -13231,7 +13372,7 @@ var BOX_UNIT_COSTS = {};
                           " heading to " + (selected.destination||"") +
                           " is now *" + (selected.status || "open").replace(/_/g," ") + "*." +
                           (selected.eta ? " Est. arrival: " + selected.eta + "." : "") +
-                          " Questions? Reply here. \u2014 Casabe Xpress"
+                          " Questions? Reply here. \u2014 " + getCompanyName(typeof tenant !== "undefined" ? tenant : {})
                         );
                       }
                     }
@@ -14417,7 +14558,7 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
         tenantId: tenantId,
         channels: ["whatsapp", "sms"],
         phone: testPhone.trim() || "+10000000000",
-        messageBody: "Casabe Connect integration test. Please ignore.",
+        messageBody: (typeof tenant !== "undefined" && tenant && tenant.name ? tenant.name : "Casabe Connect") + " integration test. Please ignore.",
         triggeredBy: session.displayName || "admin",
         source: "admin_status_check",
         testMode: true
@@ -14439,13 +14580,17 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        orderId:     row.order_id,
-        tenantId:    row.tenant_id || tenantId,
-        channels:    row.channels || ["whatsapp"],
-        phone:       row.phone || "",
-        messageBody: "Resent: Your Casabe Xpress invoice for order " + row.order_id + " is confirmed paid.",
-        triggeredBy: session.displayName || "admin",
-        source: "admin_retry"
+        orderId:        row.order_id,
+        boxId:          row.box_id || row.order_id,
+        trackingNumber: row.tracking_number || row.order_id,
+        tenantId:       row.tenant_id || tenantId,
+        targetRole:     "sender",
+        targetPhone:    row.target_phone || row.phone || "",
+        phone:          row.target_phone || row.phone || "",
+        channels:       row.channels || ["whatsapp"],
+        messageBody:    row.message_body || ("Resent: Your invoice for order " + row.order_id + " is confirmed paid."),
+        triggeredBy:    session.displayName || "admin",
+        source:         "admin_retry"
       })
     })
     .then(function(r){ return r.json(); })
@@ -15713,23 +15858,21 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     className: "fg"
   }, /*#__PURE__*/React.createElement("label", {
     className: "fl"
-  }, "API Access Token"), /*#__PURE__*/React.createElement("input", {
-    className: "fi",
-    placeholder: "Your Meta Business API token",
-    type: "password",
-    style: {
-      maxWidth: 400
-    }
-  })), /*#__PURE__*/React.createElement("div", {
+  }, "WhatsApp Credentials (Server-Side)"), /*#__PURE__*/React.createElement("div", {
+    className: "alert alert-b",
+    style: { fontSize: 12, padding: "8px 12px", marginTop: 0, borderRadius: 7 }
+  }, /*#__PURE__*/React.createElement("strong", null, "\uD83D\uDD10 Stored server-side only"),
+    " Set ", /*#__PURE__*/React.createElement("code", null, "WHATSAPP_ACCESS_TOKEN"), " and ",
+    /*#__PURE__*/React.createElement("code", null, "WHATSAPP_PHONE_NUMBER_ID"),
+    " as Supabase Edge Function secrets. Never stored in the frontend."
+  )), /*#__PURE__*/React.createElement("div", {
     className: "row g10",
     style: {
-      marginTop: 4
+      marginTop: 8
     }
   }, /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-primary btn-sm"
-  }, "Connect"), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost btn-sm"
-  }, "Test Message")))), /*#__PURE__*/React.createElement("div", {
+  }, "\uD83E\uDDEA Test WhatsApp Connection")))), /*#__PURE__*/React.createElement("div", {
     className: "card"
   }, /*#__PURE__*/React.createElement("div", {
     className: "card-hd"
@@ -15740,85 +15883,65 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     style: {
       padding: "8px 0"
     }
-  }, [{
-    status: "order_placed",
-    msg: "Hi [Name]! Your order is confirmed. Tracking ID: [ID]. We'll be in touch soon. — Casabe Connect"
-  }, {
-    status: "need_box",
-    msg: "Hi [Name]! We'll drop off your empty box within 2 business days. We'll call before arriving. — Casabe Connect"
-  }, {
-    status: "box_dropped_off",
-    msg: "Hi [Name]! Your box has been delivered. Fill it up and let us know when it's ready for pickup! — Casabe Connect"
-  }, {
-    status: "ready_pickup",
-    msg: "Hi [Name]! Your box pickup is scheduled. Your driver will arrive [Window]. Tracking: [ID] — Casabe Connect"
-  }, {
-    status: "in_warehouse",
-    msg: "Hi [Name]! Your box [ID] is safely in our warehouse and will be added to the next shipment batch. — Casabe Connect"
-  }, {
-    status: "loaded_container",
-    msg: "Hi [Name]! Your box [ID] has been loaded in the container. Shipment is being prepared. — Casabe Connect"
-  }, {
-    status: "en_route",
-    msg: "Hi [Name]! Your box [ID] is on a ship heading to [Destination]! We'll update you when it clears customs. — Casabe Connect"
-  }, {
-    status: "in_customs",
-    msg: "Hi [Name]! Your box [ID] is currently clearing customs in [Destination]. Est. 2–5 business days. — Casabe Connect"
-  }, {
-    status: "customs_released",
-    msg: "Hi [Name]! Great news — your box [ID] cleared customs! It's now moving to our local sorting facility. — Casabe Connect"
-  }, {
-    status: "sorting",
-    msg: "Hi [Name]! Your box [ID] is being sorted and prepared for local delivery. Almost there! — Casabe Connect"
-  }, {
-    status: "out_for_delivery",
-    msg: "Hi [Name]! 🚛 Your box [ID] is out for delivery! Expect it within 48 hours. — Casabe Connect"
-  }, {
-    status: "delivered",
-    msg: "Hi [Name]! ✅ Your box [ID] has been delivered! Thank you for shipping with us. — Casabe Connect"
-  }].map(function (t, i) {
-    var _STATUS_CFG$t$status, _STATUS_CFG$t$status2;
-    return /*#__PURE__*/React.createElement("div", {
-      key: i,
-      style: {
-        padding: "10px 16px",
-        borderBottom: "1px solid rgba(28,40,64,.4)"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "row g10",
-      style: {
-        marginBottom: 4
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "badge ".concat(((_STATUS_CFG$t$status = STATUS_CFG[t.status]) === null || _STATUS_CFG$t$status === void 0 ? void 0 : _STATUS_CFG$t$status.cls) || "bgr")
-    }, (_STATUS_CFG$t$status2 = STATUS_CFG[t.status]) === null || _STATUS_CFG$t$status2 === void 0 ? void 0 : _STATUS_CFG$t$status2.label), /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: 28,
-        height: 16,
-        borderRadius: 8,
-        background: "var(--green)",
-        position: "relative",
-        marginLeft: "auto"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        width: 10,
-        height: 10,
-        borderRadius: "50%",
-        background: "white",
-        position: "absolute",
-        top: 3,
-        left: 15
-      }
-    }))), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 11.5,
-        color: "var(--text3)",
-        lineHeight: 1.5,
-        fontStyle: "italic"
-      }
-    }, "\"", t.msg, "\""));
-  })))
+  }, (function() {
+    var _statuses = Object.keys(DEFAULT_MESSAGE_TEMPLATES);
+    var _saved = (tenant && tenant.messageTemplates) || {};
+    var _init = _statuses.reduce(function(acc, s) {
+      var d = DEFAULT_MESSAGE_TEMPLATES[s] || {}; var sv = _saved[s] || {};
+      acc[s] = { en: sv.en || d.en || "", es: sv.es || d.es || "" }; return acc;
+    }, {});
+    var _stTE = useState(_init), _stTE2 = _slicedToArray(_stTE, 2),
+        tplEdits = _stTE2[0], setTplEdits = _stTE2[1];
+    var _stLng = useState("en"), _stLng2 = _slicedToArray(_stLng, 2),
+        tplLang = _stLng2[0], setTplLang = _stLng2[1];
+    var _stSvd = useState(false), _stSvd2 = _slicedToArray(_stSvd, 2),
+        tplSaved = _stSvd2[0], setTplSaved = _stSvd2[1];
+    function saveTpls() {
+      if (typeof onSaveTenant === "function")
+        onSaveTenant(Object.assign({}, tenant, { messageTemplates: tplEdits }));
+      setTplSaved(true); setTimeout(function() { setTplSaved(false); }, 2500);
+    }
+    return React.createElement(React.Fragment, null,
+      React.createElement("div", { className: "row g10", style: { padding: "8px 16px", borderBottom: "1px solid var(--border)" } },
+        React.createElement("span", { className: "mut xs" }, "Tokens: [Name] [ID] [TrackURL] [Company] [Destination]"),
+        React.createElement("div", { className: "role-sw mla" },
+          ["en","es"].map(function(lng) {
+            return React.createElement("button", { key: lng,
+              className: "rsw-btn " + (tplLang === lng ? "on" : ""),
+              onClick: function() { setTplLang(lng); } },
+              lng === "en" ? "English" : "Espa\xf1ol");
+          })
+        ),
+        tplSaved && React.createElement("span", { className: "badge bg" }, "\u2713 Saved")
+      ),
+      _statuses.map(function(s) {
+        var _cfg = STATUS_CFG[s] || {};
+        var defVal = (DEFAULT_MESSAGE_TEMPLATES[s] || {})[tplLang] || "";
+        return React.createElement("div", { key: s, style: { padding: "10px 16px", borderBottom: "1px solid rgba(28,40,64,.4)" } },
+          React.createElement("div", { className: "row g10", style: { marginBottom: 5 } },
+            React.createElement("span", { className: "badge " + (_cfg.cls || "bgr") }, _cfg.label || s)
+          ),
+          React.createElement("textarea", {
+            className: "fi", rows: 2, style: { fontSize: 11.5, lineHeight: 1.5, resize: "vertical" },
+            value: (tplEdits[s] || {})[tplLang] || "", placeholder: defVal,
+            onChange: function(e) {
+              var val = e.target.value;
+              setTplEdits(function(prev) {
+                var n = Object.assign({}, prev);
+                n[s] = Object.assign({}, n[s]); n[s][tplLang] = val; return n;
+              });
+            }
+          }),
+          React.createElement("div", { className: "mut xs", style: { marginTop: 2 } }, "Default: ", defVal)
+        );
+      }),
+      React.createElement("div", { style: { padding: "12px 16px" } },
+        React.createElement("button", { className: "btn btn-primary btn-sm", onClick: saveTpls }, "\u2713 Save Templates"),
+        typeof onSaveTenant !== "function" && React.createElement("span", { className: "mut xs", style: { marginLeft: 10 } },
+          "Wire onSaveTenant to enable saving")
+      )
+    );
+  })()))
     );
     } catch(e) {
       console.error("NOTIFICATIONS TAB ERROR:", e);
@@ -16785,12 +16908,13 @@ var CustomerProfilePage = function CustomerProfilePage(_ref113) {
     }, "\uD83D\uDCCA ", t("Shipping Breakdown", "Desglose del Envío"))), /*#__PURE__*/React.createElement("div", {
       className: "card-bd"
     }, BOX_CONFIG.filter(function(b){ return b.active; }).map(function (bt) {
+      var btKey = bt.key; var btLabel = bt.label || bt.key;
       var count = c.orders.filter(function (o) {
-        return o.boxType === bt;
+        return o.boxType === btKey;
       }).length;
       if (!count) return null;
       return /*#__PURE__*/React.createElement("div", {
-        key: bt,
+        key: btKey,
         className: "row g10",
         style: {
           marginBottom: 8
@@ -16801,7 +16925,7 @@ var CustomerProfilePage = function CustomerProfilePage(_ref113) {
           fontSize: 12,
           color: "var(--text3)"
         }
-      }, bt), /*#__PURE__*/React.createElement("div", {
+      }, btLabel), /*#__PURE__*/React.createElement("div", {
         style: {
           flex: 1
         }
@@ -19644,6 +19768,11 @@ var ROLES = {
         l: "Bulk Status Update",
         ls: "Actualización Masiva",
         i: "⌨️"
+      }, {
+        k: "track",
+        l: "Track Package",
+        ls: "Rastrear Paquete",
+        i: "📍"
       }]
     }, {
       grp: "Finance & Growth",
@@ -21780,6 +21909,45 @@ setOrders(function (prev) {
       _db.init(session.tenantId);
       _db.upsert("orders", id, _csUpdated);
     }
+    // ── Sender-only WhatsApp/SMS status notifications ─────────────────────────
+    (function() {
+      if (!_csUpdated) return;
+      var notifyOrder = _csUpdated;
+      var notifyBoxes = (notifyOrder.boxes && notifyOrder.boxes.length > 0)
+        ? notifyOrder.boxes.filter(function(b){ return b.orderStatus === newStatus || b.status === newStatus; })
+        : [];
+      // For legacy orders with no child boxes, notify at order level
+      if (!notifyBoxes.length && notifyOrder.notifyOnStatusChange) {
+        notifyBoxes = [{ subId: notifyOrder.id, notifyOnStatusChange: true, orderStatus: newStatus }];
+      }
+      var tenantId2 = session && session.tenantId ? session.tenantId : "casabe-xpress";
+      var trackBase = (tenant && tenant.trackingUrl) || "https://casabe-connect.netlify.app";
+      var statusLbl = (STATUS_CFG && STATUS_CFG[newStatus] && STATUS_CFG[newStatus].label) || newStatus;
+      notifyBoxes.forEach(function(box) {
+        if (!box.notifyOnStatusChange) return;
+        var target = getSenderNotificationTarget(notifyOrder, box);
+        if (!target.phone || target.phone.trim().length < 7) return;
+        var trackingNum = box.subId || notifyOrder.id;
+        var msgBody = renderMessageTemplate(newStatus, tenant, notifyOrder, box) || ("Hi " + target.name + ", your package " + trackingNum + " status: " + statusLbl + ".\nTrack: " + trackBase + "?number=" + encodeURIComponent(trackingNum) + "\n\u2014 " + getCompanyName(tenant));
+        fetch(PAID_INVOICE_EDGE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            orderId:        notifyOrder.id,
+            boxId:          box.subId || notifyOrder.id,
+            trackingNumber: trackingNum,
+            tenantId:       tenantId2,
+            targetRole:     "sender",
+            targetPhone:    target.phone.trim(),
+            phone:          target.phone.trim(),
+            channels:       ["whatsapp"],
+            messageBody:    msgBody,
+            source:         "status_change",
+            triggeredBy:    roleKey || "system"
+          })
+        }).catch(function(e){ console.error("[status notify]", e); });
+      });
+    })();
     if (newStatus === "in_warehouse") {
       notify("✅ Box picked up — $10 deposit credited to account");
     }
@@ -22086,6 +22254,10 @@ setOrders(function (prev) {
           });
         }
       }
+    });
+    if (page === "track") return /*#__PURE__*/React.createElement(TrackingPage, {
+      orders: orders,
+      tenant: tenant
     });
     if (page === "routes") return /*#__PURE__*/React.createElement(RoutesPage, {
       orders: orders,
@@ -22945,6 +23117,59 @@ setOrders(function (prev) {
   }, renderPage())))));
 }
 
+// Public tracking: ?number=TRACKING_ID loads TrackingPage without auth
+(function() {
+  var urlParams = new URLSearchParams(window.location.search);
+  var trackNum = urlParams.get("number") || urlParams.get("track");
+  if (trackNum) {
+    var PublicTrack = function() {
+      var _stR = useState(null), _stR2 = _slicedToArray(_stR, 2), matchedOrder = _stR2[0], setMatchedOrder = _stR2[1];
+      var _stL = useState(true), _stL2 = _slicedToArray(_stL, 2), loading = _stL2[0], setLoading = _stL2[1];
+      var _stE = useState(null), _stE2 = _slicedToArray(_stE, 2), lookupErr = _stE2[0], setLookupErr = _stE2[1];
+      React.useEffect(function() {
+        // Server-side: fetch only the matched order. Never loads all orders.
+        var q = trackNum.trim().toUpperCase();
+        var SAFE = "id,boxes,status,destination,boxType,history,createdAt,updatedAt,gtDept";
+        try {
+          var _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+          _sb.from("orders").select(SAFE).eq("id", q).limit(1)
+            .then(function(r1) {
+              if (r1.data && r1.data.length > 0) { setMatchedOrder(r1.data[0]); setLoading(false); return; }
+              var prefix = q.indexOf("-") > 0 ? q.split("-").slice(0,2).join("-") : q;
+              _sb.from("orders").select(SAFE).ilike("id", prefix + "%").limit(10)
+                .then(function(r2) {
+                  var found = null;
+                  (r2.data || []).forEach(function(o) {
+                    if (!found) (o.boxes || []).forEach(function(b) {
+                      if ((b.subId || "").toUpperCase() === q) found = o;
+                    });
+                  });
+                  setMatchedOrder(found || null); setLoading(false);
+                }).catch(function() { setLookupErr("Lookup failed."); setLoading(false); });
+            }).catch(function() { setLookupErr("Lookup failed."); setLoading(false); });
+        } catch(e) { setLookupErr("Lookup error."); setLoading(false); }
+      }, []);
+      return React.createElement("div", { style: { minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "'IBM Plex Sans',sans-serif" } },
+        React.createElement("div", { style: { background: "var(--bg2)", borderBottom: "1px solid var(--border)", padding: "14px 20px", display: "flex", alignItems: "center", gap: 12 } },
+          React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "Casabe"),
+          React.createElement("span", { style: { color: "var(--text3)", fontSize: 13 } }, "\u2014 Package Tracking")
+        ),
+        React.createElement("div", { style: { maxWidth: 680, margin: "0 auto", padding: "24px 20px" } },
+          loading
+            ? React.createElement("div", { style: { textAlign: "center", marginTop: 60, color: "var(--text3)", fontSize: 14 } },
+                "Looking up ", React.createElement("strong", null, trackNum.toUpperCase()), "...")
+            : lookupErr ? React.createElement("div", { className: "alert alert-r", style: { marginTop: 20 } }, lookupErr)
+            : !matchedOrder
+            ? React.createElement("div", { className: "alert alert-a", style: { marginTop: 20 } },
+                "No package found for ", React.createElement("strong", null, trackNum.toUpperCase()), ". Double-check the tracking number and try again.")
+            : React.createElement(TrackingPage, { orders: [matchedOrder], tenant: {}, initialQuery: trackNum.toUpperCase() })
+        )
+      );
+    };
+        ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(PublicTrack));
+    return;
+  }
+})();
 // App handles auth gate → shows LoginScreen or AppShell
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
   </script>
