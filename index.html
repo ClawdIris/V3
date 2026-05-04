@@ -6910,7 +6910,7 @@ var HQOverview = function HQOverview(_ref51) {
       className: "sc-delta delta-n"
     }, s.d));
   })), function () {
-    var dups = findDuplicateAddresses(orders, roleKey === "driver" ? (session && session.displayName) : null);
+    var dups = findDuplicateAddresses(orders, null);
     return dups.length > 0 && /*#__PURE__*/React.createElement("div", {
       className: "alert alert-a mb12",
       style: {
