@@ -6665,12 +6665,12 @@ var HQOverview = function HQOverview(_ref51) {
   var boxMix = BOX_CONFIG.filter(function(b){ return b.active && !b.legacy; }).map(function (bt) {
     var c = filtOrders.reduce(function(sum, o) {
       if (o.boxes && o.boxes.length > 0) {
-        return sum + o.boxes.filter(function(b){ return b.boxType === bt; }).length;
+        return sum + o.boxes.filter(function(b){ return b.boxType === bt.key; }).length;
       }
-      return sum + (o.boxType === bt ? 1 : 0);
+      return sum + (o.boxType === bt.key ? 1 : 0);
     }, 0);
     return {
-      type: bt,
+      type: bt.label || bt.key,
       count: c,
       pct: total > 0 ? Math.round(c / Math.max(1, filtOrders.reduce(function(s,o){return s+((o.boxes&&o.boxes.length>0)?o.boxes.length:(o.boxCount||1));},0)) * 100) : 0
     };
