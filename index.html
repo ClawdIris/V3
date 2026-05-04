@@ -5038,6 +5038,10 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
     _React$useState12 = _slicedToArray(_React$useState11, 2),
     showRecon = _React$useState12[0],
     setShowRecon = _React$useState12[1];
+  // ── Unpaid receipt queue: auto-advances through each unpaid order in a merged stop
+  var _stReceiptQ = React.useState([]),
+    _stRQ2 = _slicedToArray(_stReceiptQ, 2),
+    receiptQueue = _stRQ2[0], setReceiptQueue = _stRQ2[1];
 
   // ── Auto-group duplicate-address stops ─────────────────────────────────
   var groupedStops = React.useMemo(function() {
@@ -5110,28 +5114,56 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
       cumulativeMin += driveMin + (idx > 0 ? AVG_STOP_MIN : 0);
       var etaMin = cumulativeMin;
       var arrivalMin = nowMin + etaMin;
-      var win = parseWindow(stop.pickupWindow);
+      // For grouped stops: use the earliest pickup window across child orders
+      var _stopWindow = stop.pickupWindow ||
+        (stop.orders && stop.orders.reduce(function(earliest, o) {
+          if (!o.pickupWindow) return earliest;
+          if (!earliest) return o.pickupWindow;
+          var wa = parseWindow(o.pickupWindow), wb = parseWindow(earliest);
+          return (wa && wb) ? (wa.end < wb.end ? o.pickupWindow : earliest) : (wa ? o.pickupWindow : earliest);
+        }, null)) || null;
+      var win = parseWindow(_stopWindow);
       var status = "ontime";
       if (win) {
         if (arrivalMin > win.end + 20) status = "late";else if (arrivalMin > win.end - 10) status = "tight";
       }
       prevLat = stopLat;
       prevLng = stopLng;
-      return _objectSpread(_objectSpread({}, acc), {}, _defineProperty({}, stop.id, {
-        etaMin: etaMin,
-        arrivalMin: arrivalMin,
-        status: status,
-        win: win
-      }));
+      // Key by stop group id AND by each order id so EtaBadge (keyed by order) works
+      var etaEntry = { etaMin: etaMin, arrivalMin: arrivalMin, status: status, win: win };
+      var nextAcc = _objectSpread(_objectSpread({}, acc), {}, _defineProperty({}, stop.id, etaEntry));
+      // Also index by each child order id for backwards-compat with EtaBadge
+      (stop.orders || [stop]).forEach(function(o) {
+        if (o.id && o.id !== stop.id) nextAcc[o.id] = etaEntry;
+      });
+      return nextAcc;
     }, {});
   }, [gpsPos, optimized]);
 
+  // ── Receipt queue: auto-advance to next unpaid order after each receipt ─────
+  React.useEffect(function() {
+    if (receiptQueue.length === 0) return;
+    var nextOrder = receiptQueue[0];
+    // If the front of the queue is now paid/in_warehouse, pop it and open next
+    var currentOrder = orders.find(function(o){ return o.id === nextOrder.id; });
+    var isDone = currentOrder && (currentOrder.status === "in_warehouse" || currentOrder.payment.status === "paid");
+    if (isDone) {
+      var remaining = receiptQueue.slice(1);
+      setReceiptQueue(remaining);
+      if (remaining.length > 0) {
+        onReceipt(remaining[0]);
+      }
+    }
+  }, [orders, receiptQueue]);
+
   // ── AUTO RUNNING-LATE NOTIFICATIONS ───────────────────
+  // Guard: grouped stop ids always contain "|" — only fire for real order ids
   React.useEffect(function () {
     Object.entries(etas).forEach(function (_ref37) {
       var _ref38 = _slicedToArray(_ref37, 2),
         orderId = _ref38[0],
         eta = _ref38[1];
+      if (orderId.indexOf("|") !== -1) return; // skip group stop composite ids
       if (eta.status === "late" && !notified[orderId]) {
         setNotified(function (p) {
           return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, orderId, true));
@@ -5371,8 +5403,11 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
     gpsPos: gpsPos,
     orders: optimized,
     onDelayAll: function onDelayAll(label) {
-      return optimized.forEach(function (o) {
-        return onRunningLate && onRunningLate(o.id);
+      // Notify each individual order (not the group object)
+      return groupedStops.forEach(function(grp) {
+        grp.orders.forEach(function(o) {
+          return onRunningLate && onRunningLate(o.id);
+        });
       });
     }
   }), showQR && /*#__PURE__*/React.createElement(QRScanner, {
@@ -5561,8 +5596,39 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
             onClick: function() { return onRunningLate && onRunningLate(repOrder.id); }
           }, "\u23F1 Running Late")
         ),
-        grp.merged && /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { fontSize: 10 } },
-          grp.orders.length + " orders at this address"),
+        grp.merged && /*#__PURE__*/React.createElement(React.Fragment, null,
+          isPickup
+            ? (allPaid
+                ? /*#__PURE__*/React.createElement("button", { className: "btn btn-green btn-sm",
+                    onClick: function() {
+                      grp.orders.forEach(function(o) { onStatusChange(o.id, "in_warehouse"); });
+                    }
+                  }, "✓ Pick Up All (" + grp.orders.length + ")")
+                : /*#__PURE__*/React.createElement("button", { className: "btn btn-primary btn-sm",
+                    onClick: function() {
+                      var paidOnes   = grp.orders.filter(function(o){ return o.payment.status === "paid"; });
+                      var unpaidOnes = grp.orders.filter(function(o){ return o.payment.status !== "paid"; });
+                      // Complete paid orders immediately
+                      paidOnes.forEach(function(o) { onStatusChange(o.id, "in_warehouse"); });
+                      if (unpaidOnes.length === 1) {
+                        // Only one unpaid — open receipt directly
+                        onReceipt(unpaidOnes[0]);
+                      } else if (unpaidOnes.length > 1) {
+                        // Multiple unpaid — load queue and open first; useEffect advances the rest
+                        setReceiptQueue(unpaidOnes);
+                        onReceipt(unpaidOnes[0]);
+                      }
+                    }
+                  }, "💵 Collect & Pick Up (" + grp.orders.filter(function(o){ return o.payment.status !== "paid"; }).length + " unpaid — tap for each)")
+              )
+            : /*#__PURE__*/React.createElement("button", { className: "btn btn-green btn-sm",
+                onClick: function() {
+                  grp.orders.forEach(function(o) { onStatusChange(o.id, "in_warehouse"); });
+                }
+              }, "✓ Drop Off All (" + grp.orders.length + ")"),
+          /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { fontSize: 10 } },
+            grp.orders.length + " orders merged")
+        ),
         /*#__PURE__*/React.createElement(MapsMenu, { order: repOrder })
       )
     );
@@ -5763,68 +5829,44 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
     style: {
       padding: "8px 0"
     }
-  }, optimized.map(function (o, i) {
-    var eta = etas[o.id];
-    var colors = {
-      ontime: "var(--green)",
-      tight: "var(--amber)",
-      late: "var(--red)"
-    };
+  }, groupedStops.map(function (grp, i) {
+    var eta = etas[grp.id] || etas[(grp.orders[0] || {}).id];
+    var repOrder = grp.orders[0] || {};
+    var stopLabel = grp.merged
+      ? grp.orders.length + " orders — " + (grp.address || repOrder.name || "")
+      : (repOrder.name || grp.address || "");
+    var windowLabel = repOrder.pickupWindow ||
+      grp.orders.map(function(o){ return o.pickupWindow; }).filter(Boolean)[0] ||
+      "No window";
+    var colors = { ontime: "var(--green)", tight: "var(--amber)", late: "var(--red)" };
     return /*#__PURE__*/React.createElement("div", {
-      key: o.id,
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "7px 16px",
-        borderBottom: "1px solid rgba(28,40,64,.3)"
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        width: 20,
-        height: 20,
-        borderRadius: "50%",
-        background: "var(--amber)",
-        color: "white",
-        fontSize: 10,
-        fontWeight: 800,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0
-      }
-    }, i + 1), /*#__PURE__*/React.createElement("div", {
-      style: {
-        flex: 1
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 12,
-        fontWeight: 600,
-        color: "var(--text)"
-      }
-    }, o.name), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "var(--text4)"
-      }
-    }, o.pickupWindow || "No window")), eta && /*#__PURE__*/React.createElement("div", {
-      style: {
-        textAlign: "right"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontFamily: "'IBM Plex Mono',monospace",
-        fontSize: 12,
-        fontWeight: 700,
-        color: colors[eta.status] || "var(--text)"
-      }
-    }, fmtEta(eta.etaMin)), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10,
-        color: "var(--text4)"
-      }
-    }, "~", fmtTime(eta.arrivalMin))));
+      key: grp.id,
+      style: { display: "flex", alignItems: "center", gap: 10, padding: "7px 16px",
+               borderBottom: "1px solid rgba(28,40,64,.3)" }
+    },
+      /*#__PURE__*/React.createElement("span", {
+        style: { width: 20, height: 20, borderRadius: "50%", background: "var(--amber)",
+                 color: "white", fontSize: 10, fontWeight: 800, display: "flex",
+                 alignItems: "center", justifyContent: "center", flexShrink: 0 }
+      }, i + 1),
+      /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: "var(--text)" } },
+          stopLabel),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "var(--text4)" } },
+          grp.city, grp.state ? " " + grp.state : "", grp.zip ? " " + grp.zip : "",
+          " · ", windowLabel),
+        grp.merged && /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, color: "var(--text3)", marginTop: 2 } },
+          grp.orders.map(function(o){ return o.name; }).join(", "))
+      ),
+      eta && /*#__PURE__*/React.createElement("div", { style: { textAlign: "right" } },
+        /*#__PURE__*/React.createElement("div", {
+          style: { fontFamily: "'IBM Plex Mono',monospace", fontSize: 12, fontWeight: 700,
+                   color: colors[eta.status] || "var(--text)" }
+        }, fmtEta(eta.etaMin)),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "var(--text4)" } },
+          "~", fmtTime(eta.arrivalMin))
+      )
+    );
   }))), myDone.length > 0 && /*#__PURE__*/React.createElement("div", {
     className: "card"
   }, /*#__PURE__*/React.createElement("div", {
@@ -6868,17 +6910,19 @@ var HQOverview = function HQOverview(_ref51) {
       className: "sc-delta delta-n"
     }, s.d));
   })), function () {
-    var dups = findDuplicateAddresses(orders);
+    var dups = findDuplicateAddresses(orders, roleKey === "driver" ? (session && session.displayName) : null);
     return dups.length > 0 && /*#__PURE__*/React.createElement("div", {
       className: "alert alert-a mb12",
       style: {
         fontSize: 12
       }
-    }, "\u26A0 ", /*#__PURE__*/React.createElement("strong", null, dups.length, " duplicate address", dups.length > 1 ? "es" : "", " detected"), " \u2014 ", dups.map(function (g) {
-      return g.map(function (o) {
-        return o.id;
-      }).join("+");
-    }).join(", "), ". These are auto-grouped into single stops on driver routes.");
+    }, "\u26A0 ", /*#__PURE__*/React.createElement("strong", null, dups.length, " duplicate address", dups.length > 1 ? "es" : "", " detected"), " \u2014 ",
+      dups.map(function (g) {
+        var drivers = g.map(function(o){ return o.assignedDriver; }).filter(Boolean);
+        var sameDriver = drivers.length === g.length && drivers.every(function(d){ return d === drivers[0]; });
+        return g.map(function(o){ return o.id; }).join("+") + (sameDriver && drivers[0] ? " (" + drivers[0] + ")" : " (cross-driver)");
+      }).join(", "),
+      ". Same-driver dupes auto-group on route. Cross-driver dupes need reassignment.");
   }(), /*#__PURE__*/React.createElement("div", {
     className: "alert alert-a mb18"
   }, t("☀️ Today:", "☀️ Hoy:"), " ", pickups, " ", t("pickup(s) pending", "recogida(s) pendiente(s)"), ", ", dropoffs, " ", t("box drop-off(s) needed", "entrega(s) de caja pendiente(s)"), ", ", unpaid, " ", t("unpaid order(s)", "orden(es) sin pagar"), ". ", t("Batch-ready:", "Listos para lote:"), " ", /*#__PURE__*/React.createElement("strong", null, batchReady, " ", t("boxes", "cajas")), "."), /*#__PURE__*/React.createElement("div", {
@@ -9901,9 +9945,12 @@ var groupStops = function groupStops(orders, driverName) {
   });
 };
 
-// ── Backwards-compat: dashboard alert still calls this ───────────────────
-var findDuplicateAddresses = function findDuplicateAddresses(orders) {
-  return groupStops(orders, null).filter(function(g){ return g.merged; }).map(function(g){ return g.orders; });
+// ── findDuplicateAddresses(orders, driverName?) ──────────────────────────
+// driverName filters to that driver only — driver route shows only their dupes
+var findDuplicateAddresses = function findDuplicateAddresses(orders, driverName) {
+  return groupStops(orders, driverName || null)
+    .filter(function(g){ return g.merged; })
+    .map(function(g){ return g.orders; });
 };
 
 /* ════════════════════════════════════════════
@@ -14750,7 +14797,7 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
             /*#__PURE__*/React.createElement("table", null,
               /*#__PURE__*/React.createElement("thead", null,
                 /*#__PURE__*/React.createElement("tr", null,
-                  ["Order","Phone","Channels","Status","Error","Time","Action"].map(function(h){
+                  ["Order","Tracking #","Sent To","Role","Phone","Channels","Status","Error","Time","Action"].map(function(h){
                     return /*#__PURE__*/React.createElement("th", { key: h }, h);
                   })
                 )
@@ -14760,21 +14807,39 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
                   var rr = retryResults[row.id];
                   var isRetrying = retryingId === row.id;
                   var statusColor = row.status==="ok" ? "var(--green)" : row.status==="failed" ? "var(--red)" : "var(--amber)";
+                  var isSenderRole = row.target_role === "sender" || !row.target_role;
+                  var roleColor = isSenderRole ? "var(--green)" : "var(--red)";
+                  var roleLabel = row.target_role || "unknown";
+                  // Mask phone for display: show last 4 only
+                  var phone = row.target_phone || row.phone || "";
+                  var phoneMasked = phone.length > 4 ? "••••" + phone.slice(-4) : phone;
                   return /*#__PURE__*/React.createElement("tr", { key: row.id },
                     /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tamb" }, row.order_id)),
-                    /*#__PURE__*/React.createElement("td", null, row.phone || "\u2014"),
+                    /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "mut xs mono" }, row.tracking_number || row.box_id || "\u2014")),
+                    /*#__PURE__*/React.createElement("td", { style: { fontSize: 11 } }, row.sender_name || "\u2014"),
+                    /*#__PURE__*/React.createElement("td", null,
+                      /*#__PURE__*/React.createElement("span", {
+                        className: "badge " + (isSenderRole ? "bg" : "br"),
+                        style: { fontSize: 9 }
+                      }, roleLabel)
+                    ),
+                    /*#__PURE__*/React.createElement("td", { className: "mono", style: { fontSize: 11 } }, phoneMasked || "\u2014"),
                     /*#__PURE__*/React.createElement("td", null, (row.channels||[]).join(", ")),
                     /*#__PURE__*/React.createElement("td", { style: { color: statusColor, fontWeight: 600 } }, row.status),
-                    /*#__PURE__*/React.createElement("td", { style: { color: "var(--red)", fontSize: 11, maxWidth: 200, wordBreak: "break-word" } }, row.error || "\u2014"),
+                    /*#__PURE__*/React.createElement("td", { style: { color: "var(--red)", fontSize: 11, maxWidth: 180, wordBreak: "break-word" } }, row.error || "\u2014"),
                     /*#__PURE__*/React.createElement("td", { className: "mut xs" }, row.ts ? new Date(row.ts).toLocaleString() : "\u2014"),
                     /*#__PURE__*/React.createElement("td", null,
-                      row.status !== "ok" && /*#__PURE__*/React.createElement("button", {
-                        className: "btn btn-ghost btn-xs",
-                        style: { fontSize: 10, padding: "2px 8px",
-                          color: rr==="ok" ? "var(--green)" : rr==="fail" ? "var(--red)" : undefined },
-                        disabled: isRetrying,
-                        onClick: function(){ retryRow(row); }
-                      }, isRetrying ? "\u2026" : rr==="ok" ? "\u2713 Sent" : rr==="fail" ? "\u26A0 Failed" : "Retry")
+                      row.status !== "ok" && (function() {
+                        var canRetry = row.target_role === "sender" || !row.target_role;
+                        return /*#__PURE__*/React.createElement("button", {
+                          className: "btn btn-ghost btn-xs",
+                          style: { fontSize: 10, padding: "2px 8px",
+                            color: rr==="ok" ? "var(--green)" : rr==="fail" ? "var(--red)" : !canRetry ? "var(--text4)" : undefined },
+                          disabled: isRetrying || !canRetry,
+                          title: !canRetry ? "Cannot retry: original send was not sender-only. Phone may belong to a receiver." : undefined,
+                          onClick: function(){ if (canRetry) retryRow(row); }
+                        }, isRetrying ? "\u2026" : rr==="ok" ? "\u2713 Sent" : rr==="fail" ? "\u26A0 Failed" : canRetry ? "Retry" : "\uD83D\uDD12 Blocked");
+                      })()
                     )
                   );
                 })
