@@ -6787,8 +6787,114 @@ var HQOverview = function HQOverview(_ref51) {
     destinations = _ref51$destinations === void 0 ? DESTINATIONS : _ref51$destinations,
     _ref51$shipments = _ref51.shipments,
     shipments = _ref51$shipments === void 0 ? [] : _ref51$shipments,
-    tenant = _ref51.tenant;
+    tenant = _ref51.tenant,
+    onSave = _ref51.onSave,
+    notify = _ref51.notify;
   var t = useT();
+
+  // ── Auto-optimize preference (persisted in localStorage) ─────────────────
+  var _stAutoOpt = useState(function(){
+    try { return localStorage.getItem("casabe_auto_optimize_dups") === "1"; } catch(e){ return false; }
+  });
+  var _stAutoOpt2 = _slicedToArray(_stAutoOpt, 2),
+      autoOptimize = _stAutoOpt2[0], setAutoOptimize = _stAutoOpt2[1];
+  var _stOptRunning = useState(false), _stOptRunning2 = _slicedToArray(_stOptRunning, 2),
+      optimizing = _stOptRunning2[0], setOptimizing = _stOptRunning2[1];
+
+  // ── Build a reassignment plan for cross-driver duplicate addresses ───────
+  // Heuristic: at each duplicate-address group, assign all orders to the driver
+  // who already has the most stops at that address (they're going there anyway).
+  // Tie-break: the driver with the fewer total active stops that day (load-balance).
+  // If no orders in the group are assigned yet, skip — HQ needs to assign first.
+  function buildOptimizePlan(currentOrders) {
+    var dupGroups = (typeof findDuplicateAddresses === "function") ? findDuplicateAddresses(currentOrders, null) : [];
+    if (!dupGroups || dupGroups.length === 0) return [];
+    // Compute total stops per driver across active orders for tie-break
+    var driverLoad = {};
+    currentOrders.forEach(function(o){
+      if (o.assignedDriver && !["delivered","cancelled","attempted"].includes(o.status)) {
+        driverLoad[o.assignedDriver] = (driverLoad[o.assignedDriver] || 0) + 1;
+      }
+    });
+    var plan = [];
+    dupGroups.forEach(function(g){
+      var assigned = g.filter(function(o){ return !!o.assignedDriver; });
+      if (assigned.length === 0) return; // nothing to consolidate to
+      var drivers = assigned.map(function(o){ return o.assignedDriver; });
+      // All same driver already? skip
+      var uniq = drivers.filter(function(d,i){ return drivers.indexOf(d) === i; });
+      if (uniq.length === 1 && assigned.length === g.length) return;
+      // Count occurrences per driver at this address
+      var counts = {};
+      drivers.forEach(function(d){ counts[d] = (counts[d] || 0) + 1; });
+      // Pick winner: most stops at this address, tie-break by lowest total load
+      var winner = uniq.sort(function(a,b){
+        if (counts[b] !== counts[a]) return counts[b] - counts[a];
+        return (driverLoad[a]||0) - (driverLoad[b]||0);
+      })[0];
+      // Reassign every order in the group to winner
+      g.forEach(function(o){
+        if (o.assignedDriver !== winner) {
+          plan.push({ order: o, fromDriver: o.assignedDriver || "(unassigned)", toDriver: winner });
+        }
+      });
+    });
+    return plan;
+  }
+
+  function runOptimize(silent) {
+    if (typeof onSave !== "function") {
+      if (!silent && typeof notify === "function") notify("⚠ Cannot optimize — save handler unavailable");
+      return 0;
+    }
+    var plan = buildOptimizePlan(orders);
+    if (plan.length === 0) {
+      if (!silent && typeof notify === "function") notify("✓ Nothing to optimize — no cross-driver duplicates found");
+      return 0;
+    }
+    setOptimizing(true);
+    plan.forEach(function(item){
+      var updated = Object.assign({}, item.order, { assignedDriver: item.toDriver });
+      try { onSave(updated); } catch(e) { console.error("[optimize reassign]", e); }
+    });
+    setOptimizing(false);
+    if (typeof notify === "function") {
+      notify("🛣 Optimized " + plan.length + " stop" + (plan.length === 1 ? "" : "s") + " — consolidated to nearest driver");
+    }
+    return plan.length;
+  }
+
+  // Auto-optimize on first HQ Overview mount when toggle is on (once per day)
+  React.useEffect(function(){
+    if (!autoOptimize) return;
+    try {
+      var lastKey = "casabe_auto_optimize_last";
+      var todayStr = new Date().toISOString().slice(0,10);
+      var last = localStorage.getItem(lastKey);
+      if (last === todayStr) return;
+      // Defer one tick so orders/onSave are stable
+      var timeoutId = setTimeout(function(){
+        var n = runOptimize(true);
+        if (n > 0) {
+          try { localStorage.setItem(lastKey, todayStr); } catch(e){}
+          if (typeof notify === "function") notify("🛣 Auto-optimized " + n + " stop" + (n === 1 ? "" : "s") + " on load");
+        } else {
+          try { localStorage.setItem(lastKey, todayStr); } catch(e){}
+        }
+      }, 600);
+      return function(){ clearTimeout(timeoutId); };
+    } catch(e){ console.warn("[auto-optimize]", e); }
+  }, [autoOptimize]);
+
+  function toggleAutoOptimize() {
+    var next = !autoOptimize;
+    setAutoOptimize(next);
+    try { localStorage.setItem("casabe_auto_optimize_dups", next ? "1" : "0"); } catch(e){}
+    if (typeof notify === "function") {
+      notify(next ? "✓ Auto-optimize ON — duplicates will consolidate automatically" : "Auto-optimize OFF");
+    }
+  }
+
   // Shipment selector
   var sortedShipments = shipments.slice().sort(function(a,b){
     var da = a.date||a.createdAt||a.id||""; var db = b.date||b.createdAt||b.id||"";
@@ -6911,6 +7017,10 @@ var HQOverview = function HQOverview(_ref51) {
     }, s.d));
   })), function () {
     var dups = findDuplicateAddresses(orders, null);
+    var hasCrossDriver = dups.some(function(g){
+      var ds = g.map(function(o){ return o.assignedDriver; }).filter(Boolean);
+      return ds.length >= 2 && !ds.every(function(d){ return d === ds[0]; });
+    });
     return dups.length > 0 && /*#__PURE__*/React.createElement("div", {
       className: "alert alert-a mb12",
       style: {
@@ -6922,7 +7032,29 @@ var HQOverview = function HQOverview(_ref51) {
         var sameDriver = drivers.length === g.length && drivers.every(function(d){ return d === drivers[0]; });
         return g.map(function(o){ return o.id; }).join("+") + (sameDriver && drivers[0] ? " (" + drivers[0] + ")" : " (cross-driver)");
       }).join(", "),
-      ". Same-driver dupes auto-group on route. Cross-driver dupes need reassignment.");
+      ". Same-driver dupes auto-group on route. Cross-driver dupes need reassignment.",
+      hasCrossDriver && /*#__PURE__*/React.createElement("div", {
+        style: { marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }
+      },
+        /*#__PURE__*/React.createElement("button", {
+          className: "btn btn-sm",
+          style: { background: "var(--amber)", color: "#000", fontWeight: 600, padding: "4px 12px", fontSize: 11 },
+          disabled: optimizing,
+          onClick: function(){ runOptimize(false); }
+        }, optimizing ? "\u2026 Optimizing" : "\uD83D\uDEE3 Optimize Now"),
+        /*#__PURE__*/React.createElement("label", {
+          style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, color: "var(--text2)" },
+          title: "When on, cross-driver duplicates auto-consolidate on Overview load and when new orders are saved"
+        },
+          /*#__PURE__*/React.createElement("input", {
+            type: "checkbox",
+            checked: autoOptimize,
+            onChange: toggleAutoOptimize,
+            style: { cursor: "pointer" }
+          }),
+          "Always auto-optimize"
+        )
+      ));
   }(), /*#__PURE__*/React.createElement("div", {
     className: "alert alert-a mb18"
   }, t("☀️ Today:", "☀️ Hoy:"), " ", pickups, " ", t("pickup(s) pending", "recogida(s) pendiente(s)"), ", ", dropoffs, " ", t("box drop-off(s) needed", "entrega(s) de caja pendiente(s)"), ", ", unpaid, " ", t("unpaid order(s)", "orden(es) sin pagar"), ". ", t("Batch-ready:", "Listos para lote:"), " ", /*#__PURE__*/React.createElement("strong", null, batchReady, " ", t("boxes", "cajas")), "."), /*#__PURE__*/React.createElement("div", {
@@ -14625,36 +14757,69 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
 
   function retryRow(row) {
     setRetryingId(row.id);
-    fetch(PAID_INVOICE_EDGE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        orderId:        row.order_id,
-        boxId:          row.box_id || row.order_id,
-        trackingNumber: row.tracking_number || row.order_id,
-        tenantId:       row.tenant_id || tenantId,
-        targetRole:     "sender",
-        targetPhone:    row.target_phone || row.phone || "",
-        phone:          row.target_phone || row.phone || "",
-        channels:       row.channels || ["whatsapp"],
-        messageBody:    row.message_body || ("Resent: Your invoice for order " + row.order_id + " is confirmed paid."),
-        triggeredBy:    session.displayName || "admin",
-        source:         "admin_retry"
-      })
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(data) {
-      var ok = Object.values(data.results || {}).some(function(r){ return r && r.ok; });
-      setRetryResults(function(p){ var n=Object.assign({},p); n[row.id]=ok?"ok":"fail"; return n; });
-      setRetryingId(null);
-      // Refresh log
-      supaFetch("/send_log?order=ts.desc&limit=50")
+
+    // SAFETY: Re-resolve the sender phone from the current order before sending.
+    // Old log rows may have logged a non-sender phone (e.g. consignee) under the
+    // generic 'phone' field. Pulling fresh from the order guarantees we message
+    // the sender — never a recipient — on retry.
+    function fetchOrderForSender() {
+      return supaFetch("/orders?id=eq." + encodeURIComponent(row.order_id) + "&limit=1")
         .then(function(r){ return r.json(); })
-        .then(function(d){ if(Array.isArray(d)) setSendLog(d); });
-    })
-    .catch(function(e){
-      setRetryResults(function(p){ var n=Object.assign({},p); n[row.id]="fail"; return n; });
-      setRetryingId(null);
+        .then(function(arr){
+          var o = (Array.isArray(arr) && arr.length) ? arr[0] : null;
+          var data = (o && (o.data || o)) || {};
+          // Prefer explicit whatsapp field, then phone. Strip non-digits but keep '+'.
+          var raw = data.whatsapp || data.phone || "";
+          var senderPhone = String(raw).replace(/[^\d+]/g, "");
+          var senderName  = data.name || null;
+          return { senderPhone: senderPhone, senderName: senderName };
+        })
+        .catch(function(e){ console.warn("[retry resolve sender]", e); return { senderPhone: "", senderName: null }; });
+    }
+
+    fetchOrderForSender().then(function(resolved) {
+      var resolvedPhone = resolved.senderPhone;
+      // If we cannot confirm a sender phone from the order, refuse to send to
+      // whatever was logged (which may be a recipient).
+      if (!resolvedPhone) {
+        setRetryResults(function(p){ var n=Object.assign({},p); n[row.id]="fail"; return n; });
+        setRetryingId(null);
+        window.alert("Cannot retry: sender phone not found on order " + row.order_id + ". Open the order and add a sender phone first.");
+        return;
+      }
+
+      fetch(PAID_INVOICE_EDGE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId:        row.order_id,
+          boxId:          row.box_id || row.order_id,
+          trackingNumber: row.tracking_number || row.order_id,
+          tenantId:       row.tenant_id || tenantId,
+          targetRole:     "sender",
+          targetPhone:    resolvedPhone,
+          phone:          resolvedPhone,
+          senderName:     resolved.senderName,
+          channels:       row.channels || ["whatsapp"],
+          messageBody:    row.message_body || ("Resent: Your invoice for order " + row.order_id + " is confirmed paid."),
+          triggeredBy:    session.displayName || "admin",
+          source:         "admin_retry"
+        })
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(data) {
+        var ok = Object.values(data.results || {}).some(function(r){ return r && r.ok; });
+        setRetryResults(function(p){ var n=Object.assign({},p); n[row.id]=ok?"ok":"fail"; return n; });
+        setRetryingId(null);
+        // Refresh log
+        supaFetch("/send_log?order=ts.desc&limit=50")
+          .then(function(r){ return r.json(); })
+          .then(function(d){ if(Array.isArray(d)) setSendLog(d); });
+      })
+      .catch(function(e){
+        setRetryResults(function(p){ var n=Object.assign({},p); n[row.id]="fail"; return n; });
+        setRetryingId(null);
+      });
     });
   }
 
@@ -14850,9 +15015,14 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
                   var rr = retryResults[row.id];
                   var isRetrying = retryingId === row.id;
                   var statusColor = row.status==="ok" ? "var(--green)" : row.status==="failed" ? "var(--red)" : "var(--amber)";
-                  var isSenderRole = row.target_role === "sender" || !row.target_role;
-                  var roleColor = isSenderRole ? "var(--green)" : "var(--red)";
-                  var roleLabel = row.target_role || "unknown";
+                  // Legacy rows pre-date the target_role column. They are NOT
+                  // confirmed sender sends — the logged phone could be a
+                  // recipient. We still allow retry because retryRow now
+                  // re-resolves the sender phone from the current order.
+                  var isLegacy = !row.target_role;
+                  var isSenderRole = row.target_role === "sender";
+                  var roleLabel = isLegacy ? "sender (legacy)" : row.target_role;
+                  var roleBadgeClass = isLegacy ? "ba" : (isSenderRole ? "bg" : "br");
                   // Mask phone for display: show last 4 only
                   var phone = row.target_phone || row.phone || "";
                   var phoneMasked = phone.length > 4 ? "••••" + phone.slice(-4) : phone;
@@ -14862,8 +15032,9 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
                     /*#__PURE__*/React.createElement("td", { style: { fontSize: 11 } }, row.sender_name || "\u2014"),
                     /*#__PURE__*/React.createElement("td", null,
                       /*#__PURE__*/React.createElement("span", {
-                        className: "badge " + (isSenderRole ? "bg" : "br"),
-                        style: { fontSize: 9 }
+                        className: "badge " + roleBadgeClass,
+                        style: { fontSize: 9 },
+                        title: isLegacy ? "Pre-migration row — sender phone will be re-resolved from the order on retry" : undefined
                       }, roleLabel)
                     ),
                     /*#__PURE__*/React.createElement("td", { className: "mono", style: { fontSize: 11 } }, phoneMasked || "\u2014"),
@@ -14873,15 +15044,29 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
                     /*#__PURE__*/React.createElement("td", { className: "mut xs" }, row.ts ? new Date(row.ts).toLocaleString() : "\u2014"),
                     /*#__PURE__*/React.createElement("td", null,
                       row.status !== "ok" && (function() {
-                        var canRetry = row.target_role === "sender" || !row.target_role;
+                        // Block retry only when the role was explicitly NOT sender.
+                        // Sender rows are safe; legacy rows are safe because
+                        // retryRow re-resolves the sender phone from the order.
+                        var canRetry = !row.target_role || row.target_role === "sender";
+                        var retryLabel = isRetrying ? "\u2026"
+                          : rr==="ok" ? "\u2713 Sent"
+                          : rr==="fail" ? "\u26A0 Failed"
+                          : !canRetry ? "\uD83D\uDD12 Blocked"
+                          : isLegacy ? "Retry \u26A1"
+                          : "Retry";
+                        var retryTitle = !canRetry
+                          ? "Cannot retry: original send was not to the sender role."
+                          : isLegacy
+                          ? "Legacy row — will re-resolve the sender phone from order " + row.order_id + " before sending."
+                          : undefined;
                         return /*#__PURE__*/React.createElement("button", {
                           className: "btn btn-ghost btn-xs",
                           style: { fontSize: 10, padding: "2px 8px",
-                            color: rr==="ok" ? "var(--green)" : rr==="fail" ? "var(--red)" : !canRetry ? "var(--text4)" : undefined },
+                            color: rr==="ok" ? "var(--green)" : rr==="fail" ? "var(--red)" : !canRetry ? "var(--text4)" : isLegacy ? "var(--amber)" : undefined },
                           disabled: isRetrying || !canRetry,
-                          title: !canRetry ? "Cannot retry: original send was not sender-only. Phone may belong to a receiver." : undefined,
+                          title: retryTitle,
                           onClick: function(){ if (canRetry) retryRow(row); }
-                        }, isRetrying ? "\u2026" : rr==="ok" ? "\u2713 Sent" : rr==="fail" ? "\u26A0 Failed" : canRetry ? "Retry" : "\uD83D\uDD12 Blocked");
+                        }, retryLabel);
                       })()
                     ),
                     /*#__PURE__*/React.createElement("td", null,
@@ -21915,6 +22100,58 @@ setOrders(function (prev) {
     }
   }, [notify, orders, shipments]);
 
+  // ── Auto-optimize cross-driver dupes on order changes (when toggle is on) ─
+  // Toggle lives in localStorage (set by HQ Overview). Debounced to coalesce
+  // bursts of saves and to avoid optimizing during the initial hydration.
+  var autoOptHydrated = React.useRef(false);
+  React.useEffect(function() {
+    var enabled;
+    try { enabled = localStorage.getItem("casabe_auto_optimize_dups") === "1"; } catch(e){ enabled = false; }
+    if (!enabled) return;
+    // Skip first render after orders hydrate from DB
+    if (!autoOptHydrated.current) { autoOptHydrated.current = true; return; }
+    var timeoutId = setTimeout(function(){
+      try {
+        if (typeof findDuplicateAddresses !== "function") return;
+        var dups = findDuplicateAddresses(orders, null);
+        if (!dups || dups.length === 0) return;
+        // Compute load for tie-break
+        var driverLoad = {};
+        orders.forEach(function(o){
+          if (o.assignedDriver && !["delivered","cancelled","attempted"].includes(o.status)) {
+            driverLoad[o.assignedDriver] = (driverLoad[o.assignedDriver] || 0) + 1;
+          }
+        });
+        var reassigns = [];
+        dups.forEach(function(g){
+          var assigned = g.filter(function(o){ return !!o.assignedDriver; });
+          if (assigned.length === 0) return;
+          var drivers = assigned.map(function(o){ return o.assignedDriver; });
+          var uniq = drivers.filter(function(d,i){ return drivers.indexOf(d) === i; });
+          if (uniq.length === 1 && assigned.length === g.length) return;
+          var counts = {};
+          drivers.forEach(function(d){ counts[d] = (counts[d] || 0) + 1; });
+          var winner = uniq.sort(function(a,b){
+            if (counts[b] !== counts[a]) return counts[b] - counts[a];
+            return (driverLoad[a]||0) - (driverLoad[b]||0);
+          })[0];
+          g.forEach(function(o){
+            if (o.assignedDriver !== winner) {
+              reassigns.push(Object.assign({}, o, { assignedDriver: winner }));
+            }
+          });
+        });
+        if (reassigns.length > 0) {
+          reassigns.forEach(function(o){
+            try { saveOrder(o); } catch(e){ console.error("[auto-optimize save]", e); }
+          });
+          notify("🛣 Auto-optimized " + reassigns.length + " stop" + (reassigns.length === 1 ? "" : "s"));
+        }
+      } catch(e){ console.warn("[auto-optimize effect]", e); }
+    }, 1500);
+    return function(){ clearTimeout(timeoutId); };
+  }, [orders]);
+
   // ── Backward status gate state ──────────────────────────────
   var _useState163 = useState(null),
     _useState164 = _slicedToArray(_useState163, 2),
@@ -22088,7 +22325,9 @@ setOrders(function (prev) {
       orders: orders,
       destinations: destinations,
       shipments: shipments,
-      tenant: tenant
+      tenant: tenant,
+      onSave: saveOrder,
+      notify: notify
     });
     if (page === "analytics") return /*#__PURE__*/React.createElement(HQAnalytics, {
       orders: orders,
