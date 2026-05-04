@@ -14571,8 +14571,6 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
       retryResults = _stRetryResult2[0], setRetryResults = _stRetryResult2[1];
   var _stDeleting = useState(null), _stDeleting2 = _slicedToArray(_stDeleting, 2),
       deletingId = _stDeleting2[0], setDeletingId = _stDeleting2[1];
-  var _stClearing = useState(false), _stClearing2 = _slicedToArray(_stClearing, 2),
-      clearing = _stClearing2[0], setClearing = _stClearing2[1];
 
   // ── QuickBooks status state ───────────────────────────────────────────
   var _stQb = useState(null), _stQb2 = _slicedToArray(_stQb, 2),
@@ -14662,7 +14660,7 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
 
   function deleteRow(row) {
     if (!row || !row.id) return;
-    if (!window.confirm("Delete this notification entry? This cannot be undone.")) return;
+    if (!window.confirm("Delete this entry? This cannot be undone.")) return;
     setDeletingId(row.id);
     supaFetch("/send_log?id=eq." + encodeURIComponent(row.id), { method: "DELETE" })
       .then(function(r){
@@ -14673,30 +14671,7 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
       .catch(function(e){
         console.error("[delete send_log row]", e);
         setDeletingId(null);
-        window.alert("Could not delete entry. Check connection and RLS policy on send_log.");
-      });
-  }
-
-  function clearAllFiltered() {
-    var targets = filteredLog;
-    if (targets.length === 0) return;
-    var label = logFilter === "all" ? "all " + targets.length + " visible" : "all " + targets.length + " " + logFilter;
-    if (!window.confirm("Delete " + label + " notification entries? This cannot be undone.")) return;
-    setClearing(true);
-    var ids = targets.map(function(r){ return r.id; }).filter(Boolean);
-    var idList = ids.map(function(id){ return encodeURIComponent(id); }).join(",");
-    supaFetch("/send_log?id=in.(" + idList + ")", { method: "DELETE" })
-      .then(function(r){
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        var idSet = {};
-        ids.forEach(function(id){ idSet[id] = true; });
-        setSendLog(function(prev){ return prev.filter(function(x){ return !idSet[x.id]; }); });
-        setClearing(false);
-      })
-      .catch(function(e){
-        console.error("[clear send_log]", e);
-        setClearing(false);
-        window.alert("Could not clear entries. Check connection and RLS policy on send_log.");
+        window.alert("Could not delete entry.");
       });
   }
 
@@ -14833,13 +14808,30 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
                 : null
             );
           }),
-          filteredLog.length > 0 && /*#__PURE__*/React.createElement("button", {
+          /*#__PURE__*/React.createElement("button", {
+            key: "clear-visible",
             className: "btn btn-ghost btn-sm",
             style: { border: "1px solid var(--red)", color: "var(--red)" },
-            disabled: clearing,
-            onClick: clearAllFiltered,
-            title: logFilter === "all" ? "Delete all visible entries" : "Delete all " + logFilter + " entries"
-          }, clearing ? "\u2026" : "\uD83D\uDDD1 Clear " + (logFilter === "all" ? "All" : logFilter.charAt(0).toUpperCase()+logFilter.slice(1)) + " (" + filteredLog.length + ")")
+            disabled: filteredLog.length === 0,
+            title: "Delete all visible entries",
+            onClick: function() {
+              if (filteredLog.length === 0) return;
+              if (!window.confirm("Delete " + filteredLog.length + " visible entries? This cannot be undone.")) return;
+              var ids = filteredLog.map(function(r){ return r.id; }).filter(Boolean);
+              var idList = ids.map(function(id){ return encodeURIComponent(id); }).join(",");
+              supaFetch("/send_log?id=in.(" + idList + ")", { method: "DELETE" })
+                .then(function(r){
+                  if (!r.ok) throw new Error("HTTP " + r.status);
+                  var idSet = {};
+                  ids.forEach(function(id){ idSet[id] = true; });
+                  setSendLog(function(prev){ return prev.filter(function(x){ return !idSet[x.id]; }); });
+                })
+                .catch(function(e){
+                  console.error("[clear send_log]", e);
+                  window.alert("Could not clear entries.");
+                });
+            }
+          }, "\uD83D\uDDD1 Clear (" + filteredLog.length + ")")
         )
       ),
       filteredLog.length === 0
