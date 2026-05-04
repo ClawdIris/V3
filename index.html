@@ -2113,47 +2113,73 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
     + "Amount: $" + parseFloat((order.payment && order.payment.amount) || 0).toFixed(2) + "\n"
     + "Thank you for your business!";
 
-  // Build invoice HTML from order data for the backend — per-box blocks
+  // Build invoice HTML — per-box blocks per spec, no <table> in body
   function buildInvoiceHtml() {
-    var invRows = typeof getInvoiceBoxRows === "function" ? getInvoiceBoxRows(order, tenant) : null;
-    var amt   = parseFloat((order.payment && order.payment.amount) || 0);
+    var documentBoxes = order.boxes && order.boxes.length > 0
+      ? order.boxes
+      : [{ subId: order.id, boxType: order.boxType || "", destinationCountry: order.destination || "",
+           description: order.description || "General merchandise", declaredValue: order.declaredValue || 0,
+           price: order.payment && order.payment.amount ? order.payment.amount : 0,
+           senderName: order.name || "", senderPhone: order.phone || "", senderAddress: order.address || "",
+           senderCity: order.city || "", senderState: order.state || "", senderZip: order.zip || "",
+           recipientName: order.consigneeName || order.name || "", recipientPhone: order.consigneePhone || order.phone || "",
+           recipientAddress: order.consigneeAddress || order.address || "",
+           recipientCity: order.consigneeCity || order.city || "",
+           recipientCountry: order.consigneeCountry || order.destination || "" }];
+    var subtotal = documentBoxes.reduce(function(sum, b){ return sum + (parseFloat(b.price || 0) || 0); }, 0);
+    if (!subtotal) subtotal = parseFloat((order.payment && order.payment.amount) || 0);
+    var grossTotal = parseFloat((order.payment && order.payment.amount) || subtotal);
+    var paid = parseFloat((order.payment && order.payment.paid) || 0);
+    var balance = Math.max(0, grossTotal - paid);
     var insRate = (tenant && tenant.insuranceRate) || 5;
-    var insFee = order.insurance ? Math.min(1200, Math.round((parseFloat(order.declaredValue)||0) * (insRate/100))) : 0;
-    var boxTotal = invRows ? invRows.reduce(function(s,r){ return s+r.amount; }, 0) : (amt - insFee);
-    var rows = invRows
-      ? invRows.map(function(r) {
-          return "<div style='border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin-bottom:10px'>"
-            + "<div style='display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:7px'>"
-            + "<span style='font-family:monospace;font-size:11px;color:#0055aa;font-weight:700'>Tracking: " + r.trackingNumber + "</span>"
-            + "<span style='font-weight:800;font-size:13px'>$" + r.amount.toFixed(2) + "</span>"
-            + "</div>"
-            + "<table style='width:100%;font-size:11px;border-collapse:collapse'>"
-            + "<tr><td style='color:#888;padding:2px 6px 2px 0;width:100px'>Box Type</td><td style='font-weight:600'>" + (r.boxType||"—") + "</td>"
-            + "<td style='color:#888;padding:2px 6px 2px 12px;width:100px'>Price</td><td>$" + r.price.toFixed(2) + "</td></tr>"
-            + "<tr><td style='color:#888;padding:2px 6px 2px 0'>Declared</td><td>" + (r.declaredValue ? "$"+r.declaredValue.toFixed(2) : "—") + "</td>"
-            + "<td style='color:#888;padding:2px 6px 2px 12px'>Contents</td><td>" + (r.contents||"—") + "</td></tr>"
-            + (r.senderName ? "<tr><td style='color:#888;padding:2px 6px 2px 0'>Sender</td><td colspan=3>" + r.senderName + (r.senderPhone ? " · "+r.senderPhone : "") + (r.senderAddress ? " — "+r.senderAddress : "") + "</td></tr>" : "")
-            + (r.recipientName ? "<tr><td style='color:#888;padding:2px 6px 2px 0'>Recipient</td><td colspan=3>" + r.recipientName + (r.recipientPhone ? " · "+r.recipientPhone : "") + ([r.recipientAddress, r.recipientCity].filter(Boolean).length ? " — "+[r.recipientAddress,r.recipientCity].filter(Boolean).join(", ") : "") + "</td></tr>" : "")
-            + "</table></div>";
-        }).join("")
-      : "<div style='border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin-bottom:10px'>"
-        + "<div style='font-weight:700'>" + order.id + " — " + (order.boxType||"") + "</div>"
-        + "<div>" + (order.description||"General merchandise") + " — $" + amt.toFixed(2) + "</div></div>";
+    var insFee = order.insurance ? Math.min(1200, Math.round((parseFloat(order.declaredValue)||0) * (insRate/100) * 100)/100) : 0;
 
-    var totals = "<div style='border-top:2px solid #000;padding-top:8px;margin-top:4px;text-align:right;font-size:12px'>"
-      + "<div>Subtotal: <strong>$" + boxTotal.toFixed(2) + "</strong></div>"
-      + (insFee > 0 ? "<div>Insurance (" + insRate + "%): <strong>$" + insFee.toFixed(2) + "</strong></div>" : "")
-      + "<div style='font-size:15px;font-weight:800;margin-top:4px'>Total: $" + (boxTotal + insFee).toFixed(2) + "</div>"
+    var boxBlocks = documentBoxes.map(function(box, i) {
+      var trackingNumber = box.subId || (order.id + "-" + (i + 1));
+      var boxType = box.boxType || order.boxType || "";
+      var destination = box.destinationCountry || order.destination || "";
+      var contents = box.description || order.description || "General merchandise";
+      var declaredValue = parseFloat(box.declaredValue || order.declaredValue || 0);
+      var amount = parseFloat(box.price || 0);
+      var senderName = box.senderName || order.name || "";
+      var senderPhone = box.senderPhone || order.phone || "";
+      var senderAddr = [box.senderAddress || order.address, box.senderCity || order.city, box.senderState || order.state, box.senderZip || order.zip].filter(Boolean).join(", ");
+      var recipientName = box.recipientName || order.consigneeName || order.name || "";
+      var recipientPhone = box.recipientPhone || order.consigneePhone || order.phone || "";
+      var recipientAddr = [box.recipientAddress || order.consigneeAddress, box.recipientCity || order.consigneeCity, box.recipientCountry || order.consigneeCountry || order.destination].filter(Boolean).join(", ");
+      return "<div class=\"box-block\">"
+        + "<div class=\"box-head\"><strong>Tracking Number: " + trackingNumber + "</strong><strong>$" + amount.toFixed(2) + "</strong></div>"
+        + "<div class=\"box-grid\">"
+        + "<div><span>Box Type</span><strong>" + (boxType||"—") + "</strong></div>"
+        + "<div><span>Destination</span><strong>" + (destination||"—") + "</strong></div>"
+        + "<div><span>Declared Value</span><strong>" + (declaredValue ? "$"+declaredValue.toFixed(2) : "—") + "</strong></div>"
+        + "<div><span>Contents</span><strong>" + (contents||"—") + "</strong></div>"
+        + "</div>"
+        + (senderName ? "<div class=\"party\"><span>Sender</span>" + [senderName, senderPhone, senderAddr].filter(Boolean).join(" · ") + "</div>" : "")
+        + (recipientName ? "<div class=\"party\"><span>Recipient</span>" + [recipientName, recipientPhone, recipientAddr].filter(Boolean).join(" · ") + "</div>" : "")
+        + "</div>";
+    }).join("");
+
+    var css = ".box-block{border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin:10px 0;page-break-inside:avoid}"
+      + ".box-head{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:8px}"
+      + ".box-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 12px}"
+      + ".box-grid span,.party span{display:block;font-size:10px;text-transform:uppercase;color:#777;font-weight:700}"
+      + ".party{margin-top:8px;font-size:12px}"
+      + ".total{text-align:right;font-weight:700;font-size:14px;margin-top:12px}";
+
+    var totalsHtml = "<div class=\"total\">"
+      + "<div>Subtotal: $" + subtotal.toFixed(2) + "</div>"
+      + (insFee > 0 ? "<div>Insurance (" + insRate + "%): $" + insFee.toFixed(2) + "</div>" : "")
+      + "<div style=\"font-size:16px\">Grand Total: $" + grossTotal.toFixed(2) + "</div>"
+      + "<div>Paid: $" + paid.toFixed(2) + "</div>"
+      + "<div>Balance: $" + balance.toFixed(2) + "</div>"
       + "</div>";
 
-    return "<!DOCTYPE html><html><head><style>"
-      + "body{font-family:Arial,sans-serif;font-size:12px;padding:20px;color:#111}"
-      + "h2{margin:0 0 4px;font-size:16px}"
-      + "</style></head><body>"
-      + "<h2>" + coName + " — Invoice</h2>"
+    return "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;color:#111}h2{margin:0 0 4px;font-size:16px}p{margin:2px 0 8px}" + css + "</style></head><body>"
+      + "<h2>" + coName + " \u2014 Invoice</h2>"
       + "<p>Order: <strong>" + order.id + "</strong> | Date: " + (order.createdAt||"") + "</p>"
       + "<p>To: <strong>" + toName + "</strong>" + (phone ? " | " + phone : "") + "</p>"
-      + rows + totals
+      + boxBlocks + totalsHtml
       + "</body></html>";
   }
 
@@ -2229,38 +2255,68 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
           phone ? /*#__PURE__*/React.createElement("span", { style: { color: "#555" } }, " \xB7 ", phone) : null
         ),
         (function(){
-          var invR = typeof getInvoiceBoxRows === "function" ? getInvoiceBoxRows(order, tenant) : null;
-          var amt = parseFloat((order.payment&&order.payment.amount)||0);
-          var insR = (tenant&&tenant.insuranceRate)||5;
-          var insF = order.insurance ? Math.min(1200, Math.round((parseFloat(order.declaredValue)||0)*(insR/100))) : 0;
-          var boxTot = invR ? invR.reduce(function(s,r){return s+r.amount;},0) : amt - insF;
+          var _dBoxes = order.boxes && order.boxes.length > 0
+            ? order.boxes
+            : [{ subId: order.id, boxType: order.boxType||"", destinationCountry: order.destination||"",
+                 description: order.description||"General merchandise", declaredValue: order.declaredValue||0,
+                 price: order.payment && order.payment.amount ? order.payment.amount : 0,
+                 senderName: order.name||"", senderPhone: order.phone||"", senderAddress: order.address||"",
+                 senderCity: order.city||"", senderState: order.state||"", senderZip: order.zip||"",
+                 recipientName: order.consigneeName||order.name||"", recipientPhone: order.consigneePhone||order.phone||"",
+                 recipientAddress: order.consigneeAddress||order.address||"",
+                 recipientCity: order.consigneeCity||order.city||"",
+                 recipientCountry: order.consigneeCountry||order.destination||"" }];
+          var _subtotal = _dBoxes.reduce(function(s,b){ return s+(parseFloat(b.price||0)||0); }, 0);
+          if (!_subtotal) _subtotal = parseFloat((order.payment&&order.payment.amount)||0);
+          var _grossTotal = parseFloat((order.payment&&order.payment.amount)||_subtotal);
+          var _paid = parseFloat((order.payment&&order.payment.paid)||0);
+          var _balance = Math.max(0, _grossTotal - _paid);
+          var _insRate = (tenant&&tenant.insuranceRate)||5;
+          var _insF = order.insurance ? Math.min(1200, Math.round((parseFloat(order.declaredValue)||0)*(_insRate/100)*100)/100) : 0;
           return /*#__PURE__*/React.createElement(React.Fragment, null,
-            /*#__PURE__*/React.createElement("div", { style: { marginBottom: 8 } },
-              (invR || [{ index:1, trackingNumber:order.id, boxType:order.boxType||"", price:amt-insF, contents:order.description||"", declaredValue:parseFloat(order.declaredValue||0), amount:amt-insF, senderName:order.name||"", recipientName:order.consigneeName||"" }]).map(function(r) {
-                return /*#__PURE__*/React.createElement("div", { key: r.index, style: { border: "1px solid #e0e0e0", borderRadius: 5, padding: "8px 10px", marginBottom: 7, background: "#f9f9f9" } },
-                  /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", borderBottom: "1px solid #eee", paddingBottom: 5, marginBottom: 5 } },
-                    /*#__PURE__*/React.createElement("span", { style: { fontFamily: "monospace", fontSize: 10, color: "#0055aa", fontWeight: 700 } }, "Tracking: ", r.trackingNumber),
-                    /*#__PURE__*/React.createElement("span", { style: { fontWeight: 800, fontSize: 12 } }, "$", r.amount.toFixed(2))
+            _dBoxes.map(function(box, i) {
+              var trackingNumber = box.subId || (order.id + "-" + (i+1));
+              var boxType = box.boxType || order.boxType || "";
+              var destination = box.destinationCountry || order.destination || "";
+              var contents = box.description || order.description || "General merchandise";
+              var declaredValue = parseFloat(box.declaredValue || order.declaredValue || 0);
+              var amount = parseFloat(box.price || 0);
+              var senderName = box.senderName || order.name || "";
+              var senderPhone = box.senderPhone || order.phone || "";
+              var recipientName = box.recipientName || order.consigneeName || order.name || "";
+              var recipientPhone = box.recipientPhone || order.consigneePhone || order.phone || "";
+              var recipientAddr = [box.recipientAddress||order.consigneeAddress, box.recipientCity||order.consigneeCity, box.recipientCountry||order.consigneeCountry||order.destination].filter(Boolean).join(", ");
+              return /*#__PURE__*/React.createElement("div", { key: trackingNumber, style: { border: "1px solid #e0e0e0", borderRadius: 6, padding: "8px 10px", marginBottom: 8, background: "#f9f9f9" } },
+                /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", borderBottom: "1px solid #eee", paddingBottom: 5, marginBottom: 6 } },
+                  /*#__PURE__*/React.createElement("span", { style: { fontFamily: "monospace", fontSize: 10, color: "#0055aa", fontWeight: 700 } }, "Tracking: ", trackingNumber),
+                  /*#__PURE__*/React.createElement("span", { style: { fontWeight: 800, fontSize: 12 } }, "$", amount.toFixed(2))
+                ),
+                /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 10px", fontSize: 10 } },
+                  /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#999", display: "block", fontSize: 9, textTransform: "uppercase" } }, "Box Type"), /*#__PURE__*/React.createElement("strong", null, boxType||"—")),
+                  /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#999", display: "block", fontSize: 9, textTransform: "uppercase" } }, "Destination"), /*#__PURE__*/React.createElement("strong", null, destination||"—")),
+                  /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#999", display: "block", fontSize: 9, textTransform: "uppercase" } }, "Declared Value"), /*#__PURE__*/React.createElement("strong", null, declaredValue ? "$"+declaredValue.toFixed(2) : "—")),
+                  /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#999", display: "block", fontSize: 9, textTransform: "uppercase" } }, "Contents"), /*#__PURE__*/React.createElement("strong", null, contents||"—")),
+                  senderName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1", marginTop: 4 } },
+                    /*#__PURE__*/React.createElement("span", { style: { color: "#999", display: "block", fontSize: 9, textTransform: "uppercase" } }, "Sender"),
+                    [senderName, senderPhone].filter(Boolean).join(" · ")
                   ),
-                  /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 10px", fontSize: 10 } },
-                    /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#999" } }, "Box Type: "), r.boxType||"—"),
-                    /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#999" } }, "Price: "), "$", r.price.toFixed(2)),
-                    /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#999" } }, "Declared: "), r.declaredValue ? "$"+r.declaredValue.toFixed(2) : "—"),
-                    /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#999" } }, "Contents: "), r.contents||"—"),
-                    r.senderName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1" } }, /*#__PURE__*/React.createElement("span", { style: { color: "#999" } }, "Sender: "), r.senderName, r.senderPhone ? " · "+r.senderPhone : ""),
-                    r.recipientName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1" } }, /*#__PURE__*/React.createElement("span", { style: { color: "#999" } }, "Recipient: "), r.recipientName, r.recipientPhone ? " · "+r.recipientPhone : "", r.recipientAddress ? " — "+r.recipientAddress : "")
+                  recipientName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1", marginTop: 4 } },
+                    /*#__PURE__*/React.createElement("span", { style: { color: "#999", display: "block", fontSize: 9, textTransform: "uppercase" } }, "Recipient"),
+                    [recipientName, recipientPhone, recipientAddr].filter(Boolean).join(" · ")
                   )
-                );
-              }),
-              order.insurance && /*#__PURE__*/React.createElement("div", { style: { border: "1px solid #f5e0a0", borderRadius: 5, padding: "6px 10px", background: "#fffbf0", display: "flex", justifyContent: "space-between", fontSize: 10 } },
-                /*#__PURE__*/React.createElement("span", null, "Insurance (", insR, "%) on $", parseFloat(order.declaredValue||0).toFixed(2)),
-                /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700 } }, "$", insF.toFixed(2))
-              )
+                )
+              );
+            }),
+            order.insurance && _insF > 0 && /*#__PURE__*/React.createElement("div", { style: { border: "1px solid #f5e0a0", borderRadius: 5, padding: "5px 10px", background: "#fffbf0", display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 6 } },
+              /*#__PURE__*/React.createElement("span", null, "Insurance (", _insRate, "%)"),
+              /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700 } }, "$", _insF.toFixed(2))
             ),
-            /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", fontSize: 11, borderTop: "1.5px solid #111", paddingTop: 6 } },
-              /*#__PURE__*/React.createElement("div", null, "Subtotal: $", boxTot.toFixed(2)),
-              insF > 0 && /*#__PURE__*/React.createElement("div", null, "Insurance: $", insF.toFixed(2)),
-              /*#__PURE__*/React.createElement("div", { style: { fontWeight: 800, fontSize: 13, marginTop: 3 } }, "Total: $", (boxTot+insF).toFixed(2))
+            /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", fontSize: 11, borderTop: "1.5px solid #111", paddingTop: 6, marginTop: 4 } },
+              /*#__PURE__*/React.createElement("div", null, "Subtotal: $", _subtotal.toFixed(2)),
+              _insF > 0 && /*#__PURE__*/React.createElement("div", null, "Insurance: $", _insF.toFixed(2)),
+              /*#__PURE__*/React.createElement("div", { style: { fontWeight: 800, fontSize: 13, marginTop: 2 } }, "Grand Total: $", _grossTotal.toFixed(2)),
+              /*#__PURE__*/React.createElement("div", null, "Paid: $", _paid.toFixed(2)),
+              /*#__PURE__*/React.createElement("div", null, "Balance: $", _balance.toFixed(2))
             )
           );
         })()
@@ -10319,7 +10375,18 @@ var ReceiptModal = function ReceiptModal(_ref83) {
       depositPaid: order.boxDeposit && !order.depositCredited,
       notes: "",
       date: today(),
-      time: now()
+      time: now(),
+      boxes: (order.boxes && order.boxes.length > 0 ? order.boxes : [{
+        subId: order.id, boxType: order.boxType || "", destinationCountry: order.destination || "",
+        description: order.description || "", declaredValue: order.declaredValue || 0,
+        price: order.payment && order.payment.amount ? order.payment.amount : 0,
+        senderName: order.name || "", senderPhone: order.phone || "", senderAddress: order.address || "",
+        senderCity: order.city || "", senderState: order.state || "", senderZip: order.zip || "",
+        recipientName: order.consigneeName || order.name || "", recipientPhone: order.consigneePhone || order.phone || "",
+        recipientAddress: order.consigneeAddress || order.address || "",
+        recipientCity: order.consigneeCity || order.city || "",
+        recipientCountry: order.consigneeCountry || order.destination || ""
+      }])
     }),
     _useState28 = _slicedToArray(_useState27, 2),
     receipt = _useState28[0],
@@ -10347,16 +10414,6 @@ var ReceiptModal = function ReceiptModal(_ref83) {
     color: "#FEFCE8",
     border: "#FBBF24"
   }];
-  React.useEffect(function(){
-    if (Array.isArray(initialBoxConfig) && initialBoxConfig.length) {
-      setEditBoxCfg(JSON.parse(JSON.stringify(initialBoxConfig)));
-    }
-  }, [initialBoxConfig]);
-  React.useEffect(function(){
-    if (Array.isArray(initialDestinations) && initialDestinations.length) {
-      setEditDests([].concat(initialDestinations));
-    }
-  }, [initialDestinations]);
   var handleSave = function handleSave() {
     onSave(_objectSpread(_objectSpread({}, receipt), {}, {
       issuedAt: now()
@@ -10424,17 +10481,29 @@ var ReceiptModal = function ReceiptModal(_ref83) {
       }, v));
     }),
     (function(){
-      var invR = typeof getInvoiceBoxRows === "function" ? getInvoiceBoxRows(order, null) : null;
-      if (!invR || invR.length <= 1 && !order.boxes) return null;
-      return /*#__PURE__*/React.createElement("div", { style: { borderTop: "0.5pt dashed #bbb", paddingTop: "5pt", marginTop: "4pt", marginBottom: "5pt" } },
-        invR.map(function(r) {
-          return /*#__PURE__*/React.createElement("div", { key: r.index, style: { borderBottom: "0.5pt solid #eee", paddingBottom: "3pt", marginBottom: "3pt", fontSize: "7pt" } },
+      var rpBoxes = receipt.boxes || [];
+      return /*#__PURE__*/React.createElement("div", { style: { borderTop: "0.5pt dashed #bbb", paddingTop: "4pt", marginTop: "4pt", marginBottom: "4pt" } },
+        rpBoxes.map(function(box, i) {
+          var trackingNumber = box.subId || (receipt.orderId + "-" + (i+1));
+          var boxType = box.boxType || receipt.boxType || "";
+          var destination = box.destinationCountry || receipt.destination || "";
+          var contents = box.description || "";
+          var declaredValue = parseFloat(box.declaredValue || 0);
+          var amount = parseFloat(box.price || 0);
+          var senderName = box.senderName || receipt.customerName || "";
+          var senderPhone = box.senderPhone || receipt.customerPhone || "";
+          var recipientName = box.recipientName || "";
+          var recipientPhone = box.recipientPhone || "";
+          return /*#__PURE__*/React.createElement("div", { key: trackingNumber, style: { borderBottom: "0.5pt solid #eee", paddingBottom: "4pt", marginBottom: "4pt", fontSize: "6.5pt" } },
             /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between" } },
-              /*#__PURE__*/React.createElement("span", { style: { fontFamily: "monospace", color: "#0055aa", fontWeight: 700 } }, r.trackingNumber),
-              /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700 } }, "$", r.amount.toFixed(2))
+              /*#__PURE__*/React.createElement("span", { style: { fontFamily: "monospace", color: "#0055aa", fontWeight: 700, fontSize: "7pt" } }, trackingNumber),
+              amount > 0 && /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700 } }, "$", amount.toFixed(2))
             ),
-            /*#__PURE__*/React.createElement("div", { style: { color: "#444" } }, r.boxType||"", r.contents ? " · " + r.contents : ""),
-            r.recipientName && /*#__PURE__*/React.createElement("div", { style: { color: "#666" } }, "→ ", r.recipientName, r.recipientCity ? ", " + r.recipientCity : "")
+            /*#__PURE__*/React.createElement("div", null, [boxType, destination].filter(Boolean).join(" → ")),
+            contents && /*#__PURE__*/React.createElement("div", { style: { color: "#555" } }, contents),
+            declaredValue > 0 && /*#__PURE__*/React.createElement("div", { style: { color: "#777" } }, "Declared: $", declaredValue.toFixed(2)),
+            senderName && /*#__PURE__*/React.createElement("div", null, "From: ", senderName, senderPhone ? " · " + senderPhone : ""),
+            recipientName && /*#__PURE__*/React.createElement("div", null, "To: ", recipientName, recipientPhone ? " · " + recipientPhone : "")
           );
         })
       );
@@ -10580,20 +10649,33 @@ var ReceiptModal = function ReceiptModal(_ref83) {
       }, k, ": "), /*#__PURE__*/React.createElement("strong", null, v));
     })),
     (function(){
-      var invR = typeof getInvoiceBoxRows === "function" ? getInvoiceBoxRows(order, null) : null;
-      if (!invR) return null;
+      var mpBoxes = receipt.boxes || [];
+      if (!mpBoxes.length) return null;
       return /*#__PURE__*/React.createElement("div", { style: { borderTop: "1px dashed #aaa", marginTop: 8, paddingTop: 8 } },
-        invR.map(function(r) {
-          return /*#__PURE__*/React.createElement("div", { key: r.index, style: { border: "1px solid #e8e8e8", borderRadius: 5, padding: "7px 9px", marginBottom: 6, background: "#fafafa" } },
+        mpBoxes.map(function(box, i) {
+          var trackingNumber = box.subId || (receipt.orderId + "-" + (i+1));
+          var boxType = box.boxType || receipt.boxType || "";
+          var destination = box.destinationCountry || receipt.destination || "";
+          var contents = box.description || "";
+          var declaredValue = parseFloat(box.declaredValue || 0);
+          var amount = parseFloat(box.price || 0);
+          var senderName = box.senderName || receipt.customerName || "";
+          var senderPhone = box.senderPhone || receipt.customerPhone || "";
+          var recipientName = box.recipientName || "";
+          var recipientPhone = box.recipientPhone || "";
+          var recipientCity = box.recipientCity || "";
+          return /*#__PURE__*/React.createElement("div", { key: trackingNumber, style: { border: "1px solid #e8e8e8", borderRadius: 5, padding: "7px 9px", marginBottom: 6, background: "#fafafa" } },
             /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 4 } },
-              /*#__PURE__*/React.createElement("span", { style: { fontFamily: "monospace", fontSize: 10, color: "#0055aa", fontWeight: 700 } }, r.trackingNumber),
-              /*#__PURE__*/React.createElement("span", { style: { fontWeight: 800 } }, "$", r.amount.toFixed(2))
+              /*#__PURE__*/React.createElement("span", { style: { fontFamily: "monospace", fontSize: 10, color: "#0055aa", fontWeight: 700 } }, trackingNumber),
+              amount > 0 && /*#__PURE__*/React.createElement("span", { style: { fontWeight: 800 } }, "$", amount.toFixed(2))
             ),
-            /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1px 8px", fontSize: 10, color: "#444" } },
-              /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "Box: "), r.boxType||"—"),
-              /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "Declared: "), r.declaredValue ? "$"+r.declaredValue.toFixed(2) : "—"),
-              r.contents && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1" } }, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "Contents: "), r.contents),
-              r.recipientName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1" } }, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "To: "), r.recipientName, r.recipientCity ? ", " + r.recipientCity : "")
+            /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 8px", fontSize: 10, color: "#444" } },
+              /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "Box: "), boxType||"—"),
+              /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "Dest: "), destination||"—"),
+              declaredValue > 0 && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "Declared: "), "$", declaredValue.toFixed(2)),
+              contents && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1" } }, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "Contents: "), contents),
+              senderName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1" } }, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "From: "), senderName, senderPhone ? " · " + senderPhone : ""),
+              recipientName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1" } }, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "To: "), recipientName, recipientPhone ? " · " + recipientPhone : "", recipientCity ? ", " + recipientCity : "")
             )
           );
         })
