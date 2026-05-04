@@ -161,13 +161,7 @@ var te = function te(key, lang) {
 /* ════════════════════════════════════════════
    STYLES
 ════════════════════════════════════════════ */
-var CSS = "\n@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');\n*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}\n:root{\n  --bg:#07090F;--bg2:#0C1120;--bg3:#111827;--bg4:#1A2235;\n  --border:#1C2840;--border2:#243252;\n  --amber:#F59E0B;--amber2:#FCD34D;--amberdim:rgba(245,158,11,0.1);\n  --blue:#3B82F6;--bluedim:rgba(59,130,246,0.1);\n  --green:#10B981;--greendim:rgba(16,185,129,0.1);\n  --red:#EF4444;--reddim:rgba(239,68,68,0.1);\n  --purple:#8B5CF6;--purpledim:rgba(139,92,246,0.1);\n  --teal:#14B8A6;--tealdim:rgba(20,184,166,0.1);\n  --text:#E2E8F0;--text2:#94A3B8;--text3:#475569;--text4:#334155;\n}\nbody{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13px}\n::-webkit-scrollbar{width:3px;height:3px}\n::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}\n\n/* Layout */\n.shell{display:flex;height:100vh;overflow:hidden}\n.sidebar{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}\n.main{flex:1;display:flex;flex-direction:column;overflow:hidden}\n.topbar{height:52px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:10px;background:var(--bg);flex-shrink:0}\n.page{flex:1;overflow-y:auto;padding:20px}\n\n/* Logo */\n.logo{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}\n.logo-mark{width:32px;height:32px;background:linear-gradient(135deg,var(--amber),#D97706);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--bg);flex-shrink:0}\n.logo-name{font-family:'Syne',sans-serif;font-weight:700;font-size:13.5px;line-height:1.2}\n.logo-tag{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em}\n\n/* Sidebar nav */\n.nav-grp{padding:12px 0 4px}\n.nav-grp-label{padding:0 16px 4px;font-size:9.5px;font-weight:600;color:var(--text4);text-transform:uppercase;letter-spacing:.1em}\n.nav-item{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;color:var(--text3);font-size:12.5px;font-weight:500;transition:.12s;border-left:2px solid transparent;white-space:nowrap}\n.nav-item:hover{color:var(--text2);background:rgba(255,255,255,.02)}\n.nav-item.on{color:var(--amber);background:var(--amberdim);border-left-color:var(--amber)}\n.nav-ico{font-size:13px;width:16px;text-align:center;flex-shrink:0}\n.nav-badge{margin-left:auto;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:8px}\n.nb-red{background:var(--red);color:#fff}\n.nb-amber{background:var(--amberdim);color:var(--amber)}\n.nb-blue{background:var(--bluedim);color:var(--blue)}\n.nb-green{background:var(--greendim);color:var(--green)}\n\n.sb-foot{margin-top:auto;border-top:1px solid var(--border);padding:12px 16px}\n.av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}\n.uname{font-size:12px;font-weight:600;color:var(--text2)}\n.urole{font-size:10px;color:var(--text3)}\n\n/* Role switcher */\n.role-sw{display:flex;gap:2px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:3px}\n.rsw-btn{padding:4px 9px;border-radius:5px;font-size:10.5px;font-weight:700;cursor:pointer;border:none;font-family:'IBM Plex Sans',sans-serif;transition:.12s;color:var(--text3);background:transparent;letter-spacing:.02em}\n.rsw-btn.on{background:var(--amber);color:var(--bg)}\n.rsw-btn:hover:not(.on){color:var(--text2)}\n\n/* Buttons */\n.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:.12s;font-family:'IBM Plex Sans',sans-serif;white-space:nowrap}\n.btn-primary{background:var(--amber);color:var(--bg)}\n.btn-primary:hover{background:var(--amber2)}\n.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}\n.btn-ghost:hover{background:rgba(255,255,255,.03);border-color:var(--border2);color:var(--text)}\n.btn-green{background:var(--greendim);color:var(--green);border:1px solid rgba(16,185,129,.25)}\n.btn-red{background:var(--reddim);color:var(--red);border:1px solid rgba(239,68,68,.2)}\n.btn-blue{background:var(--bluedim);color:var(--blue);border:1px solid rgba(59,130,246,.2)}\n.btn-purple{background:var(--purpledim);color:var(--purple);border:1px solid rgba(139,92,246,.2)}\n.btn-sm{padding:4px 9px;font-size:11px}\n.btn-xs{padding:2px 7px;font-size:10.5px}\n\n/* Search */\n.srch{display:flex;align-items:center;gap:7px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:0 10px;height:32px}\n.srch input{background:transparent;border:none;outline:none;color:var(--text);font-size:12px;font-family:'IBM Plex Sans',sans-serif;width:180px}\n.srch input::placeholder{color:var(--text4)}\n\n/* Cards */\n.card{background:var(--bg2);border:1px solid var(--border);border-radius:11px}\n.card-hd{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}\n.card-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text)}\n.card-sub{font-size:11px;color:var(--text3);margin-top:2px}\n.card-bd{padding:16px}\n\n/* Stat cards */\n.sg{display:grid;gap:12px;margin-bottom:18px}\n.sg4{grid-template-columns:repeat(4,1fr)}\n.sg3{grid-template-columns:repeat(3,1fr)}\n.sg2{grid-template-columns:repeat(2,1fr)}\n.sc{background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:14px 16px;position:relative;overflow:hidden}\n.sc::after{content:'';position:absolute;top:-12px;right:-12px;width:60px;height:60px;border-radius:50%;opacity:.07}\n.sc-a::after{background:var(--amber)}\n.sc-b::after{background:var(--blue)}\n.sc-g::after{background:var(--green)}\n.sc-p::after{background:var(--purple)}\n.sc-r::after{background:var(--red)}\n.sc-t::after{background:var(--teal)}\n.sc-lbl{font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}\n.sc-val{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--text);line-height:1;margin-bottom:4px}\n.sc-delta{font-size:11px;font-weight:600}\n.delta-u{color:var(--green)}\n.delta-d{color:var(--red)}\n.delta-n{color:var(--text3)}\n.sc-ico{position:absolute;top:14px;right:14px;font-size:17px;opacity:.4}\n\n/* Grid layouts */\n.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}\n.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}\n.g21{display:grid;grid-template-columns:2fr 1fr;gap:12px}\n.g12{display:grid;grid-template-columns:1fr 2fr;gap:12px}\n.g31{display:grid;grid-template-columns:3fr 1fr;gap:12px}\n.mb12{margin-bottom:12px}\n.mb18{margin-bottom:18px}\n\n/* Table */\n.tbl{overflow-x:auto}\ntable{width:100%;border-collapse:collapse}\nthead th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border);white-space:nowrap}\ntbody tr{border-bottom:1px solid rgba(28,40,64,.6);transition:.1s;cursor:pointer}\ntbody tr:last-child{border-bottom:none}\ntbody tr:hover{background:rgba(255,255,255,.012)}\ntbody td{padding:10px 12px;font-size:12.5px;color:var(--text2);vertical-align:middle}\n.tb{font-weight:600;color:var(--text)}\n.tamb{color:var(--amber);font-weight:700;font-family:'IBM Plex Mono',monospace;font-size:11.5px;white-space:nowrap;word-break:keep-all;overflow-wrap:normal;font-variant-numeric:tabular-nums}\n\n/* Tracking number variants */\n.tracking-code{display:inline-flex;align-items:center;max-width:100%;white-space:nowrap;word-break:keep-all;overflow-wrap:normal;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;letter-spacing:.035em;line-height:1}\n.tracking-pill{display:inline-flex;align-items:center;white-space:nowrap;word-break:keep-all;overflow-wrap:normal;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:700;letter-spacing:.045em;color:#FCD34D;background:linear-gradient(135deg,rgba(245,158,11,.16),rgba(59,130,246,.08));border:1px solid rgba(245,158,11,.28);border-radius:999px;padding:4px 8px;box-shadow:0 0 0 1px rgba(255,255,255,.025) inset;flex-shrink:0;transition:.12s}\n.tracking-pill:hover{color:#fff;border-color:rgba(245,158,11,.55);background:linear-gradient(135deg,rgba(245,158,11,.28),rgba(59,130,246,.12))}\n.tracking-pill-sm{font-size:10px;padding:3px 7px;letter-spacing:.04em}\n.tracking-pill-table{font-size:11px;padding:4px 9px}\n.tracking-rail{display:flex;gap:6px;flex-wrap:wrap;align-items:center;max-width:100%}\n.tracking-rail-scroll{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;max-width:100%;padding:2px 0 4px;scrollbar-width:thin}\n.tracking-rail-scroll::-webkit-scrollbar{height:5px}\n.tracking-rail-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}\n.tracking-rail-scroll .tracking-pill{flex:0 0 auto}\n\n/* Badges */\n.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap}\n.badge::before{content:'';width:4px;height:4px;border-radius:50%;flex-shrink:0}\n.bg{background:var(--greendim);color:var(--green)}.bg::before{background:var(--green)}\n.ba{background:var(--amberdim);color:var(--amber)}.ba::before{background:var(--amber)}\n.br{background:var(--reddim);color:var(--red)}.br::before{background:var(--red)}\n.bb{background:var(--bluedim);color:var(--blue)}.bb::before{background:var(--blue)}\n.bp{background:var(--purpledim);color:var(--purple)}.bp::before{background:var(--purple)}\n.bt{background:var(--tealdim);color:var(--teal)}.bt::before{background:var(--teal)}\n.bgr{background:rgba(100,116,139,.1);color:#64748B}.bgr::before{background:#64748B}\n\n/* Chips */\n.chips{display:flex;flex-wrap:wrap;gap:5px}\n.chip{padding:3px 11px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text3);transition:.12s;font-family:'IBM Plex Sans',sans-serif}\n.chip:hover{color:var(--text2);border-color:var(--border2)}\n.chip.on{background:var(--amberdim);border-color:rgba(245,158,11,.35);color:var(--amber)}\n\n/* Form */\n.fg{margin-bottom:12px}\n.fl{font-size:10.5px;font-weight:700;color:var(--text3);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.05em}\n.fi{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:7px 10px;color:var(--text);font-size:12.5px;font-family:'IBM Plex Sans',sans-serif;outline:none;transition:.12s}\n.fi:focus{border-color:var(--amber)}\n.fi::placeholder{color:var(--text4)}\nselect.fi option{background:var(--bg)}\n.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}\n.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}\n\n/* Tabs */\n.tabs{display:flex;flex-wrap:wrap;gap:2px 10px;row-gap:0;border-bottom:1px solid var(--border);margin-bottom:16px}\n.tab{padding:8px 14px;flex-shrink:0;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.12s}\n.tab.on{color:var(--amber);border-bottom-color:var(--amber)}\n.tab:hover:not(.on){color:var(--text2)}\n\n/* Overlay / Modal */\n.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:flex-start;justify-content:center;z-index:1000;padding:24px 20px 40px;overflow-y:auto}\n.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:560px;max-height:calc(100vh - 80px);overflow-y:auto;flex-shrink:0}\n.modal-lg{width:700px;flex-shrink:0}\\n.page.scroll-locked{overflow-y:hidden!important}\n.modal-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--text);margin-bottom:18px}\n.modal-section{font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;margin:14px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border)}\n\n/* Progress */\n.prog{background:var(--border);border-radius:3px;height:4px;overflow:hidden}\n.prog-fill{height:100%;border-radius:3px;transition:width .5s}\n\n/* Timeline */\n.tl{padding-left:20px;position:relative}\n.tl::before{content:'';position:absolute;left:6px;top:5px;bottom:5px;width:1px;background:var(--border)}\n.tl-step{position:relative;padding-bottom:16px}\n.tl-step:last-child{padding-bottom:0}\n.tl-dot{position:absolute;left:-17px;top:2px;width:12px;height:12px;border-radius:50%;border:2px solid var(--border);background:var(--bg)}\n.tl-dot.done{background:var(--green);border-color:var(--green)}\n.tl-dot.cur{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,158,11,.2)}\n.tl-lbl{font-size:12.5px;font-weight:600}\n.tl-desc{font-size:11px;color:var(--text3);margin-top:2px}\n.tl-time{font-size:10px;color:var(--text4);margin-top:2px;font-family:'IBM Plex Mono',monospace}\n\n/* Activity */\n.act{display:flex;gap:9px;padding:9px 0;border-bottom:1px solid rgba(28,40,64,.5)}\n.act:last-child{border-bottom:none}\n.act-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;flex-shrink:0}\n.act-txt{font-size:12px;color:var(--text3);line-height:1.5}\n.act-txt strong{color:var(--text2);font-weight:600}\n.act-time{font-size:10px;color:var(--text4);margin-top:1px;font-family:'IBM Plex Mono',monospace}\n\n/* Label print */\n.label-card{background:white;color:#111;border-radius:10px;padding:18px;font-family:'IBM Plex Mono',monospace}\n.label-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:10px}\n.label-co{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:#111}\n.label-id{font-size:22px;font-weight:700;letter-spacing:.1em;color:#111}\n.label-row{display:flex;gap:20px;margin-bottom:8px}\n.label-field{flex:1}\n.label-field-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-bottom:2px}\n.label-field-val{font-size:13px;font-weight:700;color:#111}\n.label-barcode{text-align:center;margin-top:10px;border-top:1px solid #ddd;padding-top:10px;font-size:9px;letter-spacing:.2em;color:#333}\n\n/* Route card */\n.route-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:13px;margin-bottom:9px}\n.route-card.pickup{border-left:3px solid var(--amber)}\n.route-card.dropoff{border-left:3px solid var(--blue)}\n.route-card.done{border-left:3px solid var(--green);opacity:.6}\n\n/* Automation trigger */\n.trigger-card{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:8px}\n.trigger-arrow{color:var(--amber);font-weight:700;margin:0 6px}\n\n/* Office role indicator */\n.role-pill{padding:6px 12px;border-radius:7px;margin:10px 16px;font-size:11px;font-weight:700}\n\n/* Alerts */\n.alert{border-radius:8px;padding:9px 13px;font-size:12px;margin-bottom:12px;display:flex;align-items:flex-start;gap:7px;line-height:1.5}\n.alert-a{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);color:#D97706}\n.alert-g{background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);color:#059669}\n.alert-r{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);color:#DC2626}\n.alert-b{background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);color:#2563EB}\n\n/* Map placeholder */\n.map-ph{background:var(--bg);border:1px solid var(--border);border-radius:8px;height:140px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}\n.map-grid{position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,rgba(28,40,64,.5) 0,rgba(28,40,64,.5) 1px,transparent 1px,transparent 26px),repeating-linear-gradient(90deg,rgba(28,40,64,.5) 0,rgba(28,40,64,.5) 1px,transparent 1px,transparent 26px)}\n.map-pin{position:absolute;font-size:16px;animation:pp 2s ease-in-out infinite}\n@keyframes pp{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}\n\n/* Sparkline */\n.spark{display:flex;align-items:flex-end;gap:2px;height:32px}\n.spb{flex:1;border-radius:2px 2px 0 0;min-width:5px;opacity:.65;transition:.2s}\n.spb:hover{opacity:1}\n\n/* Utils */\n.row{display:flex;align-items:center}\n.g6{gap:6px}\n.g10{gap:10px}\n.g14{gap:14px}\n.mla{margin-left:auto}\n.mut{color:var(--text3);font-size:11.5px}\n.xs{font-size:10.5px}\n.mono{font-family:'IBM Plex Mono',monospace}\n.divider{height:1px;background:var(--border);margin:12px 0}\n.tag{display:inline-block;background:var(--amberdim);color:var(--amber);font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px}\n.tag-b{background:var(--bluedim);color:var(--blue)}\n.tag-g{background:var(--greendim);color:var(--green)}\n.tag-p{background:var(--purpledim);color:var(--purple)}\n.nd::after{content:'';position:absolute;top:-2px;right:-2px;width:7px;height:7px;background:var(--red);border-radius:50%;border:2px solid var(--bg)}\n.nd{position:relative}\n.topbar-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;flex:1}\n@keyframes fu{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}\n.fu{animation:fu .25s ease both}\n\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   PRINT STYLES \u2014 Label (4\xD76 thermal) + Receipt\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n@media print {\n  /* \u2500\u2500 Hide the entire app \u2500\u2500 */\n  body > #root > * { display:none !important; }\n\n  /* \u2500\u2500 Show ONLY the active print target \u2500\u2500 */\n  body.printing-manifest .manifest-printout { display:block !important; position:static !important; }\n  body.printing-manifest { background:#fff !important; }\n  body.printing-manifest .manifest-printout * { box-sizing:border-box; }\n  body.printing-manifest .manifest-printout table { border-collapse:collapse; width:100%; }\n  body.printing-manifest .manifest-printout th, .manifest-printout td { border:1px solid #ccc; padding:4px 6px; font-size:9.5pt; }\n  body.printing-manifest .manifest-printout .zone-header { color:#fff; padding:5px 10px; font-weight:700; font-size:11pt; }\n  @media print { .btn, .overlay, .modal-footer, button { display:none !important; } }\n  body.printing-shipping-docs .shipping-docs-printout{display:block !important;position:static !important}\\n  body.printing-shipping-docs{background:#fff !important}\\n  .shipping-docs-printout{display:none;position:fixed !important;top:0;left:0;right:0;bottom:0;padding:.4in .5in;background:#fff !important;font-family:\"IBM Plex Sans\",Arial,sans-serif;color:#000 !important;box-sizing:border-box;font-size:10pt}\\n  body.printing-expense .expense-printout{display:block !important;position:static !important}\\n  .shipment-expense-printout{display:none !important}\\n  body.printing-shipment-expense .shipment-expense-printout{display:block !important;position:fixed !important;top:0 !important;left:0 !important;right:0 !important;bottom:0 !important;z-index:999999 !important;background:#fff !important;color:#000 !important;padding:.4in .5in !important;box-sizing:border-box !important;-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;font-family:'IBM Plex Sans',Arial,sans-serif !important;font-size:10pt !important}\\n  body.printing-shipment-expense *:not(.shipment-expense-printout):not(.shipment-expense-printout *):not(#__sep_print__):not(#__sep_print__ *){display:none !important}\\n  body.printing-expense{background:#fff !important}\\n  .expense-printout{display:none;position:fixed !important;top:0;left:0;right:0;bottom:0;padding:.4in .5in;background:#fff !important;font-family:\"IBM Plex Sans\",Arial,sans-serif;color:#000 !important;box-sizing:border-box;font-size:10pt}\\n  .exp-print-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:.1in;border-bottom:2pt solid #000;margin-bottom:.15in}\\n  .exp-print-co{font-family:\"Syne\",Arial,sans-serif;font-size:16pt;font-weight:900;color:#000}\\n  .exp-print-meta{font-size:9pt;color:#333;margin-bottom:.1in}\\n  .exp-print-tbl{width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:.1in}\\n  .exp-print-tbl th{background:#f5f5f5 !important;color:#000 !important;border:1px solid #ccc;padding:5px 8px;text-align:left;font-weight:700}\\n  .exp-print-tbl td{border:1px solid #ccc;padding:5px 8px;color:#000 !important;background:#fff !important}\\n  .exp-print-grand{text-align:right;font-weight:900;font-size:11pt;border-top:2pt solid #000;padding-top:.06in;margin-top:.08in;color:#000 !important}\\n  body.printing-invoice .invoice-printout { display:flex !important; position:static !important; }\n  body.printing-invoice { background:#fff !important; }\n  .invoice-printout {\n    display:none;\n    position:fixed !important;\n    top:0; left:0; right:0; bottom:0;\n    padding:0.35in 0.45in;\n    background:#fff !important;\n    font-family:\"IBM Plex Sans\",Arial,sans-serif;\n    color:#000 !important;\n    box-sizing:border-box;\n    font-size:10pt;\n    flex-direction:column;\n  }\n  .inv-header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:0.1in; border-bottom:2pt solid #000; margin-bottom:0.12in; flex-shrink:0; }\n  .inv-co-name { font-family:\"Syne\",Arial,sans-serif; font-size:18pt; font-weight:900; letter-spacing:0.04em; color:#000; line-height:1; }\n  .inv-co-tag  { font-size:7.5pt; font-weight:600; text-transform:uppercase; letter-spacing:0.12em; color:#555; margin-top:3pt; }\n  .inv-meta    { text-align:right; font-size:9pt; color:#333; line-height:1.65; }\n  .inv-meta strong { color:#000; font-size:10pt; }\n  .inv-tracking-row { border:1.5pt solid #000; border-radius:3pt; text-align:center; padding:0.08in 0.1in 0.06in; margin-bottom:0.1in; flex-shrink:0; }\n  .inv-tracking-num { font-family:\"IBM Plex Mono\",monospace; font-size:22pt; font-weight:800; letter-spacing:0.05em; color:#000; line-height:1; }\n  .inv-tracking-lbl { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:#888; margin-top:2pt; }\n  .inv-parties { margin-bottom:0.1in; flex-shrink:0; display:flex; gap:0.1in; }\n  .inv-party   { flex:1; padding:0.06in 0.1in; border:1pt solid #ddd; border-radius:3pt; }\n  .inv-party-lbl  { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#888; margin-bottom:3pt; }\n  .inv-party-name { font-size:11pt; font-weight:700; color:#000; }\n  .inv-party-line { font-size:9pt; color:#444; line-height:1.5; }\n  .inv-table  { width:100%; border-collapse:collapse; margin-bottom:0.1in; flex-shrink:0; }\n  .inv-table th { background:#000; color:#fff; padding:5pt 8pt; text-align:left; font-size:8pt; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; }\n  .inv-table td { padding:6pt 8pt; font-size:9pt; border-bottom:1pt solid #e5e5e5; vertical-align:top; }\n  .inv-table tr:last-child td { border-bottom:none; }\n  .inv-totals { width:2.3in; margin-left:auto; border:1.5pt solid #000; margin-bottom:0.1in; flex-shrink:0; }\n  .inv-totals td { padding:4pt 8pt; font-size:9.5pt; }\n  .inv-totals .inv-grand { background:#000; color:#fff; font-weight:700; font-size:11pt; }\n  .inv-terms  { flex:1; font-size:7pt; color:#444; line-height:1.5; overflow:hidden; margin-bottom:0.08in; }\n  .inv-terms-title { font-weight:700; font-size:7.5pt; color:#000; margin-bottom:2pt; text-transform:uppercase; letter-spacing:0.06em; }\n  .inv-bottom { flex-shrink:0; border-top:1.5pt solid #000; padding-top:0.08in; }\n  .inv-footer { font-size:7.5pt; color:#555; display:flex; justify-content:space-between; margin-bottom:0.08in; }\n  .inv-barcode-wrap { text-align:center; }\n  .inv-barcode-id { font-family:\"IBM Plex Mono\",monospace; font-size:8pt; letter-spacing:0.15em; color:#333; margin-top:3pt; }\n    body.printing-label  .label-printout { display:block !important; position:static !important; }\n  body.printing-receipt .receipt-printout { display:block !important; position:static !important; }\n\n  /* \u2500\u2500 Generic reset for print \u2500\u2500 */\n  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }\n\n  /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n     SHIPPING LABEL \u2014 4in \xD7 6in thermal\n     Layout matches Casabe Xpress real label\n  \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n  .label-printout {\n    position:fixed !important;\n    top:0; left:0;\n    width:4in;\n    height:6in;\n    background:#fff !important;\n    font-family:'IBM Plex Sans',Arial,sans-serif;\n    color:#000 !important;\n    page-break-after:always;\n    display:none;\n    box-sizing:border-box;\n    overflow:hidden;\n    flex-direction:column;\n  }\n  /* \u2500 HEADER: logo left, tagline right \u2500 */\n  .lp-header {\n    display:flex;\n    justify-content:space-between;\n    align-items:center;\n    padding:0.1in 0.15in 0.08in;\n    border-bottom:1.5pt solid #000;\n  }\n  .lp-logo-img { height:0.32in; max-width:1.5in; object-fit:contain; }\n  .lp-co {\n    font-family:'Syne',Arial,sans-serif;\n    font-size:13pt;\n    font-weight:900;\n    letter-spacing:0.05em;\n    color:#000;\n    line-height:1;\n  }\n  .lp-tagline {\n    font-size:7pt;\n    font-weight:600;\n    text-transform:uppercase;\n    letter-spacing:0.09em;\n    color:#444;\n    text-align:right;\n  }\n\n  /* \u2500 TRACKING NUMBER \u2014 full-width oversized \u2500 */\n  .lp-tracking-box {\n    border-bottom:1.5pt solid #000;\n    text-align:center;\n    padding:0.06in 0.1in 0.04in;\n    line-height:1;\n  }\n  .lp-tracking-num {\n    font-family:'IBM Plex Mono',monospace;\n    font-size:17pt;\n    font-weight:800;\n    letter-spacing:1.5pt;\n    color:#000;\n    display:block;\n  }\n\n  /* \u2500 BOX COUNTER \u2500 */\n  .lp-counter {\n    text-align:center;\n    font-size:10pt;\n    font-weight:700;\n    color:#000;\n    padding:0.04in 0;\n    border-bottom:1.5pt solid #000;\n    letter-spacing:1pt;\n  }\n\n  /* \u2500 FROM / TO blocks \u2500 */\n  .lp-addr-row {\n    display:flex;\n    border-bottom:1pt solid #000;\n  }\n  .lp-from-col {\n    flex:1;\n    padding:0.07in 0.12in;\n    border-right:1pt solid #000;\n  }\n  .lp-to-col {\n    flex:1.1;\n    padding:0.07in 0.12in;\n  }\n  .lp-addr-lbl {\n    font-size:6pt;\n    font-weight:700;\n    text-transform:uppercase;\n    letter-spacing:0.1em;\n    color:#666;\n    margin-bottom:2pt;\n  }\n  .lp-addr-name {\n    font-size:10.5pt;\n    font-weight:700;\n    color:#000;\n    line-height:1.2;\n  }\n  .lp-addr-line {\n    font-size:8pt;\n    color:#222;\n    line-height:1.4;\n    margin-top:1pt;\n  }\n\n  /* \u2500 ZONE STRIPE \u2014 full-width solid color \u2500 */\n  .lp-zone-stripe {\n    height:0.22in;\n    width:100%;\n    display:flex;\n    align-items:center;\n    justify-content:center;\n    /* color set inline */\n  }\n  .lp-zone-label {\n    color:#fff;\n    font-weight:800;\n    font-size:7pt;\n    letter-spacing:1.5pt;\n    text-transform:uppercase;\n    text-shadow:0 1px 2px rgba(0,0,0,.4);\n  }\n\n  /* \u2500 OFFICE / DATE row \u2500 */\n  .lp-office-row {\n    display:flex;\n    justify-content:space-between;\n    align-items:center;\n    padding:0.04in 0.13in;\n    border-top:1pt solid #ddd;\n    border-bottom:1pt solid #000;\n    font-size:7.5pt;\n    color:#222;\n  }\n\n  /* \u2500 BARCODE section \u2500 */\n  .lp-barcode-wrap {\n    flex:1;\n    display:flex;\n    flex-direction:column;\n    align-items:center;\n    justify-content:center;\n    padding:0.08in 0.1in 0.05in;\n  }\n  .lp-barcode-id {\n    font-family:'IBM Plex Mono',monospace;\n    font-size:8pt;\n    letter-spacing:2pt;\n    color:#333;\n    margin-top:3pt;\n    text-align:center;\n  }\n\n  /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n     RECEIPT \u2014 8.5\xD711, all 3 copies\n  \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n  .receipt-printout {\n    position:fixed !important;\n    top:0; left:0; right:0; bottom:0;\n    padding:0.3in;\n    background:#fff !important;\n    font-family:'IBM Plex Sans',Arial,sans-serif;\n    color:#000 !important;\n    display:none;\n    box-sizing:border-box;\n  }\n  .rp-copies {\n    display:grid;\n    grid-template-columns:1fr 1fr 1fr;\n    gap:0.15in;\n    height:100%;\n  }\n  .rp-copy {\n    border:1.5pt solid #999;\n    border-radius:5pt;\n    padding:0.15in 0.12in;\n    position:relative;\n    overflow:hidden;\n    display:flex;\n    flex-direction:column;\n  }\n  .rp-copy.white  { border-color:#999;  background:#fff; }\n  .rp-copy.pink   { border-color:#F87171; background:#FFF5F5; }\n  .rp-copy.yellow { border-color:#F59E0B; background:#FFFBEB; }\n\n  .rp-copy-stripe {\n    position:absolute;\n    top:0; left:0; right:0;\n    height:5pt;\n  }\n  .white  .rp-copy-stripe { background:#999; }\n  .pink   .rp-copy-stripe { background:#F87171; }\n  .yellow .rp-copy-stripe { background:#F59E0B; }\n\n  .rp-header { text-align:center; padding:8pt 0 6pt; border-bottom:1pt dashed #bbb; margin-bottom:6pt; }\n  .rp-company { font-size:10pt; font-weight:900; letter-spacing:1pt; color:#000; font-family:'Syne',Arial,sans-serif; }\n  .rp-sub { font-size:7pt; color:#666; margin-top:1pt; }\n  .rp-receipt-id { font-family:monospace; font-size:12pt; font-weight:800; color:#000; margin:3pt 0 1pt; }\n  .rp-datetime { font-size:6.5pt; color:#888; }\n\n  .rp-copy-label {\n    position:absolute;\n    top:8pt; right:8pt;\n    font-size:6pt;\n    font-weight:800;\n    text-transform:uppercase;\n    letter-spacing:.08em;\n    padding:2pt 5pt;\n    border-radius:3pt;\n    background:rgba(0,0,0,.08);\n    color:#555;\n  }\n\n  .rp-fields { display:grid; grid-template-columns:1fr 1fr; gap:2pt 8pt; margin-bottom:6pt; }\n  .rp-field { font-size:7.5pt; line-height:1.4; }\n  .rp-field-k { color:#777; font-size:6.5pt; }\n  .rp-field-v { font-weight:700; color:#000; }\n\n  .rp-amount {\n    border-top:1pt dashed #bbb;\n    padding-top:6pt;\n    margin-top:auto;\n  }\n  .rp-amount-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2pt; }\n  .rp-amount-lbl { font-size:7.5pt; font-weight:700; color:#333; }\n  .rp-amount-val { font-size:14pt; font-weight:900; color:#059669; }\n  .rp-amount-method { font-size:6.5pt; color:#777; }\n\n  .rp-sig {\n    border-top:1pt dashed #bbb;\n    padding-top:5pt;\n    margin-top:6pt;\n    display:flex;\n    justify-content:space-between;\n    align-items:flex-end;\n  }\n  .rp-sig-img { height:22pt; max-width:1.4in; object-fit:contain; }\n  .rp-sig-line { font-size:6pt; color:#aaa; border-top:0.5pt solid #ccc; padding-top:2pt; width:1.4in; text-align:center; }\n  .rp-sig-date { font-size:6.5pt; color:#777; }\n\n  .rp-terms {\n    font-size:5.5pt;\n    color:#aaa;\n    margin-top:4pt;\n    line-height:1.4;\n    border-top:0.5pt solid #eee;\n    padding-top:3pt;\n  }\n}\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   MOBILE RESPONSIVE  (breakpoint 768px)\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n\n/* \u2500\u2500 Mobile header bar (replaces topbar + sidebar logo) \u2500\u2500 */\n.mob-hdr{display:none;height:56px;flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--border);align-items:center;padding:0 14px;gap:10px;position:sticky;top:0;z-index:150}\n.mob-logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--amber),#D97706);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}\n.mob-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.mob-pill{padding:4px 9px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.02em;white-space:nowrap}\n.mob-icon-btn{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;flex-shrink:0}\n\n/* \u2500\u2500 Bottom nav bar \u2500\u2500 */\n.mob-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--bg2);border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom,0px)}\n.mob-nav-row{display:flex;height:60px;align-items:stretch}\n.mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;cursor:pointer;color:var(--text4);font-size:9.5px;font-weight:700;font-family:'IBM Plex Sans',sans-serif;letter-spacing:.02em;transition:.12s;-webkit-tap-highlight-color:transparent}\n.mob-tab .ti{font-size:21px;line-height:1.1}\n.mob-tab.on{color:var(--amber)}\n.mob-tab.on .ti{transform:scale(1.1)}\n\n/* \u2500\u2500 \"More\" bottom sheet \u2500\u2500 */\n.mob-sheet-wrap{position:fixed;inset:0;z-index:300}\n.mob-sheet-bd{position:absolute;inset:0;background:rgba(0,0,0,.6)}\n.mob-sheet{position:absolute;bottom:0;left:0;right:0;background:var(--bg2);border-radius:20px 20px 0 0;padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 24px);max-height:82vh;overflow-y:auto}\n.mob-sheet-grip{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px}\n.mob-sheet-section{font-size:9.5px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;margin:14px 0 8px}\n.mob-sheet-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}\n.mob-sheet-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 6px;border-radius:12px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:10.5px;font-weight:600;color:var(--text2);font-family:'IBM Plex Sans',sans-serif;text-align:center;transition:.12s;-webkit-tap-highlight-color:transparent}\n.mob-sheet-btn.on{border-color:var(--amber);color:var(--amber);background:var(--amberdim)}\n.mob-sheet-btn .si{font-size:22px}\n.mob-view-row{display:flex;gap:6px;margin-bottom:2px}\n.mob-view-btn{flex:1;padding:9px 4px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:11px;font-weight:700;font-family:'IBM Plex Sans',sans-serif;color:var(--text3);text-align:center;transition:.12s}\n\n/* \u2500\u2500 Responsive overrides \u2500\u2500 */\n@media(max-width:768px){\n  /* Layout */\n  .sidebar{display:none!important}\n  .topbar{display:none!important}\n  .mob-hdr{display:flex}\n  .mob-nav{display:block}\n  .page{padding:14px 12px 80px!important}\n\n  /* Grids collapse */\n  .sg4{grid-template-columns:1fr 1fr!important}\n  .sg3{grid-template-columns:1fr 1fr!important}\n  .sg2{grid-template-columns:1fr!important}\n  .fr{grid-template-columns:1fr!important}\n\n  /* Tables scroll */\n  .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch}\n  table{min-width:540px}\n\n  /* Modals slide up from bottom */\n  .overlay{align-items:flex-end!important;padding:0!important}\n  .modal,.modal-lg{width:100%!important;max-width:100%!important;border-radius:20px 20px 0 0!important;max-height:91vh!important;padding:18px 16px!important}\n\n  /* Inputs: prevent iOS zoom */\n  .fi,input,select,textarea{font-size:16px!important}\n\n  /* Wrap button rows */\n  .row{flex-wrap:wrap}\n\n  /* Bigger tap targets */\n  .btn{min-height:36px}\n  .btn-sm{min-height:32px}\n\n  /* Toast above bottom nav */\n  .toast-mob{bottom:76px!important}\n\n  /* Card header wraps */\n  .card-hd{flex-wrap:wrap}\n\n  /* Hide desktop search in topbar */\n  .srch{display:none}\n\n  /* Role switcher hidden \u2014 handled by bottom sheet */\n  .role-sw{display:none}\n\n  /* Order action buttons stack */\n  .order-actions{flex-direction:column;align-items:stretch}\n  .order-actions .btn{justify-content:center}\n}\n\n@media(max-width:420px){\n  .sg4{grid-template-columns:1fr 1fr!important}\n  .mob-sheet-grid{grid-template-columns:repeat(2,1fr)}\n  .page{padding:10px 10px 80px!important}\n}\n.mix-bar-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(28,40,64,.6)}\n.mix-bar-row:last-child{border-bottom:none}\n.batch-card{background:linear-gradient(135deg,rgba(245,158,11,.07),rgba(245,158,11,.02));border:1px solid rgba(245,158,11,.2);border-radius:11px;padding:16px}\n.cust-hero{background:linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 60%,rgba(245,158,11,.04) 100%);border:1px solid var(--border);border-radius:13px;padding:22px;margin-bottom:16px;position:relative;overflow:hidden}\n.cust-hero::after{content:'\uD83C\uDF0E';position:absolute;right:22px;top:50%;transform:translateY(-50%);font-size:56px;opacity:.06}\n.payment-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}\n";
-
-/* ════════════════════════════════════════════
-   CONSTANTS & HELPERS
-════════════════════════════════════════════ */
-// These are defaults used before a tenant is configured.
-// Once a tenant completes onboarding, the App derives these from tenant.drivers and tenant.offices
+var CSS = "\n@import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');\n*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}\n:root{\n  --bg:#07090F;--bg2:#0C1120;--bg3:#111827;--bg4:#1A2235;\n  --border:#1C2840;--border2:#243252;\n  --amber:#F59E0B;--amber2:#FCD34D;--amberdim:rgba(245,158,11,0.1);\n  --blue:#3B82F6;--bluedim:rgba(59,130,246,0.1);\n  --green:#10B981;--greendim:rgba(16,185,129,0.1);\n  --red:#EF4444;--reddim:rgba(239,68,68,0.1);\n  --purple:#8B5CF6;--purpledim:rgba(139,92,246,0.1);\n  --teal:#14B8A6;--tealdim:rgba(20,184,166,0.1);\n  --text:#E2E8F0;--text2:#94A3B8;--text3:#475569;--text4:#334155;\n}\nbody{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);font-size:13px}\n::-webkit-scrollbar{width:3px;height:3px}\n::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}\n\n/* Layout */\n.shell{display:flex;height:100vh;overflow:hidden}\n.sidebar{width:220px;min-width:220px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}\n.main{flex:1;display:flex;flex-direction:column;overflow:hidden}\n.topbar{height:52px;border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:10px;background:var(--bg);flex-shrink:0}\n.page{flex:1;overflow-y:auto;padding:20px}\n\n/* Logo */\n.logo{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}\n.logo-mark{width:32px;height:32px;background:linear-gradient(135deg,var(--amber),#D97706);border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--bg);flex-shrink:0}\n.logo-name{font-family:'Syne',sans-serif;font-weight:700;font-size:13.5px;line-height:1.2}\n.logo-tag{font-size:9.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em}\n\n/* Sidebar nav */\n.nav-grp{padding:12px 0 4px}\n.nav-grp-label{padding:0 16px 4px;font-size:9.5px;font-weight:600;color:var(--text4);text-transform:uppercase;letter-spacing:.1em}\n.nav-item{display:flex;align-items:center;gap:8px;padding:7px 16px;cursor:pointer;color:var(--text3);font-size:12.5px;font-weight:500;transition:.12s;border-left:2px solid transparent;white-space:nowrap}\n.nav-item:hover{color:var(--text2);background:rgba(255,255,255,.02)}\n.nav-item.on{color:var(--amber);background:var(--amberdim);border-left-color:var(--amber)}\n.nav-ico{font-size:13px;width:16px;text-align:center;flex-shrink:0}\n.nav-badge{margin-left:auto;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:8px}\n.nb-red{background:var(--red);color:#fff}\n.nb-amber{background:var(--amberdim);color:var(--amber)}\n.nb-blue{background:var(--bluedim);color:var(--blue)}\n.nb-green{background:var(--greendim);color:var(--green)}\n\n.sb-foot{margin-top:auto;border-top:1px solid var(--border);padding:12px 16px}\n.av{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0}\n.uname{font-size:12px;font-weight:600;color:var(--text2)}\n.urole{font-size:10px;color:var(--text3)}\n\n/* Role switcher */\n.role-sw{display:flex;gap:2px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:3px}\n.rsw-btn{padding:4px 9px;border-radius:5px;font-size:10.5px;font-weight:700;cursor:pointer;border:none;font-family:'IBM Plex Sans',sans-serif;transition:.12s;color:var(--text3);background:transparent;letter-spacing:.02em}\n.rsw-btn.on{background:var(--amber);color:var(--bg)}\n.rsw-btn:hover:not(.on){color:var(--text2)}\n\n/* Buttons */\n.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:.12s;font-family:'IBM Plex Sans',sans-serif;white-space:nowrap}\n.btn-primary{background:var(--amber);color:var(--bg)}\n.btn-primary:hover{background:var(--amber2)}\n.btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border)}\n.btn-ghost:hover{background:rgba(255,255,255,.03);border-color:var(--border2);color:var(--text)}\n.btn-green{background:var(--greendim);color:var(--green);border:1px solid rgba(16,185,129,.25)}\n.btn-red{background:var(--reddim);color:var(--red);border:1px solid rgba(239,68,68,.2)}\n.btn-blue{background:var(--bluedim);color:var(--blue);border:1px solid rgba(59,130,246,.2)}\n.btn-purple{background:var(--purpledim);color:var(--purple);border:1px solid rgba(139,92,246,.2)}\n.btn-sm{padding:4px 9px;font-size:11px}\n.btn-xs{padding:2px 7px;font-size:10.5px}\n\n/* Search */\n.srch{display:flex;align-items:center;gap:7px;background:var(--bg2);border:1px solid var(--border);border-radius:7px;padding:0 10px;height:32px}\n.srch input{background:transparent;border:none;outline:none;color:var(--text);font-size:12px;font-family:'IBM Plex Sans',sans-serif;width:180px}\n.srch input::placeholder{color:var(--text4)}\n\n/* Cards */\n.card{background:var(--bg2);border:1px solid var(--border);border-radius:11px}\n.card-hd{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}\n.card-title{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--text)}\n.card-sub{font-size:11px;color:var(--text3);margin-top:2px}\n.card-bd{padding:16px}\n\n/* Stat cards */\n.sg{display:grid;gap:12px;margin-bottom:18px}\n.sg4{grid-template-columns:repeat(4,1fr)}\n.sg3{grid-template-columns:repeat(3,1fr)}\n.sg2{grid-template-columns:repeat(2,1fr)}\n.sc{background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:14px 16px;position:relative;overflow:hidden}\n.sc::after{content:'';position:absolute;top:-12px;right:-12px;width:60px;height:60px;border-radius:50%;opacity:.07}\n.sc-a::after{background:var(--amber)}\n.sc-b::after{background:var(--blue)}\n.sc-g::after{background:var(--green)}\n.sc-p::after{background:var(--purple)}\n.sc-r::after{background:var(--red)}\n.sc-t::after{background:var(--teal)}\n.sc-lbl{font-size:10.5px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px}\n.sc-val{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;color:var(--text);line-height:1;margin-bottom:4px}\n.sc-delta{font-size:11px;font-weight:600}\n.delta-u{color:var(--green)}\n.delta-d{color:var(--red)}\n.delta-n{color:var(--text3)}\n.sc-ico{position:absolute;top:14px;right:14px;font-size:17px;opacity:.4}\n\n/* Grid layouts */\n.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}\n.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}\n.g21{display:grid;grid-template-columns:2fr 1fr;gap:12px}\n.g12{display:grid;grid-template-columns:1fr 2fr;gap:12px}\n.g31{display:grid;grid-template-columns:3fr 1fr;gap:12px}\n.mb12{margin-bottom:12px}\n.mb18{margin-bottom:18px}\n\n/* Table */\n.tbl{overflow-x:auto}\ntable{width:100%;border-collapse:collapse}\nthead th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border);white-space:nowrap}\ntbody tr{border-bottom:1px solid rgba(28,40,64,.6);transition:.1s;cursor:pointer}\ntbody tr:last-child{border-bottom:none}\ntbody tr:hover{background:rgba(255,255,255,.012)}\ntbody td{padding:10px 12px;font-size:12.5px;color:var(--text2);vertical-align:middle}\n.tb{font-weight:600;color:var(--text)}\n.tamb{color:var(--amber);font-weight:700;font-family:'IBM Plex Mono',monospace;font-size:11.5px}\n\n/* Badges */\n.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;white-space:nowrap}\n.badge::before{content:'';width:4px;height:4px;border-radius:50%;flex-shrink:0}\n.bg{background:var(--greendim);color:var(--green)}.bg::before{background:var(--green)}\n.ba{background:var(--amberdim);color:var(--amber)}.ba::before{background:var(--amber)}\n.br{background:var(--reddim);color:var(--red)}.br::before{background:var(--red)}\n.bb{background:var(--bluedim);color:var(--blue)}.bb::before{background:var(--blue)}\n.bp{background:var(--purpledim);color:var(--purple)}.bp::before{background:var(--purple)}\n.bt{background:var(--tealdim);color:var(--teal)}.bt::before{background:var(--teal)}\n.bgr{background:rgba(100,116,139,.1);color:#64748B}.bgr::before{background:#64748B}\n\n/* Chips */\n.chips{display:flex;flex-wrap:wrap;gap:5px}\n.chip{padding:3px 11px;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text3);transition:.12s;font-family:'IBM Plex Sans',sans-serif}\n.chip:hover{color:var(--text2);border-color:var(--border2)}\n.chip.on{background:var(--amberdim);border-color:rgba(245,158,11,.35);color:var(--amber)}\n\n/* Form */\n.fg{margin-bottom:12px}\n.fl{font-size:10.5px;font-weight:700;color:var(--text3);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.05em}\n.fi{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:7px;padding:7px 10px;color:var(--text);font-size:12.5px;font-family:'IBM Plex Sans',sans-serif;outline:none;transition:.12s}\n.fi:focus{border-color:var(--amber)}\n.fi::placeholder{color:var(--text4)}\nselect.fi option{background:var(--bg)}\n.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}\n.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}\n\n/* Tabs */\n.tabs{display:flex;flex-wrap:wrap;gap:2px 10px;row-gap:0;border-bottom:1px solid var(--border);margin-bottom:16px}\n.tab{padding:8px 14px;flex-shrink:0;font-size:12px;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:.12s}\n.tab.on{color:var(--amber);border-bottom-color:var(--amber)}\n.tab:hover:not(.on){color:var(--text2)}\n\n/* Overlay / Modal */\n.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:flex-start;justify-content:center;z-index:1000;padding:24px 20px 40px;overflow-y:auto}\n.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;padding:22px;width:560px;max-height:calc(100vh - 80px);overflow-y:auto;flex-shrink:0}\n.modal-lg{width:700px;flex-shrink:0}\\n.page.scroll-locked{overflow-y:hidden!important}\n.modal-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;color:var(--text);margin-bottom:18px}\n.modal-section{font-size:10px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;margin:14px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--border)}\n\n/* Progress */\n.prog{background:var(--border);border-radius:3px;height:4px;overflow:hidden}\n.prog-fill{height:100%;border-radius:3px;transition:width .5s}\n\n/* Timeline */\n.tl{padding-left:20px;position:relative}\n.tl::before{content:'';position:absolute;left:6px;top:5px;bottom:5px;width:1px;background:var(--border)}\n.tl-step{position:relative;padding-bottom:16px}\n.tl-step:last-child{padding-bottom:0}\n.tl-dot{position:absolute;left:-17px;top:2px;width:12px;height:12px;border-radius:50%;border:2px solid var(--border);background:var(--bg)}\n.tl-dot.done{background:var(--green);border-color:var(--green)}\n.tl-dot.cur{background:var(--amber);border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,158,11,.2)}\n.tl-lbl{font-size:12.5px;font-weight:600}\n.tl-desc{font-size:11px;color:var(--text3);margin-top:2px}\n.tl-time{font-size:10px;color:var(--text4);margin-top:2px;font-family:'IBM Plex Mono',monospace}\n\n/* Activity */\n.act{display:flex;gap:9px;padding:9px 0;border-bottom:1px solid rgba(28,40,64,.5)}\n.act:last-child{border-bottom:none}\n.act-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;flex-shrink:0}\n.act-txt{font-size:12px;color:var(--text3);line-height:1.5}\n.act-txt strong{color:var(--text2);font-weight:600}\n.act-time{font-size:10px;color:var(--text4);margin-top:1px;font-family:'IBM Plex Mono',monospace}\n\n/* Label print */\n.label-card{background:white;color:#111;border-radius:10px;padding:18px;font-family:'IBM Plex Mono',monospace}\n.label-header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:10px;margin-bottom:10px}\n.label-co{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:#111}\n.label-id{font-size:22px;font-weight:700;letter-spacing:.1em;color:#111}\n.label-row{display:flex;gap:20px;margin-bottom:8px}\n.label-field{flex:1}\n.label-field-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:#666;margin-bottom:2px}\n.label-field-val{font-size:13px;font-weight:700;color:#111}\n.label-barcode{text-align:center;margin-top:10px;border-top:1px solid #ddd;padding-top:10px;font-size:9px;letter-spacing:.2em;color:#333}\n\n/* Route card */\n.route-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:13px;margin-bottom:9px}\n.route-card.pickup{border-left:3px solid var(--amber)}\n.route-card.dropoff{border-left:3px solid var(--blue)}\n.route-card.done{border-left:3px solid var(--green);opacity:.6}\n\n/* Automation trigger */\n.trigger-card{background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:12px;margin-bottom:8px}\n.trigger-arrow{color:var(--amber);font-weight:700;margin:0 6px}\n\n/* Office role indicator */\n.role-pill{padding:6px 12px;border-radius:7px;margin:10px 16px;font-size:11px;font-weight:700}\n\n/* Alerts */\n.alert{border-radius:8px;padding:9px 13px;font-size:12px;margin-bottom:12px;display:flex;align-items:flex-start;gap:7px;line-height:1.5}\n.alert-a{background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.2);color:#D97706}\n.alert-g{background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.2);color:#059669}\n.alert-r{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);color:#DC2626}\n.alert-b{background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.2);color:#2563EB}\n\n/* Map placeholder */\n.map-ph{background:var(--bg);border:1px solid var(--border);border-radius:8px;height:140px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}\n.map-grid{position:absolute;inset:0;background-image:repeating-linear-gradient(0deg,rgba(28,40,64,.5) 0,rgba(28,40,64,.5) 1px,transparent 1px,transparent 26px),repeating-linear-gradient(90deg,rgba(28,40,64,.5) 0,rgba(28,40,64,.5) 1px,transparent 1px,transparent 26px)}\n.map-pin{position:absolute;font-size:16px;animation:pp 2s ease-in-out infinite}\n@keyframes pp{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}\n\n/* Sparkline */\n.spark{display:flex;align-items:flex-end;gap:2px;height:32px}\n.spb{flex:1;border-radius:2px 2px 0 0;min-width:5px;opacity:.65;transition:.2s}\n.spb:hover{opacity:1}\n\n/* Utils */\n.row{display:flex;align-items:center}\n.g6{gap:6px}\n.g10{gap:10px}\n.g14{gap:14px}\n.mla{margin-left:auto}\n.mut{color:var(--text3);font-size:11.5px}\n.xs{font-size:10.5px}\n.mono{font-family:'IBM Plex Mono',monospace}\n.divider{height:1px;background:var(--border);margin:12px 0}\n.tag{display:inline-block;background:var(--amberdim);color:var(--amber);font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px}\n.tag-b{background:var(--bluedim);color:var(--blue)}\n.tag-g{background:var(--greendim);color:var(--green)}\n.tag-p{background:var(--purpledim);color:var(--purple)}\n.nd::after{content:'';position:absolute;top:-2px;right:-2px;width:7px;height:7px;background:var(--red);border-radius:50%;border:2px solid var(--bg)}\n.nd{position:relative}\n.topbar-title{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;flex:1}\n@keyframes fu{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}\n.fu{animation:fu .25s ease both}\n\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   PRINT STYLES \u2014 Label (4\xD76 thermal) + Receipt\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n@media print {\n  /* \u2500\u2500 Hide the entire app \u2500\u2500 */\n  body > #root > * { display:none !important; }\n\n  /* \u2500\u2500 Show ONLY the active print target \u2500\u2500 */\n  body.printing-manifest .manifest-printout { display:block !important; position:static !important; }\n  body.printing-manifest { background:#fff !important; }\n  body.printing-manifest .manifest-printout * { box-sizing:border-box; }\n  body.printing-manifest .manifest-printout table { border-collapse:collapse; width:100%; }\n  body.printing-manifest .manifest-printout th, .manifest-printout td { border:1px solid #ccc; padding:4px 6px; font-size:9.5pt; }\n  body.printing-manifest .manifest-printout .zone-header { color:#fff; padding:5px 10px; font-weight:700; font-size:11pt; }\n  @media print { .btn, .overlay, .modal-footer, button { display:none !important; } }\n  body.printing-shipping-docs .shipping-docs-printout{display:block !important;position:static !important}\\n  body.printing-shipping-docs{background:#fff !important}\\n  .shipping-docs-printout{display:none;position:fixed !important;top:0;left:0;right:0;bottom:0;padding:.4in .5in;background:#fff !important;font-family:\"IBM Plex Sans\",Arial,sans-serif;color:#000 !important;box-sizing:border-box;font-size:10pt}\\n  body.printing-expense .expense-printout{display:block !important;position:static !important}\\n  .shipment-expense-printout{display:none !important}\\n  body.printing-shipment-expense .shipment-expense-printout{display:block !important;position:fixed !important;top:0 !important;left:0 !important;right:0 !important;bottom:0 !important;z-index:999999 !important;background:#fff !important;color:#000 !important;padding:.4in .5in !important;box-sizing:border-box !important;-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;font-family:'IBM Plex Sans',Arial,sans-serif !important;font-size:10pt !important}\\n  body.printing-shipment-expense *:not(.shipment-expense-printout):not(.shipment-expense-printout *):not(#__sep_print__):not(#__sep_print__ *){display:none !important}\\n  body.printing-expense{background:#fff !important}\\n  .expense-printout{display:none;position:fixed !important;top:0;left:0;right:0;bottom:0;padding:.4in .5in;background:#fff !important;font-family:\"IBM Plex Sans\",Arial,sans-serif;color:#000 !important;box-sizing:border-box;font-size:10pt}\\n  .exp-print-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:.1in;border-bottom:2pt solid #000;margin-bottom:.15in}\\n  .exp-print-co{font-family:\"Syne\",Arial,sans-serif;font-size:16pt;font-weight:900;color:#000}\\n  .exp-print-meta{font-size:9pt;color:#333;margin-bottom:.1in}\\n  .exp-print-tbl{width:100%;border-collapse:collapse;font-size:9.5pt;margin-bottom:.1in}\\n  .exp-print-tbl th{background:#f5f5f5 !important;color:#000 !important;border:1px solid #ccc;padding:5px 8px;text-align:left;font-weight:700}\\n  .exp-print-tbl td{border:1px solid #ccc;padding:5px 8px;color:#000 !important;background:#fff !important}\\n  .exp-print-grand{text-align:right;font-weight:900;font-size:11pt;border-top:2pt solid #000;padding-top:.06in;margin-top:.08in;color:#000 !important}\\n  body.printing-invoice .invoice-printout { display:flex !important; position:static !important; }\n  body.printing-invoice { background:#fff !important; }\n  .invoice-printout {\n    display:none;\n    position:fixed !important;\n    top:0; left:0; right:0; bottom:0;\n    padding:0.35in 0.45in;\n    background:#fff !important;\n    font-family:\"IBM Plex Sans\",Arial,sans-serif;\n    color:#000 !important;\n    box-sizing:border-box;\n    font-size:10pt;\n    flex-direction:column;\n  }\n  .inv-header { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:0.1in; border-bottom:2pt solid #000; margin-bottom:0.12in; flex-shrink:0; }\n  .inv-co-name { font-family:\"Syne\",Arial,sans-serif; font-size:18pt; font-weight:900; letter-spacing:0.04em; color:#000; line-height:1; }\n  .inv-co-tag  { font-size:7.5pt; font-weight:600; text-transform:uppercase; letter-spacing:0.12em; color:#555; margin-top:3pt; }\n  .inv-meta    { text-align:right; font-size:9pt; color:#333; line-height:1.65; }\n  .inv-meta strong { color:#000; font-size:10pt; }\n  .inv-tracking-row { border:1.5pt solid #000; border-radius:3pt; text-align:center; padding:0.08in 0.1in 0.06in; margin-bottom:0.1in; flex-shrink:0; }\n  .inv-tracking-num { font-family:\"IBM Plex Mono\",monospace; font-size:22pt; font-weight:800; letter-spacing:0.05em; color:#000; line-height:1; }\n  .inv-tracking-lbl { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:#888; margin-top:2pt; }\n  .inv-parties { margin-bottom:0.1in; flex-shrink:0; display:flex; gap:0.1in; }\n  .inv-party   { flex:1; padding:0.06in 0.1in; border:1pt solid #ddd; border-radius:3pt; }\n  .inv-party-lbl  { font-size:7pt; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:#888; margin-bottom:3pt; }\n  .inv-party-name { font-size:11pt; font-weight:700; color:#000; }\n  .inv-party-line { font-size:9pt; color:#444; line-height:1.5; }\n  .inv-table  { width:100%; border-collapse:collapse; margin-bottom:0.1in; flex-shrink:0; }\n  .inv-table th { background:#000; color:#fff; padding:5pt 8pt; text-align:left; font-size:8pt; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; }\n  .inv-table td { padding:6pt 8pt; font-size:9pt; border-bottom:1pt solid #e5e5e5; vertical-align:top; }\n  .inv-table tr:last-child td { border-bottom:none; }\n  .inv-totals { width:2.3in; margin-left:auto; border:1.5pt solid #000; margin-bottom:0.1in; flex-shrink:0; }\n  .inv-totals td { padding:4pt 8pt; font-size:9.5pt; }\n  .inv-totals .inv-grand { background:#000; color:#fff; font-weight:700; font-size:11pt; }\n  .inv-terms  { flex:1; font-size:7pt; color:#444; line-height:1.5; overflow:hidden; margin-bottom:0.08in; }\n  .inv-terms-title { font-weight:700; font-size:7.5pt; color:#000; margin-bottom:2pt; text-transform:uppercase; letter-spacing:0.06em; }\n  .inv-bottom { flex-shrink:0; border-top:1.5pt solid #000; padding-top:0.08in; }\n  .inv-footer { font-size:7.5pt; color:#555; display:flex; justify-content:space-between; margin-bottom:0.08in; }\n  .inv-barcode-wrap { text-align:center; }\n  .inv-barcode-id { font-family:\"IBM Plex Mono\",monospace; font-size:8pt; letter-spacing:0.15em; color:#333; margin-top:3pt; }\n    body.printing-label  .label-printout { display:block !important; position:static !important; }\n  body.printing-receipt .receipt-printout { display:block !important; position:static !important; }\n\n  /* \u2500\u2500 Generic reset for print \u2500\u2500 */\n  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }\n\n  /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n     SHIPPING LABEL \u2014 4in \xD7 6in thermal\n     Layout matches Casabe Xpress real label\n  \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n  .label-printout {\n    position:fixed !important;\n    top:0; left:0;\n    width:4in;\n    height:6in;\n    background:#fff !important;\n    font-family:'IBM Plex Sans',Arial,sans-serif;\n    color:#000 !important;\n    page-break-after:always;\n    display:none;\n    box-sizing:border-box;\n    overflow:hidden;\n    flex-direction:column;\n  }\n  /* \u2500 HEADER: logo left, tagline right \u2500 */\n  .lp-header {\n    display:flex;\n    justify-content:space-between;\n    align-items:center;\n    padding:0.1in 0.15in 0.08in;\n    border-bottom:1.5pt solid #000;\n  }\n  .lp-logo-img { height:0.32in; max-width:1.5in; object-fit:contain; }\n  .lp-co {\n    font-family:'Syne',Arial,sans-serif;\n    font-size:13pt;\n    font-weight:900;\n    letter-spacing:0.05em;\n    color:#000;\n    line-height:1;\n  }\n  .lp-tagline {\n    font-size:7pt;\n    font-weight:600;\n    text-transform:uppercase;\n    letter-spacing:0.09em;\n    color:#444;\n    text-align:right;\n  }\n\n  /* \u2500 TRACKING NUMBER \u2014 full-width oversized \u2500 */\n  .lp-tracking-box {\n    border-bottom:1.5pt solid #000;\n    text-align:center;\n    padding:0.06in 0.1in 0.04in;\n    line-height:1;\n  }\n  .lp-tracking-num {\n    font-family:'IBM Plex Mono',monospace;\n    font-size:17pt;\n    font-weight:800;\n    letter-spacing:1.5pt;\n    color:#000;\n    display:block;\n  }\n\n  /* \u2500 BOX COUNTER \u2500 */\n  .lp-counter {\n    text-align:center;\n    font-size:10pt;\n    font-weight:700;\n    color:#000;\n    padding:0.04in 0;\n    border-bottom:1.5pt solid #000;\n    letter-spacing:1pt;\n  }\n\n  /* \u2500 FROM / TO blocks \u2500 */\n  .lp-addr-row {\n    display:flex;\n    border-bottom:1pt solid #000;\n  }\n  .lp-from-col {\n    flex:1;\n    padding:0.07in 0.12in;\n    border-right:1pt solid #000;\n  }\n  .lp-to-col {\n    flex:1.1;\n    padding:0.07in 0.12in;\n  }\n  .lp-addr-lbl {\n    font-size:6pt;\n    font-weight:700;\n    text-transform:uppercase;\n    letter-spacing:0.1em;\n    color:#666;\n    margin-bottom:2pt;\n  }\n  .lp-addr-name {\n    font-size:10.5pt;\n    font-weight:700;\n    color:#000;\n    line-height:1.2;\n  }\n  .lp-addr-line {\n    font-size:8pt;\n    color:#222;\n    line-height:1.4;\n    margin-top:1pt;\n  }\n\n  /* \u2500 ZONE STRIPE \u2014 full-width solid color \u2500 */\n  .lp-zone-stripe {\n    height:0.22in;\n    width:100%;\n    display:flex;\n    align-items:center;\n    justify-content:center;\n    /* color set inline */\n  }\n  .lp-zone-label {\n    color:#fff;\n    font-weight:800;\n    font-size:7pt;\n    letter-spacing:1.5pt;\n    text-transform:uppercase;\n    text-shadow:0 1px 2px rgba(0,0,0,.4);\n  }\n\n  /* \u2500 OFFICE / DATE row \u2500 */\n  .lp-office-row {\n    display:flex;\n    justify-content:space-between;\n    align-items:center;\n    padding:0.04in 0.13in;\n    border-top:1pt solid #ddd;\n    border-bottom:1pt solid #000;\n    font-size:7.5pt;\n    color:#222;\n  }\n\n  /* \u2500 BARCODE section \u2500 */\n  .lp-barcode-wrap {\n    flex:1;\n    display:flex;\n    flex-direction:column;\n    align-items:center;\n    justify-content:center;\n    padding:0.08in 0.1in 0.05in;\n  }\n  .lp-barcode-id {\n    font-family:'IBM Plex Mono',monospace;\n    font-size:8pt;\n    letter-spacing:2pt;\n    color:#333;\n    margin-top:3pt;\n    text-align:center;\n  }\n\n  /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n     RECEIPT \u2014 8.5\xD711, all 3 copies\n  \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n  .receipt-printout {\n    position:fixed !important;\n    top:0; left:0; right:0; bottom:0;\n    padding:0.3in;\n    background:#fff !important;\n    font-family:'IBM Plex Sans',Arial,sans-serif;\n    color:#000 !important;\n    display:none;\n    box-sizing:border-box;\n  }\n  .rp-copies {\n    display:grid;\n    grid-template-columns:1fr 1fr 1fr;\n    gap:0.15in;\n    height:100%;\n  }\n  .rp-copy {\n    border:1.5pt solid #999;\n    border-radius:5pt;\n    padding:0.15in 0.12in;\n    position:relative;\n    overflow:hidden;\n    display:flex;\n    flex-direction:column;\n  }\n  .rp-copy.white  { border-color:#999;  background:#fff; }\n  .rp-copy.pink   { border-color:#F87171; background:#FFF5F5; }\n  .rp-copy.yellow { border-color:#F59E0B; background:#FFFBEB; }\n\n  .rp-copy-stripe {\n    position:absolute;\n    top:0; left:0; right:0;\n    height:5pt;\n  }\n  .white  .rp-copy-stripe { background:#999; }\n  .pink   .rp-copy-stripe { background:#F87171; }\n  .yellow .rp-copy-stripe { background:#F59E0B; }\n\n  .rp-header { text-align:center; padding:8pt 0 6pt; border-bottom:1pt dashed #bbb; margin-bottom:6pt; }\n  .rp-company { font-size:10pt; font-weight:900; letter-spacing:1pt; color:#000; font-family:'Syne',Arial,sans-serif; }\n  .rp-sub { font-size:7pt; color:#666; margin-top:1pt; }\n  .rp-receipt-id { font-family:monospace; font-size:12pt; font-weight:800; color:#000; margin:3pt 0 1pt; }\n  .rp-datetime { font-size:6.5pt; color:#888; }\n\n  .rp-copy-label {\n    position:absolute;\n    top:8pt; right:8pt;\n    font-size:6pt;\n    font-weight:800;\n    text-transform:uppercase;\n    letter-spacing:.08em;\n    padding:2pt 5pt;\n    border-radius:3pt;\n    background:rgba(0,0,0,.08);\n    color:#555;\n  }\n\n  .rp-fields { display:grid; grid-template-columns:1fr 1fr; gap:2pt 8pt; margin-bottom:6pt; }\n  .rp-field { font-size:7.5pt; line-height:1.4; }\n  .rp-field-k { color:#777; font-size:6.5pt; }\n  .rp-field-v { font-weight:700; color:#000; }\n\n  .rp-amount {\n    border-top:1pt dashed #bbb;\n    padding-top:6pt;\n    margin-top:auto;\n  }\n  .rp-amount-row { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2pt; }\n  .rp-amount-lbl { font-size:7.5pt; font-weight:700; color:#333; }\n  .rp-amount-val { font-size:14pt; font-weight:900; color:#059669; }\n  .rp-amount-method { font-size:6.5pt; color:#777; }\n\n  .rp-sig {\n    border-top:1pt dashed #bbb;\n    padding-top:5pt;\n    margin-top:6pt;\n    display:flex;\n    justify-content:space-between;\n    align-items:flex-end;\n  }\n  .rp-sig-img { height:22pt; max-width:1.4in; object-fit:contain; }\n  .rp-sig-line { font-size:6pt; color:#aaa; border-top:0.5pt solid #ccc; padding-top:2pt; width:1.4in; text-align:center; }\n  .rp-sig-date { font-size:6.5pt; color:#777; }\n\n  .rp-terms {\n    font-size:5.5pt;\n    color:#aaa;\n    margin-top:4pt;\n    line-height:1.4;\n    border-top:0.5pt solid #eee;\n    padding-top:3pt;\n  }\n}\n/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n   MOBILE RESPONSIVE  (breakpoint 768px)\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */\n\n/* \u2500\u2500 Mobile header bar (replaces topbar + sidebar logo) \u2500\u2500 */\n.mob-hdr{display:none;height:56px;flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--border);align-items:center;padding:0 14px;gap:10px;position:sticky;top:0;z-index:150}\n.mob-logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--amber),#D97706);display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}\n.mob-title{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n.mob-pill{padding:4px 9px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.02em;white-space:nowrap}\n.mob-icon-btn{width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;flex-shrink:0}\n\n/* \u2500\u2500 Bottom nav bar \u2500\u2500 */\n.mob-nav{display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--bg2);border-top:1px solid var(--border);padding-bottom:env(safe-area-inset-bottom,0px)}\n.mob-nav-row{display:flex;height:60px;align-items:stretch}\n.mob-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:none;background:transparent;cursor:pointer;color:var(--text4);font-size:9.5px;font-weight:700;font-family:'IBM Plex Sans',sans-serif;letter-spacing:.02em;transition:.12s;-webkit-tap-highlight-color:transparent}\n.mob-tab .ti{font-size:21px;line-height:1.1}\n.mob-tab.on{color:var(--amber)}\n.mob-tab.on .ti{transform:scale(1.1)}\n\n/* \u2500\u2500 \"More\" bottom sheet \u2500\u2500 */\n.mob-sheet-wrap{position:fixed;inset:0;z-index:300}\n.mob-sheet-bd{position:absolute;inset:0;background:rgba(0,0,0,.6)}\n.mob-sheet{position:absolute;bottom:0;left:0;right:0;background:var(--bg2);border-radius:20px 20px 0 0;padding:14px 16px calc(env(safe-area-inset-bottom,0px) + 24px);max-height:82vh;overflow-y:auto}\n.mob-sheet-grip{width:36px;height:4px;background:var(--border2);border-radius:2px;margin:0 auto 16px}\n.mob-sheet-section{font-size:9.5px;font-weight:700;color:var(--text4);text-transform:uppercase;letter-spacing:.1em;margin:14px 0 8px}\n.mob-sheet-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}\n.mob-sheet-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:12px 6px;border-radius:12px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:10.5px;font-weight:600;color:var(--text2);font-family:'IBM Plex Sans',sans-serif;text-align:center;transition:.12s;-webkit-tap-highlight-color:transparent}\n.mob-sheet-btn.on{border-color:var(--amber);color:var(--amber);background:var(--amberdim)}\n.mob-sheet-btn .si{font-size:22px}\n.mob-view-row{display:flex;gap:6px;margin-bottom:2px}\n.mob-view-btn{flex:1;padding:9px 4px;border-radius:9px;border:1px solid var(--border);background:var(--bg3);cursor:pointer;font-size:11px;font-weight:700;font-family:'IBM Plex Sans',sans-serif;color:var(--text3);text-align:center;transition:.12s}\n\n/* \u2500\u2500 Responsive overrides \u2500\u2500 */\n@media(max-width:768px){\n  /* Layout */\n  .sidebar{display:none!important}\n  .topbar{display:none!important}\n  .mob-hdr{display:flex}\n  .mob-nav{display:block}\n  .page{padding:14px 12px 80px!important}\n\n  /* Grids collapse */\n  .sg4{grid-template-columns:1fr 1fr!important}\n  .sg3{grid-template-columns:1fr 1fr!important}\n  .sg2{grid-template-columns:1fr!important}\n  .fr{grid-template-columns:1fr!important}\n\n  /* Tables scroll */\n  .tbl{overflow-x:auto;-webkit-overflow-scrolling:touch}\n  table{min-width:540px}\n\n  /* Modals slide up from bottom */\n  .overlay{align-items:flex-end!important;padding:0!important}\n  .modal,.modal-lg{width:100%!important;max-width:100%!important;border-radius:20px 20px 0 0!important;max-height:91vh!important;padding:18px 16px!important}\n\n  /* Inputs: prevent iOS zoom */\n  .fi,input,select,textarea{font-size:16px!important}\n\n  /* Wrap button rows */\n  .row{flex-wrap:wrap}\n\n  /* Bigger tap targets */\n  .btn{min-height:36px}\n  .btn-sm{min-height:32px}\n\n  /* Toast above bottom nav */\n  .toast-mob{bottom:76px!important}\n\n  /* Card header wraps */\n  .card-hd{flex-wrap:wrap}\n\n  /* Hide desktop search in topbar */\n  .srch{display:none}\n\n  /* Role switcher hidden \u2014 handled by bottom sheet */\n  .role-sw{display:none}\n\n  /* Order action buttons stack */\n  .order-actions{flex-direction:column;align-items:stretch}\n  .order-actions .btn{justify-content:center}\n}\n\n@media(max-width:420px){\n  .sg4{grid-template-columns:1fr 1fr!important}\n  .mob-sheet-grid{grid-template-columns:repeat(2,1fr)}\n  .page{padding:10px 10px 80px!important}\n}\n.order-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,340px);gap:12px}\n@media(max-width:900px){.order-detail-grid{grid-template-columns:1fr}}\n.order-box-row{display:grid;grid-template-columns:minmax(90px,.8fr) minmax(145px,1.2fr) minmax(110px,1fr) minmax(135px,1fr) minmax(155px,1fr) minmax(180px,1.2fr);gap:8px;align-items:center}\n@media(max-width:720px){.order-box-row{grid-template-columns:1fr 1fr}}\n";
 var DEFAULT_OFFICES = [
   { id: "off_hq",  name: "Casabe NY (HQ)",  address: "", phone: "", active: true, commissionModel: { type: "percentage", percentage: 0,    rates: { Small: 0,  Medium: 0,  Large: 0,  "Dish - Single": 0, "Dish - Pack of 10": 0,  "Jumbo Drum": 0,  Freight: 0 } }, notes: "HQ — no commission" },
   { id: "off_hou", name: "Houston",          address: "", phone: "", active: true, commissionModel: { type: "per_box",   percentage: 0,    rates: { Small: 40, Medium: 50, Large: 60, "Dish - Single": 5, "Dish - Pack of 10": 32, "Jumbo Drum": 60, Freight: 0 } }, notes: "Flat per-box commission" },
@@ -269,36 +263,97 @@ var getShipmentBoxRows = function getShipmentBoxRows(order, shipmentId) {
   return getCommissionBoxes(order);
 };
 
-// ── Commission engine (unchanged core, uses expanded boxes) ─────────────────
-var calculateOfficeCommission = function calculateOfficeCommission(officeConfig, grossAmount, boxes) {
+// ── Insurance fee: capped at $1200, only when order.insurance is true ────────
+var calculateInsuranceFee = function calculateInsuranceFee(order, tenant) {
+  var insRate = ((tenant && tenant.insuranceRate) || 5) / 100;
+  return order.insurance
+    ? Math.min(1200, Math.round((parseFloat(order.declaredValue) || 0) * insRate))
+    : 0;
+};
+
+// ── Box subtotal: sum box.price if priced, else gross minus insurance ─────────
+var getBoxSubtotal = function getBoxSubtotal(order, tenant) {
+  var boxes = order.boxes && order.boxes.length ? order.boxes : [];
+  if (boxes.length) {
+    var priced = boxes.reduce(function(sum, b) { return sum + (parseFloat(b.price) || 0); }, 0);
+    if (priced > 0) return Math.round(priced * 100) / 100;
+  }
+  var gross = parseFloat(order.payment && order.payment.amount) || 0;
+  var insurance = calculateInsuranceFee(order, tenant);
+  return Math.max(0, Math.round((gross - insurance) * 100) / 100);
+};
+
+// ── Commission engine: basis must be box subtotal (excludes insurance) ────────
+var calculateOfficeCommission = function calculateOfficeCommission(officeConfig, commissionBasisAmount, boxes) {
   if (!officeConfig) return 0;
   var model = officeConfig.commissionModel || officeConfig;
-  if (typeof model === "number") return Math.round(grossAmount * model * 100) / 100;
+  if (typeof model === "number") return Math.round(commissionBasisAmount * model * 100) / 100;
   if (!model || !model.type) return 0;
   if (model.type === "percentage") {
-    return Math.round(grossAmount * (model.percentage || 0) * 100) / 100;
+    return Math.round(commissionBasisAmount * (model.percentage || 0) * 100) / 100;
   }
   if (model.type === "per_box") {
     var rates = model.rates || {};
     var boxArr = boxes && boxes.length ? boxes : [{ boxType: "Small" }];
     return boxArr.reduce(function(sum, box) {
       var bt = box.boxType || "Small";
-      var rate = rates[bt] !== undefined ? rates[bt] : (rates["Small"] || 0);
+      var rate = rates[bt] !== undefined ? rates[bt] : 0;
       return sum + rate;
     }, 0);
   }
   return 0;
 };
 
-// ── Snapshot validation: only trust v2 snapshots based on gross order amount ─
+// ── Invoice box rows helper — produces per-box blocks ────────────────────────
+var getInvoiceBoxRows = function getInvoiceBoxRows(order, tenant) {
+  var boxes = order.boxes && order.boxes.length ? order.boxes : [{
+    subId: order.id,
+    boxType: order.boxType,
+    description: order.description || order.itemType || "",
+    declaredValue: order.declaredValue,
+    price: getBoxSubtotal(order, tenant)
+  }];
+  return boxes.map(function(b, i) {
+    var price = parseFloat(b.price) || 0;
+    return {
+      index: i + 1,
+      trackingNumber: b.subId || (order.id + "-" + (i + 1)),
+      boxType: b.boxType || order.boxType || "Unknown",
+      price: price,
+      contents: b.description || order.description || order.itemType || "General merchandise",
+      declaredValue: parseFloat(b.declaredValue || order.declaredValue || 0),
+      amount: price,
+      senderName: b.senderName || order.name || "",
+      senderPhone: b.senderPhone || order.phone || "",
+      senderAddress: b.senderAddress || [order.address, order.city, order.state].filter(Boolean).join(", ") || "",
+      recipientName: b.recipientName || order.consigneeName || "",
+      recipientPhone: b.recipientPhone || order.consigneePhone || "",
+      recipientAddress: b.recipientAddress || order.consigneeAddress || "",
+      recipientCity: b.recipientCity || order.consigneeCity || order.destination || ""
+    };
+  });
+};
+
+// ── Box type display label from BOX_CONFIG ───────────────────────────────────
+var getBoxDisplayLabel = function getBoxDisplayLabel(boxKey, boxConfig) {
+  var cfg = (boxConfig || BOX_CONFIG).find(function(b){ return b.key === boxKey; });
+  return cfg ? (cfg.label || cfg.key) : (boxKey || "Unknown");
+};
+
+// ── Snapshot validation: trust v2 (gross-based) or v3 (box-subtotal-based) ───
 var isValidSnapshot = function isValidSnapshot(snap, order) {
   if (!snap || typeof snap.commissionAmount !== "number") return false;
-  // Must be v2 (gross-based); v1 snapshots were based on collected cash — reject them
+  // v3: box_subtotal_excluding_insurance (preferred, insurance-correct)
+  if (snap.version === 3 && snap.basis === "box_subtotal_excluding_insurance") {
+    if (typeof snap.boxSubtotal !== "number") return false;
+    var expectedNet = snap.boxSubtotal - snap.commissionAmount + (snap.insuranceAmount || 0);
+    if (Math.abs((snap.netToOffice || 0) - expectedNet) > 0.01) return false;
+    return true;
+  }
+  // v2: gross_order_amount (legacy, still accepted)
   if (snap.version !== 2 || snap.basis !== "gross_order_amount") return false;
-  // grossRevenue must match the order's actual payment.amount (within $0.01)
   var gross = parseFloat(order.payment && order.payment.amount) || 0;
   if (Math.abs((snap.grossRevenue || 0) - gross) > 0.01) return false;
-  // netRevenue must equal grossRevenue - commissionAmount (within $0.01)
   if (Math.abs((snap.netRevenue || 0) - (snap.grossRevenue - snap.commissionAmount)) > 0.01) return false;
   return true;
 };
@@ -318,16 +373,14 @@ var getOrderCommission = function getOrderCommission(order, tenant, officeNameOv
       return order.payment.commission;
     }
   }
-  // 3. Live calculation using gross payment.amount + expanded boxes
-  // Prefer commissionConfigSnapshot from the (invalid) snapshot if present —
-  // it still captures the correct office config even when the amounts were wrong.
+  // 3. Live calculation — use box subtotal (excludes insurance) as commission basis
   var officeName = officeNameOverride || order.officeNameSnapshot || order.officeId || order.office;
   var offCfg = (order.commissionSnapshot && order.commissionSnapshot.commissionConfigSnapshot)
     || getOfficeById(tenant, officeName);
   if (!offCfg) return 0;
-  var gross = parseFloat(order.payment && order.payment.amount) || 0;
+  var basisAmt = getBoxSubtotal(order, tenant);
   var boxes = getCommissionBoxes(order);
-  return Math.round(calculateOfficeCommission(offCfg, gross, boxes) * 100) / 100;
+  return Math.round(calculateOfficeCommission(offCfg, basisAmt, boxes) * 100) / 100;
 };
 
 // ── Shared shipment metrics helper (pure, pass tenant explicitly) ────────────
@@ -348,11 +401,14 @@ var computeShipmentMetrics = function computeShipmentMetrics(shipment, allOrders
       : Math.round(fullGross * fraction * 100) / 100;
     totBoxes += hereCount;
     totGross += allocGross;
+    // Commission basis = box subtotal only (strip out allocated insurance portion)
+    var allocInsurance = Math.round(calculateInsuranceFee(o, tenant) * fraction * 100) / 100;
+    var allocBoxSubtotal = Math.max(0, allocGross - allocInsurance);
     var officeName = o.officeNameSnapshot || o.officeId || o.office;
     var offCfg = (o.commissionSnapshot && o.commissionSnapshot.commissionConfigSnapshot)
       || getOfficeById(tenant, officeName);
     if (offCfg) {
-      totComm += Math.round(calculateOfficeCommission(offCfg, allocGross, hereBoxes) * 100) / 100;
+      totComm += Math.round(calculateOfficeCommission(offCfg, allocBoxSubtotal, hereBoxes) * 100) / 100;
     }
   });
   var rev = totGross - totComm;
@@ -2057,34 +2113,47 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
     + "Amount: $" + parseFloat((order.payment && order.payment.amount) || 0).toFixed(2) + "\n"
     + "Thank you for your business!";
 
-  // Build invoice HTML from order data for the backend
+  // Build invoice HTML from order data for the backend — per-box blocks
   function buildInvoiceHtml() {
-    var boxes = order.boxes && order.boxes.length > 0 ? order.boxes : null;
+    var invRows = typeof getInvoiceBoxRows === "function" ? getInvoiceBoxRows(order, tenant) : null;
     var amt   = parseFloat((order.payment && order.payment.amount) || 0);
-    var rows  = boxes
-      ? boxes.map(function(b, i) {
-          return "<tr><td>" + (b.subId||order.id+"-"+(i+1)) + "</td><td>" + (b.boxType||"") + "</td>"
-               + "<td>" + (b.destinationCountry||order.destination||"") + "</td>"
-               + "<td>" + (b.gtDept||"") + "</td>"
-               + "<td>" + (b.description||order.description||"") + "</td>"
-               + "<td style='text-align:right'>$" + parseFloat(b.price||0).toFixed(2) + "</td></tr>";
+    var insRate = (tenant && tenant.insuranceRate) || 5;
+    var insFee = order.insurance ? Math.min(1200, Math.round((parseFloat(order.declaredValue)||0) * (insRate/100))) : 0;
+    var boxTotal = invRows ? invRows.reduce(function(s,r){ return s+r.amount; }, 0) : (amt - insFee);
+    var rows = invRows
+      ? invRows.map(function(r) {
+          return "<div style='border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin-bottom:10px'>"
+            + "<div style='display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:7px'>"
+            + "<span style='font-family:monospace;font-size:11px;color:#0055aa;font-weight:700'>Tracking: " + r.trackingNumber + "</span>"
+            + "<span style='font-weight:800;font-size:13px'>$" + r.amount.toFixed(2) + "</span>"
+            + "</div>"
+            + "<table style='width:100%;font-size:11px;border-collapse:collapse'>"
+            + "<tr><td style='color:#888;padding:2px 6px 2px 0;width:100px'>Box Type</td><td style='font-weight:600'>" + (r.boxType||"—") + "</td>"
+            + "<td style='color:#888;padding:2px 6px 2px 12px;width:100px'>Price</td><td>$" + r.price.toFixed(2) + "</td></tr>"
+            + "<tr><td style='color:#888;padding:2px 6px 2px 0'>Declared</td><td>" + (r.declaredValue ? "$"+r.declaredValue.toFixed(2) : "—") + "</td>"
+            + "<td style='color:#888;padding:2px 6px 2px 12px'>Contents</td><td>" + (r.contents||"—") + "</td></tr>"
+            + (r.senderName ? "<tr><td style='color:#888;padding:2px 6px 2px 0'>Sender</td><td colspan=3>" + r.senderName + (r.senderPhone ? " · "+r.senderPhone : "") + (r.senderAddress ? " — "+r.senderAddress : "") + "</td></tr>" : "")
+            + (r.recipientName ? "<tr><td style='color:#888;padding:2px 6px 2px 0'>Recipient</td><td colspan=3>" + r.recipientName + (r.recipientPhone ? " · "+r.recipientPhone : "") + ([r.recipientAddress, r.recipientCity].filter(Boolean).length ? " — "+[r.recipientAddress,r.recipientCity].filter(Boolean).join(", ") : "") + "</td></tr>" : "")
+            + "</table></div>";
         }).join("")
-      : "<tr><td colspan=5>" + (order.description||"General merchandise") + "</td><td style='text-align:right'>$" + amt.toFixed(2) + "</td></tr>";
+      : "<div style='border:1px solid #ddd;border-radius:6px;padding:10px 12px;margin-bottom:10px'>"
+        + "<div style='font-weight:700'>" + order.id + " — " + (order.boxType||"") + "</div>"
+        + "<div>" + (order.description||"General merchandise") + " — $" + amt.toFixed(2) + "</div></div>";
+
+    var totals = "<div style='border-top:2px solid #000;padding-top:8px;margin-top:4px;text-align:right;font-size:12px'>"
+      + "<div>Subtotal: <strong>$" + boxTotal.toFixed(2) + "</strong></div>"
+      + (insFee > 0 ? "<div>Insurance (" + insRate + "%): <strong>$" + insFee.toFixed(2) + "</strong></div>" : "")
+      + "<div style='font-size:15px;font-weight:800;margin-top:4px'>Total: $" + (boxTotal + insFee).toFixed(2) + "</div>"
+      + "</div>";
 
     return "<!DOCTYPE html><html><head><style>"
       + "body{font-family:Arial,sans-serif;font-size:12px;padding:20px;color:#111}"
       + "h2{margin:0 0 4px;font-size:16px}"
-      + "table{width:100%;border-collapse:collapse;margin-top:12px}"
-      + "th,td{border:1px solid #ddd;padding:5px 8px;text-align:left}"
-      + "th{background:#f5f5f5;font-weight:700;font-size:11px}"
-      + ".total{text-align:right;font-weight:700;font-size:14px;margin-top:10px}"
       + "</style></head><body>"
       + "<h2>" + coName + " — Invoice</h2>"
       + "<p>Order: <strong>" + order.id + "</strong> | Date: " + (order.createdAt||"") + "</p>"
-      + "<p>To: <strong>" + toName + "</strong> | Phone: " + phone + "</p>"
-      + "<table><thead><tr><th>Tracking #</th><th>Box Type</th><th>Destination</th><th>Dept</th><th>Contents</th><th>Amount</th></tr></thead>"
-      + "<tbody>" + rows + "</tbody></table>"
-      + "<div class='total'>Total: $" + amt.toFixed(2) + "</div>"
+      + "<p>To: <strong>" + toName + "</strong>" + (phone ? " | " + phone : "") + "</p>"
+      + rows + totals
       + "</body></html>";
   }
 
@@ -2159,35 +2228,42 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
           /*#__PURE__*/React.createElement("span", { style: { color: "#555" } }, "To: "), toName,
           phone ? /*#__PURE__*/React.createElement("span", { style: { color: "#555" } }, " \xB7 ", phone) : null
         ),
-        /*#__PURE__*/React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 11, marginBottom: 8 } },
-          /*#__PURE__*/React.createElement("thead", null,
-            /*#__PURE__*/React.createElement("tr", { style: { background: "#f5f5f5" } },
-              ["Tracking #","Box Type","Destination","Dept","Contents","Amount"].map(function(h) {
-                return /*#__PURE__*/React.createElement("th", { key: h, style: { border: "1px solid #ddd", padding: "4px 6px", textAlign: "left" } }, h);
-              })
+        (function(){
+          var invR = typeof getInvoiceBoxRows === "function" ? getInvoiceBoxRows(order, tenant) : null;
+          var amt = parseFloat((order.payment&&order.payment.amount)||0);
+          var insR = (tenant&&tenant.insuranceRate)||5;
+          var insF = order.insurance ? Math.min(1200, Math.round((parseFloat(order.declaredValue)||0)*(insR/100))) : 0;
+          var boxTot = invR ? invR.reduce(function(s,r){return s+r.amount;},0) : amt - insF;
+          return /*#__PURE__*/React.createElement(React.Fragment, null,
+            /*#__PURE__*/React.createElement("div", { style: { marginBottom: 8 } },
+              (invR || [{ index:1, trackingNumber:order.id, boxType:order.boxType||"", price:amt-insF, contents:order.description||"", declaredValue:parseFloat(order.declaredValue||0), amount:amt-insF, senderName:order.name||"", recipientName:order.consigneeName||"" }]).map(function(r) {
+                return /*#__PURE__*/React.createElement("div", { key: r.index, style: { border: "1px solid #e0e0e0", borderRadius: 5, padding: "8px 10px", marginBottom: 7, background: "#f9f9f9" } },
+                  /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", borderBottom: "1px solid #eee", paddingBottom: 5, marginBottom: 5 } },
+                    /*#__PURE__*/React.createElement("span", { style: { fontFamily: "monospace", fontSize: 10, color: "#0055aa", fontWeight: 700 } }, "Tracking: ", r.trackingNumber),
+                    /*#__PURE__*/React.createElement("span", { style: { fontWeight: 800, fontSize: 12 } }, "$", r.amount.toFixed(2))
+                  ),
+                  /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2px 10px", fontSize: 10 } },
+                    /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#999" } }, "Box Type: "), r.boxType||"—"),
+                    /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#999" } }, "Price: "), "$", r.price.toFixed(2)),
+                    /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#999" } }, "Declared: "), r.declaredValue ? "$"+r.declaredValue.toFixed(2) : "—"),
+                    /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#999" } }, "Contents: "), r.contents||"—"),
+                    r.senderName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1" } }, /*#__PURE__*/React.createElement("span", { style: { color: "#999" } }, "Sender: "), r.senderName, r.senderPhone ? " · "+r.senderPhone : ""),
+                    r.recipientName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1" } }, /*#__PURE__*/React.createElement("span", { style: { color: "#999" } }, "Recipient: "), r.recipientName, r.recipientPhone ? " · "+r.recipientPhone : "", r.recipientAddress ? " — "+r.recipientAddress : "")
+                  )
+                );
+              }),
+              order.insurance && /*#__PURE__*/React.createElement("div", { style: { border: "1px solid #f5e0a0", borderRadius: 5, padding: "6px 10px", background: "#fffbf0", display: "flex", justifyContent: "space-between", fontSize: 10 } },
+                /*#__PURE__*/React.createElement("span", null, "Insurance (", insR, "%) on $", parseFloat(order.declaredValue||0).toFixed(2)),
+                /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700 } }, "$", insF.toFixed(2))
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", fontSize: 11, borderTop: "1.5px solid #111", paddingTop: 6 } },
+              /*#__PURE__*/React.createElement("div", null, "Subtotal: $", boxTot.toFixed(2)),
+              insF > 0 && /*#__PURE__*/React.createElement("div", null, "Insurance: $", insF.toFixed(2)),
+              /*#__PURE__*/React.createElement("div", { style: { fontWeight: 800, fontSize: 13, marginTop: 3 } }, "Total: $", (boxTot+insF).toFixed(2))
             )
-          ),
-          /*#__PURE__*/React.createElement("tbody", null,
-            (order.boxes && order.boxes.length > 0 ? order.boxes : [null]).map(function(b, i) {
-              var td = function(v, right) { return /*#__PURE__*/React.createElement("td", { style: { border: "1px solid #ddd", padding: "4px 6px", textAlign: right?"right":"left" } }, v||"\u2014"); };
-              if (!b) return /*#__PURE__*/React.createElement("tr", { key: 0 },
-                td(order.id), td(order.boxType||""), td(order.destination||""), td(order.gtDept||""),
-                td(order.description||"General merchandise"),
-                td("$"+parseFloat((order.payment&&order.payment.amount)||0).toFixed(2), true)
-              );
-              var bzCfg = b.zone ? (ZONE_CONFIG[b.zone]||null) : null;
-              return /*#__PURE__*/React.createElement("tr", { key: i, style: bzCfg ? { borderLeft: "3px solid "+bzCfg.color } : {} },
-                td(b.subId||order.id+"-"+(i+1)), td(b.boxType||order.boxType||""),
-                td(b.destinationCountry||order.destination||""), td(b.gtDept||""),
-                td(b.description||order.description||""),
-                td("$"+parseFloat(b.price||0).toFixed(2), true)
-              );
-            })
-          )
-        ),
-        /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", fontWeight: 700, fontSize: 13 } },
-          "Total: $", parseFloat((order.payment && order.payment.amount)||0).toFixed(2)
-        )
+          );
+        })()
       ),
 
       // ── Message preview ──────────────────────────────────────────────
@@ -2381,28 +2457,45 @@ var OrderForm = function OrderForm(_ref4) {
         shipmentStatus: box.shipmentStatus || "",
         statusUpdatedAt: box.statusUpdatedAt || "",
         statusUpdatedBy: box.statusUpdatedBy || "",
-        notifyOnStatusChange: typeof box.notifyOnStatusChange !== "undefined" ? box.notifyOnStatusChange : false
+        notifyOnStatusChange: typeof box.notifyOnStatusChange !== "undefined" ? box.notifyOnStatusChange : false,
+        senderName: box.senderName || f.name || "",
+        senderPhone: box.senderPhone || f.phone || "",
+        senderAddress: box.senderAddress || f.address || "",
+        senderCity: box.senderCity || f.city || "",
+        senderState: box.senderState || f.state || "",
+        senderZip: box.senderZip || f.zip || "",
+        recipientName: box.recipientName || f.consigneeName || "",
+        recipientPhone: box.recipientPhone || f.consigneePhone || "",
+        recipientAddress: box.recipientAddress || f.consigneeAddress || "",
+        recipientCity: box.recipientCity || f.consigneeCity || box.gtDept || "",
+        recipientCountry: box.recipientCountry || f.consigneeCountry || boxDest,
+        recipientDangerZone: !!(box.recipientDangerZone || f.consigneeDangerZone)
       };
     });
-    // Commission snapshot — immutable at save time so future config changes don't mutate history
-    // BASIS: full order charge (payment.amount), NOT payment.paid.
-    // Commission is owed on what was charged, regardless of collection status.
+    // Commission snapshot — immutable at save time.
+    // BASIS: box subtotal only (excludes insurance). Insurance is not commissionable.
     var amt = parseFloat(f.payment.amount) || 0;
     var paidAmt = parseFloat(f.payment.paid) || 0;
     var _offCfg = getOfficeById(tenant, f.officeId || f.office);
-    var _commAmt = calculateOfficeCommission(_offCfg, amt, boxes); // use amt, not paidAmt
-    var _grossRev = amt; // gross = full charge, always
-    var _netRev = _grossRev - _commAmt;
+    // Build a draft order object so getBoxSubtotal can read boxes and insurance fields
+    var _draftForSubtotal = Object.assign({}, f, { boxes: boxes, payment: { amount: amt } });
+    var _boxSubtotal = getBoxSubtotal(_draftForSubtotal, tenant);
+    var _insuranceAmt = calculateInsuranceFee(_draftForSubtotal, tenant);
+    var _commAmt = calculateOfficeCommission(_offCfg, _boxSubtotal, boxes);
+    var _netToOffice = Math.round((_boxSubtotal - _commAmt + _insuranceAmt) * 100) / 100;
     var _commSnapshot = {
       officeId: _offCfg ? _offCfg.id : null,
       officeNameSnapshot: _offCfg ? _offCfg.name : (f.office || ""),
       commissionConfigSnapshot: _offCfg ? JSON.parse(JSON.stringify(_offCfg.commissionModel || {})) : {},
       commissionAmount: Math.round(_commAmt * 100) / 100,
-      version: 2,
-      basis: "gross_order_amount",
-      grossRevenue: Math.round(_grossRev * 100) / 100,  // full order charge
-      grossCollected: Math.round(paidAmt * 100) / 100,  // what has actually been paid
-      netRevenue: Math.round(_netRev * 100) / 100,
+      version: 3,
+      basis: "box_subtotal_excluding_insurance",
+      boxSubtotal: Math.round(_boxSubtotal * 100) / 100,
+      insuranceAmount: Math.round(_insuranceAmt * 100) / 100,
+      grossRevenue: Math.round(amt * 100) / 100,
+      grossCollected: Math.round(paidAmt * 100) / 100,
+      netToOffice: _netToOffice,
+      netRevenue: Math.round((amt - _commAmt) * 100) / 100,
       commissionCalculatedAt: now()
     };
     var firstBox = boxes[0] || {};
@@ -2443,8 +2536,7 @@ var OrderForm = function OrderForm(_ref4) {
   };
   // Internal-only commission preview — computed at render time, never shown on invoice
   var _commPreviewOffice = getOfficeById(tenant, f.officeId || f.office);
-  var _commPreviewAmt = parseFloat(f.payment && f.payment.amount) || 0;
-  var _commPreviewVal = _commPreviewOffice ? calculateOfficeCommission(_commPreviewOffice, _commPreviewAmt, f.boxes || []) : null;
+  var _commPreviewVal = _commPreviewOffice ? calculateOfficeCommission(_commPreviewOffice, getBoxSubtotal(f, tenant), f.boxes || []) : null;
   return /*#__PURE__*/React.createElement(React.Fragment, null,
     paidSendPending && pendingPaidOrder && /*#__PURE__*/React.createElement(PaidInvoiceSendModal, {
       order: pendingPaidOrder,
@@ -2631,8 +2723,14 @@ var OrderForm = function OrderForm(_ref4) {
         className: "btn btn-ghost btn-xs mla",
         onClick: function() {
           var cur = (f.boxes && f.boxes.length > 0) ? f.boxes
-            : [{ subId: "1", boxType: f.boxType || "Small", destinationCountry: f.destination || "Guatemala", gtDept: f.gtDept || "", zone: f.zone || "", description: f.description || "", declaredValue: "", status: f.status, shipmentId: f.shipmentId || "", price: "" }];
-          var next = cur.concat([{ subId: String(cur.length + 1), boxType: "Small", destinationCountry: "Guatemala", gtDept: "", zone: "", description: "", declaredValue: "", status: "order_placed", shipmentId: f.shipmentId || "", price: "" }]);
+            : [{ subId: "1", boxType: f.boxType || "Small", destinationCountry: f.destination || "Guatemala", gtDept: f.gtDept || "", zone: f.zone || "", description: f.description || "", declaredValue: "", status: f.status, shipmentId: f.shipmentId || "", price: "",
+                 senderName: f.name || "", senderPhone: f.phone || "", senderAddress: f.address || "", senderCity: f.city || "", senderState: f.state || "", senderZip: f.zip || "",
+                 recipientName: f.consigneeName || "", recipientPhone: f.consigneePhone || "", recipientAddress: f.consigneeAddress || "", recipientCity: f.consigneeCity || "", recipientCountry: f.consigneeCountry || f.destination || "", recipientDangerZone: f.consigneeDangerZone || false }];
+          var template = cur[cur.length - 1] || {};
+          var nextBox = { subId: String(cur.length + 1), boxType: template.boxType || f.boxType || "Small", destinationCountry: template.destinationCountry || f.destination || "Guatemala", gtDept: template.gtDept || "", zone: template.zone || "", description: "", declaredValue: "", status: "order_placed", shipmentId: f.shipmentId || "", price: "",
+            senderName: template.senderName || f.name || "", senderPhone: template.senderPhone || f.phone || "", senderAddress: template.senderAddress || f.address || "", senderCity: template.senderCity || f.city || "", senderState: template.senderState || f.state || "", senderZip: template.senderZip || f.zip || "",
+            recipientName: template.recipientName || f.consigneeName || "", recipientPhone: template.recipientPhone || f.consigneePhone || "", recipientAddress: template.recipientAddress || f.consigneeAddress || "", recipientCity: template.recipientCity || f.consigneeCity || "", recipientCountry: template.recipientCountry || f.consigneeCountry || f.destination || "", recipientDangerZone: template.recipientDangerZone || f.consigneeDangerZone || false };
+          var next = cur.concat([nextBox]);
           set("boxes", next); set("boxCount", next.length);
         }
       }, "+ Add Box")
@@ -2765,6 +2863,41 @@ var OrderForm = function OrderForm(_ref4) {
               value: box.description || "",
               onChange: function(e) { updateBox("description", e.target.value); if (idx === 0) set("description", e.target.value); }
             })
+          ),
+          /*#__PURE__*/React.createElement("div", { style: { marginTop: 8, borderTop: "1px solid var(--border)", paddingTop: 8 } },
+            /*#__PURE__*/React.createElement("div", { className: "row", style: { marginBottom: 5, gap: 6, flexWrap: "wrap" } },
+              /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em" } }, "\uD83D\uDCEC Recipient"),
+              idx > 0 && boxRows[0] && /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-xs", onClick: function(e){ e.preventDefault(); updateBox("recipientName", boxRows[0].recipientName||"", { recipientPhone:boxRows[0].recipientPhone||"", recipientAddress:boxRows[0].recipientAddress||"", recipientCity:boxRows[0].recipientCity||"", recipientCountry:boxRows[0].recipientCountry||"", recipientDangerZone:boxRows[0].recipientDangerZone||false }); } }, "Copy from Box 1"),
+              /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-xs", onClick: function(e){ e.preventDefault(); updateBox("recipientName", f.consigneeName||"", { recipientPhone:f.consigneePhone||"", recipientAddress:f.consigneeAddress||"", recipientCity:f.consigneeCity||"", recipientCountry:f.consigneeCountry||f.destination||"", recipientDangerZone:f.consigneeDangerZone||false }); } }, "Same as Consignee")
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fr3", style: { marginBottom: 5 } },
+              /*#__PURE__*/React.createElement("div", { className: "fg" }, /*#__PURE__*/React.createElement("label", { className: "fl", style:{fontSize:10} }, "Name"), /*#__PURE__*/React.createElement("input", { className: "fi", placeholder: "Recipient name", value: box.recipientName||"", onChange: function(e){ updateBox("recipientName", e.target.value); } })),
+              /*#__PURE__*/React.createElement("div", { className: "fg" }, /*#__PURE__*/React.createElement("label", { className: "fl", style:{fontSize:10} }, "Phone"), /*#__PURE__*/React.createElement("input", { className: "fi", placeholder: "Recipient phone", value: box.recipientPhone||"", onChange: function(e){ updateBox("recipientPhone", e.target.value); } })),
+              /*#__PURE__*/React.createElement("div", { className: "fg" }, /*#__PURE__*/React.createElement("label", { className: "fl", style:{fontSize:10} }, "Country"), /*#__PURE__*/React.createElement("input", { className: "fi", placeholder: "Country", value: box.recipientCountry||box.destinationCountry||"", onChange: function(e){ updateBox("recipientCountry", e.target.value); } }))
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fr", style: { marginBottom: 5 } },
+              /*#__PURE__*/React.createElement("div", { className: "fg" }, /*#__PURE__*/React.createElement("label", { className: "fl", style:{fontSize:10} }, "Address"), /*#__PURE__*/React.createElement("input", { className: "fi", placeholder: "Street address", value: box.recipientAddress||"", onChange: function(e){ updateBox("recipientAddress", e.target.value); } })),
+              /*#__PURE__*/React.createElement("div", { className: "fg" }, /*#__PURE__*/React.createElement("label", { className: "fl", style:{fontSize:10} }, "City / Region"), /*#__PURE__*/React.createElement("input", { className: "fi", placeholder: "City", value: box.recipientCity||"", onChange: function(e){ updateBox("recipientCity", e.target.value); } }))
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "row", style: { gap: 8, marginBottom: 8 } },
+              /*#__PURE__*/React.createElement("input", { type: "checkbox", id: "dz-"+idx, checked: !!(box.recipientDangerZone), onChange: function(e){ updateBox("recipientDangerZone", e.target.checked); } }),
+              /*#__PURE__*/React.createElement("label", { htmlFor: "dz-"+idx, style: { fontSize: 11, color: "var(--red)", fontWeight: 600, cursor: "pointer" } }, "\u26A0 Danger Zone")
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "row", style: { marginBottom: 5, gap: 6, flexWrap: "wrap" } },
+              /*#__PURE__*/React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: "var(--text3)", textTransform: "uppercase", letterSpacing: "0.06em" } }, "\uD83D\uDCE4 Sender"),
+              idx > 0 && boxRows[0] && /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-xs", onClick: function(e){ e.preventDefault(); updateBox("senderName", boxRows[0].senderName||"", { senderPhone:boxRows[0].senderPhone||"", senderAddress:boxRows[0].senderAddress||"", senderCity:boxRows[0].senderCity||"", senderState:boxRows[0].senderState||"", senderZip:boxRows[0].senderZip||"" }); } }, "Copy from Box 1"),
+              /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-xs", onClick: function(e){ e.preventDefault(); updateBox("senderName", f.name||"", { senderPhone:f.phone||"", senderAddress:f.address||"", senderCity:f.city||"", senderState:f.state||"", senderZip:f.zip||"" }); } }, "Same as Customer")
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fr3", style: { marginBottom: 5 } },
+              /*#__PURE__*/React.createElement("div", { className: "fg" }, /*#__PURE__*/React.createElement("label", { className: "fl", style:{fontSize:10} }, "Name"), /*#__PURE__*/React.createElement("input", { className: "fi", placeholder: "Sender name", value: box.senderName||"", onChange: function(e){ updateBox("senderName", e.target.value); } })),
+              /*#__PURE__*/React.createElement("div", { className: "fg" }, /*#__PURE__*/React.createElement("label", { className: "fl", style:{fontSize:10} }, "Phone"), /*#__PURE__*/React.createElement("input", { className: "fi", placeholder: "Sender phone", value: box.senderPhone||"", onChange: function(e){ updateBox("senderPhone", e.target.value); } })),
+              /*#__PURE__*/React.createElement("div", { className: "fg" }, /*#__PURE__*/React.createElement("label", { className: "fl", style:{fontSize:10} }, "ZIP"), /*#__PURE__*/React.createElement("input", { className: "fi", placeholder: "ZIP", value: box.senderZip||"", onChange: function(e){ updateBox("senderZip", e.target.value); } }))
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fr", style: { marginBottom: 4 } },
+              /*#__PURE__*/React.createElement("div", { className: "fg" }, /*#__PURE__*/React.createElement("label", { className: "fl", style:{fontSize:10} }, "Address"), /*#__PURE__*/React.createElement("input", { className: "fi", placeholder: "Street address", value: box.senderAddress||"", onChange: function(e){ updateBox("senderAddress", e.target.value); } })),
+              /*#__PURE__*/React.createElement("div", { className: "fg" }, /*#__PURE__*/React.createElement("label", { className: "fl", style:{fontSize:10} }, "City"), /*#__PURE__*/React.createElement("input", { className: "fi", placeholder: "City", value: box.senderCity||"", onChange: function(e){ updateBox("senderCity", e.target.value); } })),
+              /*#__PURE__*/React.createElement("div", { className: "fg" }, /*#__PURE__*/React.createElement("label", { className: "fl", style:{fontSize:10} }, "State"), /*#__PURE__*/React.createElement("input", { className: "fi", placeholder: "State", value: box.senderState||"", onChange: function(e){ updateBox("senderState", e.target.value); } }))
+            )
           )
         );
       });
@@ -3026,7 +3159,7 @@ var OrderForm = function OrderForm(_ref4) {
   },
     /*#__PURE__*/React.createElement("span", null, "\uD83C\uDFE2 Office Commission \u2014 ", _commPreviewOffice.name),
     /*#__PURE__*/React.createElement("strong", { style: { fontFamily: "monospace", fontSize: 13 } },
-      "$", _commPreviewVal.toFixed(2), " \u00A0(net: $", (_commPreviewAmt - _commPreviewVal).toFixed(2), ")"
+      "$", _commPreviewVal.toFixed(2), " \u00A0(net: $", (getBoxSubtotal(f, tenant) - _commPreviewVal).toFixed(2), ")"
     )
   ), /*#__PURE__*/React.createElement("div", {
     className: "modal-section"
@@ -3713,19 +3846,29 @@ var OrderDetail = function OrderDetail(_ref22) {
     _ref22$isHQ = _ref22.isHQ,
     isHQ = _ref22$isHQ === void 0 ? false : _ref22$isHQ,
     _ref22$onBoxStatusChange = _ref22.onBoxStatusChange,
-    onBoxStatusChange = _ref22$onBoxStatusChange === void 0 ? null : _ref22$onBoxStatusChange;
+    onBoxStatusChange = _ref22$onBoxStatusChange === void 0 ? null : _ref22$onBoxStatusChange,
+    _ref22$onBoxChange = _ref22.onBoxChange,
+    onBoxChange = _ref22$onBoxChange === void 0 ? null : _ref22$onBoxChange,
+    _ref22$shipmentsList = _ref22.shipmentsList,
+    shipmentsList = _ref22$shipmentsList === void 0 ? [] : _ref22$shipmentsList,
+    _ref22$boxConfig = _ref22.boxConfig,
+    boxConfig = _ref22$boxConfig === void 0 ? BOX_CONFIG : _ref22$boxConfig;
   var _stBoxEdits = useState({}), _stBoxEdits2 = _slicedToArray(_stBoxEdits, 2),
       boxEdits = _stBoxEdits2[0], setBoxEdits = _stBoxEdits2[1];
+  var _stSelSub = useState((order.boxes && order.boxes[0] && order.boxes[0].subId) || null);
+  var _stSelSub2 = _slicedToArray(_stSelSub, 2);
+  var selectedSubId = _stSelSub2[0], setSelectedSubId = _stSelSub2[1];
+  var selectedBox = (order.boxes || []).find(function(b){ return b.subId === selectedSubId; }) || (order.boxes && order.boxes[0]) || null;
   var flow = STATUS_FLOW;
-  var curIdx = flow.indexOf(order.status);
+  var journeyStatus = selectedBox ? (selectedBox.orderStatus || selectedBox.status || order.status) : order.status;
+  var curIdx = flow.indexOf(journeyStatus);
   return /*#__PURE__*/React.createElement("div", {
     className: "overlay",
     onClick: function onClick(e) {
       return e.target === e.currentTarget && onClose();
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "modal modal-lg fu",
-    style: { width: "min(1080px, calc(100vw - 40px))", maxWidth: "1080px" }
+    className: "modal modal-lg fu"
   }, /*#__PURE__*/React.createElement("div", {
     className: "row g10",
     style: {
@@ -3804,15 +3947,36 @@ var OrderDetail = function OrderDetail(_ref22) {
                 /*#__PURE__*/React.createElement("th", null, "Destination"),
                 /*#__PURE__*/React.createElement("th", null, "Dept/City"),
                 /*#__PURE__*/React.createElement("th", null, "Order Status"),
-                /*#__PURE__*/React.createElement("th", null, "Shipment Status"),
+                /*#__PURE__*/React.createElement("th", null, "Shipment Date"),
                 /*#__PURE__*/React.createElement("th", { style: { width: 50 } }, "")
               )
             ),
             /*#__PURE__*/React.createElement("tbody", null,
               order.boxes.map(function(box, bi) {
-                return /*#__PURE__*/React.createElement("tr", { key: bi },
-                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tracking-pill tracking-pill-table", title: box.subId || (order.id + "-" + bi) }, box.subId || (order.id + "-" + bi))),
-                  /*#__PURE__*/React.createElement("td", null, box.boxType || order.boxType),
+                var isSelected = (box.subId || (order.id + "-" + bi)) === selectedSubId;
+                return /*#__PURE__*/React.createElement("tr", {
+                  key: bi,
+                  onClick: function(){ setSelectedSubId(box.subId || (order.id + "-" + bi)); },
+                  style: { cursor: "pointer", background: isSelected ? "rgba(245,158,11,0.06)" : "", borderLeft: isSelected ? "3px solid var(--amber)" : "3px solid transparent" }
+                },
+                  /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tamb", style: { fontSize: 10 } }, box.subId || (order.id + "-" + bi))),
+                  /*#__PURE__*/React.createElement("td", null, (function(){
+                    var bEdit = boxEdits[box.subId] || {};
+                    var curBT = bEdit.boxType !== undefined ? bEdit.boxType : (box.boxType || order.boxType || "");
+                    return /*#__PURE__*/React.createElement("select", {
+                      className: "fi", style: { fontSize: 11, padding: "2px 4px", minWidth: 110 },
+                      value: curBT,
+                      onClick: function(e){ e.stopPropagation(); },
+                      onChange: function(e) {
+                        var v = e.target.value;
+                        setBoxEdits(function(p){ var n=Object.assign({},p); n[box.subId]=Object.assign({},n[box.subId]||{},{boxType:v}); return n; });
+                      }
+                    }, (boxConfig||BOX_CONFIG).filter(function(b){ return b.active&&!b.legacy; }).map(function(bt){
+                      return /*#__PURE__*/React.createElement("option",{key:bt.key,value:bt.key},bt.label||bt.key);
+                    }), curBT && !(boxConfig||BOX_CONFIG).find(function(b){return b.key===curBT;})
+                      ? /*#__PURE__*/React.createElement("option",{key:curBT,value:curBT},curBT) : null
+                    );
+                  })()),
                   /*#__PURE__*/React.createElement("td", null, box.destinationCountry || order.destination),
                   /*#__PURE__*/React.createElement("td", null,
                     (function(){
@@ -3847,21 +4011,24 @@ var OrderDetail = function OrderDetail(_ref22) {
                   /*#__PURE__*/React.createElement("td", null,
                     (function(){
                       var bEdit = boxEdits[box.subId] || {};
-                      var curSS = bEdit.shipmentStatus !== undefined ? bEdit.shipmentStatus : (box.shipmentStatus || "");
+                      var curShipId = bEdit.shipmentId !== undefined ? bEdit.shipmentId : (box.shipmentId || "");
                       return /*#__PURE__*/React.createElement("select", {
                         className: "fi", style: { fontSize: 11, padding: "2px 4px", minWidth: 130 },
-                        value: curSS,
+                        value: curShipId,
                         onChange: function(e) {
                           var v = e.target.value;
                           setBoxEdits(function(p){
                             var n = Object.assign({}, p);
-                            n[box.subId] = Object.assign({}, n[box.subId] || {}, { shipmentStatus: v });
+                            n[box.subId] = Object.assign({}, n[box.subId] || {}, { shipmentId: v });
                             return n;
                           });
                         }
                       },
-                        /*#__PURE__*/React.createElement("option", { value: "" }, "\u2014"),
-                        (STATUS_MODEL.shipment||[]).map(function(s){ return /*#__PURE__*/React.createElement("option",{key:s.key,value:s.key},s.label); })
+                        /*#__PURE__*/React.createElement("option", { value: "" }, "\u2014 Unassigned"),
+                        (shipmentsList || []).map(function(s){
+                          var lbl = (s.date || s.createdAt || s.id) + " \u2013 " + (s.destination || "All");
+                          return /*#__PURE__*/React.createElement("option", { key: s.id, value: s.id }, lbl);
+                        })
                       );
                     })()
                   ),
@@ -3873,8 +4040,11 @@ var OrderDetail = function OrderDetail(_ref22) {
                         var bEdit = boxEdits[box.subId] || {};
                         var changes = {};
                         if (bEdit.orderStatus !== undefined) changes.orderStatus = bEdit.orderStatus;
+                        if (bEdit.shipmentId !== undefined) changes.shipmentId = bEdit.shipmentId;
+                        if (bEdit.boxType !== undefined) changes.boxType = bEdit.boxType;
                         if (bEdit.shipmentStatus !== undefined) changes.shipmentStatus = bEdit.shipmentStatus;
-                        if (onBoxStatusChange) onBoxStatusChange(box.subId, changes);
+                        if (onBoxChange) onBoxChange(box.subId, changes);
+                        else if (onBoxStatusChange) onBoxStatusChange(box.subId, changes);
                         setBoxEdits(function(p){ var n=Object.assign({},p); delete n[box.subId]; return n; });
                       }
                     }, "\u2713 Save")
@@ -4113,8 +4283,7 @@ var OrdersPage = function OrdersPage(_ref31) {
         return onSelect(o);
       }
     }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-      className: "tracking-pill tracking-pill-table",
-      title: o.id
+      className: "tamb"
     }, o.id)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
       className: "tb"
     }, o.name)), /*#__PURE__*/React.createElement("td", {
@@ -4280,8 +4449,7 @@ var PickupListPage = function PickupListPage(_ref34) {
         color: "var(--text)"
       }
     }, o.name), /*#__PURE__*/React.createElement("span", {
-      className: "tracking-pill tracking-pill-sm",
-      title: o.id
+      className: "tamb"
     }, o.id), /*#__PURE__*/React.createElement("span", {
       className: "tag"
     }, o.boxType), (o.payment.paid || 0) >= (o.payment.amount || 1) ? /*#__PURE__*/React.createElement("span", {
@@ -4449,8 +4617,7 @@ var DropOffListPage = function DropOffListPage(_ref35) {
         color: "var(--text)"
       }
     }, o.name), /*#__PURE__*/React.createElement("span", {
-      className: "tracking-pill tracking-pill-sm",
-      title: o.id
+      className: "tamb"
     }, o.id), /*#__PURE__*/React.createElement("span", {
       className: "tag tag-b"
     }, o.boxType === "Unknown" ? "Size TBD" : o.boxType)), /*#__PURE__*/React.createElement("div", {
@@ -5843,8 +6010,7 @@ var PaymentsPage = function PaymentsPage(_ref45) {
     return /*#__PURE__*/React.createElement("tr", {
       key: o.id
     }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-      className: "tracking-pill tracking-pill-table",
-      title: o.id
+      className: "tamb"
     }, o.id)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
       className: "tb"
     }, o.name), /*#__PURE__*/React.createElement("div", {
@@ -5906,6 +6072,8 @@ var InvoiceModal = function InvoiceModal(_ref48) {
   var insRate = (tenant === null || tenant === void 0 ? void 0 : tenant.insuranceRate) || 5;
   var insFee = order.insurance ? Math.min(1200, Math.round((parseFloat(order.declaredValue) || 0) * (insRate / 100))) : 0;
   var boxBase = insFee > 0 ? basePrice - insFee : basePrice;
+  // Use getInvoiceBoxRows for consistent per-box data (if available)
+  var invBoxRows = typeof getInvoiceBoxRows === "function" ? getInvoiceBoxRows(order, tenant) : null;
   var boxDims = (tenant === null || tenant === void 0 || (_tenant$boxSizes = tenant.boxSizes) === null || _tenant$boxSizes === void 0 || (_tenant$boxSizes = _tenant$boxSizes.find(function (b) {
     return b.label === order.boxType;
   })) === null || _tenant$boxSizes === void 0 ? void 0 : _tenant$boxSizes.dims) || "";
@@ -5987,69 +6155,49 @@ var InvoiceModal = function InvoiceModal(_ref48) {
       color: "#0066cc",
       textDecoration: "underline"
     }
-  }, "Phone: ", toPhone))), /*#__PURE__*/React.createElement("table", {
-    className: "inv-table"
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", {
-    style: {
-      width: "6%"
-    }
-  }, "Qty"), /*#__PURE__*/React.createElement("th", {
-    style: {
-      width: "18%"
-    }
-  }, "Box Type"), /*#__PURE__*/React.createElement("th", {
-    style: {
-      width: "12%"
-    }
-  }, "Unit"), /*#__PURE__*/React.createElement("th", null, "Contents / Description"), /*#__PURE__*/React.createElement("th", {
-    style: {
-      width: "12%",
-      textAlign: "right"
-    }
-  }, "Declared"), /*#__PURE__*/React.createElement("th", {
-    style: {
-      width: "13%",
-      textAlign: "right"
-    }
-  }, "Amount"))), /*#__PURE__*/React.createElement("tbody", null,
-    hasChildBoxes
-      ? boxRows.map(function(r) {
-          var box = r.box, bzCfg = r.bzCfg, boxPrice = r.boxPrice, bi = r.bi;
-          var accentColor = bzCfg ? bzCfg.color : "#888";
-          return /*#__PURE__*/React.createElement("tr", { key: bi, style: { borderLeft: "3px solid " + accentColor } },
-            /*#__PURE__*/React.createElement("td", null, "1"),
-            /*#__PURE__*/React.createElement("td", null,
-              /*#__PURE__*/React.createElement("div", { style: { fontFamily: "monospace", fontSize: 9, color: accentColor } }, box.subId || ""),
-              /*#__PURE__*/React.createElement("div", { style: { fontWeight: 600, fontSize: 10 } }, box.boxType || order.boxType || ""),
-              box.gtDept ? /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, color: "#666" } }, box.gtDept) : null
-            ),
-            /*#__PURE__*/React.createElement("td", null, box.destinationCountry || order.destination || ""),
-            /*#__PURE__*/React.createElement("td", null, box.description || order.description || ""),
-            /*#__PURE__*/React.createElement("td", { style: { textAlign: "right" } },
-              box.declaredValue ? "$" + parseFloat(box.declaredValue).toFixed(2) : "\u2014"
-            ),
-            /*#__PURE__*/React.createElement("td", { style: { textAlign: "right", fontWeight: 700 } }, "$", boxPrice.toFixed(2))
-          );
-        })
-      : /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", null, order.boxCount || 1), /*#__PURE__*/React.createElement("td", null, order.boxType, boxDims ? " \u2014 ".concat(boxDims) : ""), /*#__PURE__*/React.createElement("td", null, "$", (order.boxCount || 1) > 0 ? (boxBase / (order.boxCount || 1)).toFixed(2) : boxBase.toFixed(2)), /*#__PURE__*/React.createElement("td", null, itemDesc), /*#__PURE__*/React.createElement("td", {
-    style: {
-      textAlign: "right"
-    }
-  }, order.declaredValue ? "$".concat(parseFloat(order.declaredValue).toFixed(2)) : "—"), /*#__PURE__*/React.createElement("td", {
-    style: {
-      textAlign: "right",
-      fontWeight: 700
-    }
-  }, "$", boxBase.toFixed(2))), order.insurance && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", null, "\u2014"), /*#__PURE__*/React.createElement("td", null, "Insurance"), /*#__PURE__*/React.createElement("td", null, "\u2014"), /*#__PURE__*/React.createElement("td", null, "Declared value coverage (", insRate, "%)"), /*#__PURE__*/React.createElement("td", {
-    style: {
-      textAlign: "right"
-    }
-  }, "$", parseFloat(order.declaredValue || 0).toFixed(2)), /*#__PURE__*/React.createElement("td", {
-    style: {
-      textAlign: "right",
-      fontWeight: 700
-    }
-  }, "$", insFee.toFixed(2))))), /*#__PURE__*/React.createElement("table", {
+  }, "Phone: ", toPhone))), /*#__PURE__*/React.createElement("div", { style: { marginBottom: "0.1in" } },
+    (invBoxRows || [{ index: 1, trackingNumber: order.id, boxType: order.boxType || "", price: boxBase, contents: itemDesc, declaredValue: parseFloat(order.declaredValue || 0), amount: boxBase }]).map(function(r) {
+      return /*#__PURE__*/React.createElement("div", { key: r.index, style: { border: "1pt solid #ccc", borderRadius: "3pt", padding: "0.08in 0.1in", marginBottom: "0.06in", pageBreakInside: "avoid" } },
+        /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", borderBottom: "0.5pt solid #ddd", paddingBottom: "4pt", marginBottom: "5pt" } },
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "monospace", fontSize: "9pt", color: "#0055aa", fontWeight: 700 } }, "Tracking: ", r.trackingNumber),
+          /*#__PURE__*/React.createElement("div", { style: { fontWeight: 800, fontSize: "11pt" } }, "$", r.amount.toFixed(2))
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 2fr", gap: "0 12pt", fontSize: "8.5pt" } },
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: "7pt", textTransform: "uppercase", letterSpacing: "0.06em", color: "#999", marginBottom: "1pt" } }, "Box Type"),
+            /*#__PURE__*/React.createElement("div", { style: { fontWeight: 600 } }, r.boxType || "\u2014")
+          ),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: "7pt", textTransform: "uppercase", letterSpacing: "0.06em", color: "#999", marginBottom: "1pt" } }, "Price"),
+            /*#__PURE__*/React.createElement("div", null, "$", r.price.toFixed(2))
+          ),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: "7pt", textTransform: "uppercase", letterSpacing: "0.06em", color: "#999", marginBottom: "1pt" } }, "Declared Value"),
+            /*#__PURE__*/React.createElement("div", null, r.declaredValue ? "$" + r.declaredValue.toFixed(2) : "\u2014")
+          ),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: "7pt", textTransform: "uppercase", letterSpacing: "0.06em", color: "#999", marginBottom: "1pt" } }, "Contents"),
+            /*#__PURE__*/React.createElement("div", { style: { color: "#444" } }, r.contents || "\u2014")
+          ),
+          r.senderName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1 / -1", marginTop: "4pt" } },
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: "7pt", textTransform: "uppercase", letterSpacing: "0.06em", color: "#999", marginBottom: "1pt" } }, "Sender"),
+            /*#__PURE__*/React.createElement("div", null, r.senderName, r.senderPhone ? " \u00B7 " + r.senderPhone : "", r.senderAddress ? " \u2014 " + r.senderAddress : "")
+          ),
+          (r.recipientName || r.recipientAddress) && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1 / -1", marginTop: "4pt" } },
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: "7pt", textTransform: "uppercase", letterSpacing: "0.06em", color: "#999", marginBottom: "1pt" } }, "Recipient"),
+            /*#__PURE__*/React.createElement("div", null, r.recipientName || "", r.recipientPhone ? " \u00B7 " + r.recipientPhone : "", [r.recipientAddress, r.recipientCity].filter(Boolean).length ? " \u2014 " + [r.recipientAddress, r.recipientCity].filter(Boolean).join(", ") : "")
+          )
+        )
+      );
+    }),
+    order.insurance && /*#__PURE__*/React.createElement("div", { style: { border: "1pt solid #f5e0a0", borderRadius: "3pt", padding: "6pt 0.1in", marginBottom: "0.06in", background: "#fffbf0", display: "flex", justifyContent: "space-between" } },
+      /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, fontSize: "9pt" } }, "Insurance Coverage"),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: "8pt", color: "#888" } }, "Declared: $", parseFloat(order.declaredValue || 0).toFixed(2), " \u00D7 ", insRate, "%")
+      ),
+      /*#__PURE__*/React.createElement("div", { style: { fontWeight: 800, fontSize: "11pt" } }, "$", insFee.toFixed(2))
+    )
+  )), /*#__PURE__*/React.createElement("table", {
     className: "inv-totals"
   }, /*#__PURE__*/React.createElement("tbody", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", null, "Subtotal"), /*#__PURE__*/React.createElement("td", {
     style: {
@@ -6070,7 +6218,9 @@ var InvoiceModal = function InvoiceModal(_ref48) {
     style: {
       textAlign: "right"
     }
-  }, "$", (boxBase + insFee).toFixed(2))), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+  }, "$", invBoxRows
+    ? (invBoxRows.reduce(function(s,r){return s+r.amount;},0) + insFee).toFixed(2)
+    : (boxBase + insFee).toFixed(2))), /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
     style: {
       fontSize: "8pt",
       color: "#555"
@@ -6290,99 +6440,67 @@ var InvoiceModal = function InvoiceModal(_ref48) {
         }
       }, l);
     }));
-  }), /*#__PURE__*/React.createElement("table", {
-    style: {
-      width: "100%",
-      borderCollapse: "collapse",
-      marginBottom: 10,
-      fontSize: 10,
-      marginTop: 4
-    }
-  }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
-    style: {
-      background: "#000",
-      color: "#fff"
-    }
-  }, ["Qty", "Box", "Unit", "Contents", "Declared", "Amount"].map(function (h, i) {
-    return /*#__PURE__*/React.createElement("th", {
-      key: h,
-      style: {
-        padding: "4px 6px",
-        textAlign: i >= 4 ? "right" : "left",
-        fontSize: 7.5,
-        textTransform: "uppercase",
-        letterSpacing: 1,
-        fontWeight: 700
-      }
-    }, h);
-  }))), /*#__PURE__*/React.createElement("tbody", null, /*#__PURE__*/React.createElement("tr", {
-    style: {
-      borderBottom: "1px solid #eee"
-    }
-  }, /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px"
-    }
-  }, order.boxCount || 1), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px"
-    }
-  }, order.boxType), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px"
-    }
-  }, "$", (order.boxCount || 1) > 0 ? (boxBase / (order.boxCount || 1)).toFixed(2) : boxBase.toFixed(2)), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px",
-      color: "#444"
-    }
-  }, itemDesc), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px",
-      textAlign: "right"
-    }
-  }, order.declaredValue ? "$".concat(parseFloat(order.declaredValue).toFixed(2)) : "—"), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px",
-      textAlign: "right",
-      fontWeight: 700
-    }
-  }, "$", boxBase.toFixed(2))), order.insurance && /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px"
-    }
-  }, "\u2014"), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px"
-    }
-  }, "Insurance"), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px"
-    }
-  }, "\u2014"), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px",
-      color: "#444"
-    }
-  }, "Coverage (", insRate, "%)"), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px",
-      textAlign: "right"
-    }
-  }, "$", parseFloat(order.declaredValue || 0).toFixed(2)), /*#__PURE__*/React.createElement("td", {
-    style: {
-      padding: "5px 6px",
-      textAlign: "right",
-      fontWeight: 700
-    }
-  }, "$", insFee.toFixed(2))))), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 10, marginTop: 8 } },
+    (invBoxRows || [{ index: 1, trackingNumber: order.id, boxType: order.boxType || "", price: boxBase, contents: itemDesc, declaredValue: parseFloat(order.declaredValue || 0), amount: boxBase }]).map(function (r) {
+      return /*#__PURE__*/React.createElement("div", { key: r.index, style: { border: "1px solid #e0e0e0", borderRadius: 6, padding: "10px 12px", marginBottom: 8, background: "#fafafa" } },
+        /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7, borderBottom: "1px solid #eee", paddingBottom: 6 } },
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "monospace", fontSize: 10, color: "#0055aa", fontWeight: 700 } }, "Tracking: ", r.trackingNumber),
+          /*#__PURE__*/React.createElement("div", { style: { fontWeight: 800, fontSize: 13, color: "#000" } }, "$", r.amount.toFixed(2))
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "4px 12px", fontSize: 10 } },
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 8, textTransform: "uppercase", letterSpacing: 1, color: "#999", marginBottom: 1 } }, "Box Type"),
+            /*#__PURE__*/React.createElement("div", { style: { fontWeight: 600 } }, r.boxType || "\u2014")
+          ),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 8, textTransform: "uppercase", letterSpacing: 1, color: "#999", marginBottom: 1 } }, "Price"),
+            /*#__PURE__*/React.createElement("div", null, "$", r.price.toFixed(2))
+          ),
+          /*#__PURE__*/React.createElement("div", null,
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 8, textTransform: "uppercase", letterSpacing: 1, color: "#999", marginBottom: 1 } }, "Declared Value"),
+            /*#__PURE__*/React.createElement("div", null, r.declaredValue ? "$" + r.declaredValue.toFixed(2) : "\u2014")
+          ),
+          /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1 / -1", marginTop: 4 } },
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 8, textTransform: "uppercase", letterSpacing: 1, color: "#999", marginBottom: 1 } }, "Contents"),
+            /*#__PURE__*/React.createElement("div", { style: { color: "#444" } }, r.contents || "\u2014")
+          ),
+          r.senderName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1 / -1", marginTop: 4 } },
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 8, textTransform: "uppercase", letterSpacing: 1, color: "#999", marginBottom: 1 } }, "Sender"),
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 10 } }, r.senderName, r.senderPhone ? " \u00B7 " + r.senderPhone : "", r.senderAddress ? " \u2014 " + r.senderAddress : "")
+          ),
+          (r.recipientName || r.recipientAddress) && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1 / -1", marginTop: 4 } },
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 8, textTransform: "uppercase", letterSpacing: 1, color: "#999", marginBottom: 1 } }, "Recipient"),
+            /*#__PURE__*/React.createElement("div", { style: { fontSize: 10 } }, r.recipientName || "", r.recipientPhone ? " \u00B7 " + r.recipientPhone : "", [r.recipientAddress, r.recipientCity].filter(Boolean).length ? " \u2014 " + [r.recipientAddress, r.recipientCity].filter(Boolean).join(", ") : "")
+          )
+        )
+      );
+    }),
+    order.insurance && /*#__PURE__*/React.createElement("div", { style: { border: "1px solid #f5e0a0", borderRadius: 6, padding: "8px 12px", marginBottom: 8, background: "#fffbf0", display: "flex", justifyContent: "space-between", alignItems: "center" } },
+      /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, fontSize: 10 } }, "Insurance Coverage"),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, color: "#888" } }, "Declared: $", parseFloat(order.declaredValue || 0).toFixed(2), " \u00D7 ", insRate, "%")
+      ),
+      /*#__PURE__*/React.createElement("div", { style: { fontWeight: 800, fontSize: 13 } }, "$", insFee.toFixed(2))
+    )
+  ), /*#__PURE__*/React.createElement("div", {
     style: {
       marginLeft: "auto",
       width: 200,
       border: "1.5px solid #000",
       marginBottom: 12
     }
-  }, [["Subtotal", "$".concat(boxBase.toFixed(2)), false], order.insurance ? ["Insurance", "$".concat(insFee.toFixed(2)), false] : null, ["TOTAL", "$".concat((boxBase + insFee).toFixed(2)), true], ["Paid", "$".concat((((_order$payment4 = order.payment) === null || _order$payment4 === void 0 ? void 0 : _order$payment4.paid) || 0).toFixed(2)), false], ["Balance", "$".concat(Math.max(0, boxBase + insFee - (((_order$payment5 = order.payment) === null || _order$payment5 === void 0 ? void 0 : _order$payment5.paid) || 0)).toFixed(2)), false]].filter(Boolean).map(function (_ref49, i) {
+  }, (function(){
+    var _gtotal = invBoxRows ? invBoxRows.reduce(function(s,r){return s+r.amount;},0) : boxBase;
+    var _paid = ((_order$payment4 = order.payment) === null || _order$payment4 === void 0 ? void 0 : _order$payment4.paid) || 0;
+    var _paid5 = ((_order$payment5 = order.payment) === null || _order$payment5 === void 0 ? void 0 : _order$payment5.paid) || 0;
+    return [
+      ["Subtotal", "$".concat(_gtotal.toFixed(2)), false],
+      order.insurance ? ["Insurance (".concat(insRate, "%)"), "$".concat(insFee.toFixed(2)), false] : null,
+      ["TOTAL", "$".concat((_gtotal + insFee).toFixed(2)), true],
+      ["Paid", "$".concat(_paid5.toFixed(2)), false],
+      ["Balance", "$".concat(Math.max(0, _gtotal + insFee - _paid5).toFixed(2)), false]
+    ].filter(Boolean);
+  })().map(function (_ref49, i) {
     var _ref50 = _slicedToArray(_ref49, 3),
       k = _ref50[0],
       v = _ref50[1],
@@ -6443,7 +6561,7 @@ var InvoiceModal = function InvoiceModal(_ref48) {
       ifrm.contentWindow.focus();
       ifrm.contentWindow.print();
     }
-  }, "\uD83D\uDDA8\uFE0F Print Invoice")))));
+  }, "\uD83D\uDDA8\uFE0F Print Invoice"))));
 };
 var HQOverview = function HQOverview(_ref51) {
   var _boxMix$find;
@@ -6488,7 +6606,7 @@ var HQOverview = function HQOverview(_ref51) {
   var batchReady = filtOrders.filter(function (o) {
     return ["in_warehouse", "loaded_container"].includes(o.status);
   }).length;
-  var boxMix = BOX_TYPES.map(function (bt) {
+  var boxMix = BOX_CONFIG.filter(function(b){ return b.active && !b.legacy; }).map(function (bt) {
     var c = filtOrders.reduce(function(sum, o) {
       if (o.boxes && o.boxes.length > 0) {
         return sum + o.boxes.filter(function(b){ return b.boxType === bt; }).length;
@@ -6858,14 +6976,14 @@ var HQAnalytics = function HQAnalytics(_ref52) {
 
   // ── Filter orders to selected shipment ──────────────────────────────────
   var shpOrders = selShipId
-    ? orders.filter(function(o){ return o.shipmentId === selShipId || (o.shipmentIds||[]).includes(selShipId); })
-    : orders;
+    ? orders.filter(function(o){ return !o.voided && getShipmentBoxRows(o, selShipId).length > 0; })
+    : orders.filter(function(o){ return !o.voided; });
 
   // ── Preceding shipment for growth calc ──────────────────────────────────
   var selIdx = sortedShipments.findIndex(function(s){ return s.id === selShipId; });
   var prevShipment = selIdx >= 0 && selIdx < sortedShipments.length - 1 ? sortedShipments[selIdx + 1] : null;
   var prevOrders = prevShipment
-    ? orders.filter(function(o){ return o.shipmentId === prevShipment.id || (o.shipmentIds||[]).includes(prevShipment.id); })
+    ? orders.filter(function(o){ return !o.voided && getShipmentBoxRows(o, prevShipment.id).length > 0; })
     : [];
 
   // ── KPI calculations ─────────────────────────────────────────────────────
@@ -7634,8 +7752,10 @@ var OWDashboard = function OWDashboard(_ref58) {
         fontSize: 13
       }
     }, o.name, " ", /*#__PURE__*/React.createElement("span", {
-      className: "tracking-pill tracking-pill-sm",
-      title: o.id
+      className: "tamb",
+      style: {
+        fontSize: 11
+      }
     }, o.id)), /*#__PURE__*/React.createElement("div", {
       className: "xs mut"
     }, o.address, ", ", o.city), /*#__PURE__*/React.createElement("div", {
@@ -7713,8 +7833,10 @@ var OWDashboard = function OWDashboard(_ref58) {
         fontSize: 13
       }
     }, o.name, " ", /*#__PURE__*/React.createElement("span", {
-      className: "tracking-pill tracking-pill-sm",
-      title: o.id
+      className: "tamb",
+      style: {
+        fontSize: 11
+      }
     }, o.id)), /*#__PURE__*/React.createElement("div", {
       className: "xs mut"
     }, o.address, ", ", o.city), /*#__PURE__*/React.createElement("div", {
@@ -7768,8 +7890,7 @@ var OWDashboard = function OWDashboard(_ref58) {
         color: "var(--text)"
       }
     }, o.name, " \u2014 ", /*#__PURE__*/React.createElement("span", {
-      className: "tracking-pill tracking-pill-sm",
-      title: o.id
+      className: "tamb"
     }, o.id)), /*#__PURE__*/React.createElement("div", {
       className: "xs mut"
     }, o.notes || "Attempted, no answer", " \xB7 ", o.phone)), /*#__PURE__*/React.createElement(Sbadge, {
@@ -7799,8 +7920,7 @@ var OWDashboard = function OWDashboard(_ref58) {
         color: "var(--text)"
       }
     }, o.name, " \u2014 ", /*#__PURE__*/React.createElement("span", {
-      className: "tracking-pill tracking-pill-sm",
-      title: o.id
+      className: "tamb"
     }, o.id)), /*#__PURE__*/React.createElement("div", {
       className: "xs mut"
     }, "Owes: ", /*#__PURE__*/React.createElement("strong", {
@@ -8191,8 +8311,7 @@ var CustomerPortal = function CustomerPortal(_ref59) {
     return /*#__PURE__*/React.createElement("tr", {
       key: o.id
     }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-      className: "tracking-pill tracking-pill-table",
-      title: o.id
+      className: "tamb"
     }, o.id)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Sbadge, {
       s: o.status
     })), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
@@ -9664,8 +9783,7 @@ var POSModal = function POSModal(_ref82) {
   }, /*#__PURE__*/React.createElement("span", {
     className: "mut"
   }, "Order"), /*#__PURE__*/React.createElement("span", {
-    className: "tracking-pill tracking-pill-table",
-    title: order.id
+    className: "tamb"
   }, order.id)), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -10292,7 +10410,7 @@ var ReceiptModal = function ReceiptModal(_ref83) {
       className: "rp-datetime"
     }, receipt.date, " \xB7 ", receipt.time)), /*#__PURE__*/React.createElement("div", {
       className: "rp-fields"
-    }, [["Customer", receipt.customerName], ["Phone", receipt.customerPhone], ["Order #", receipt.orderId], ["Driver", receipt.driverName || "—"], ["Office", receipt.officeName || "—"], ["Destination", receipt.destination], ["Box Type", receipt.boxType], ["# Boxes", receipt.boxCount]].map(function (_ref84) {
+    }, [["Customer", receipt.customerName], ["Phone", receipt.customerPhone], ["Order #", receipt.orderId], ["Driver", receipt.driverName || "—"], ["Office", receipt.officeName || "—"]].map(function (_ref84) {
       var _ref85 = _slicedToArray(_ref84, 2),
         k = _ref85[0],
         v = _ref85[1];
@@ -10304,7 +10422,24 @@ var ReceiptModal = function ReceiptModal(_ref83) {
       }, k, ": "), /*#__PURE__*/React.createElement("span", {
         className: "rp-field-v"
       }, v));
-    })), receipt.notes && /*#__PURE__*/React.createElement("div", {
+    }),
+    (function(){
+      var invR = typeof getInvoiceBoxRows === "function" ? getInvoiceBoxRows(order, null) : null;
+      if (!invR || invR.length <= 1 && !order.boxes) return null;
+      return /*#__PURE__*/React.createElement("div", { style: { borderTop: "0.5pt dashed #bbb", paddingTop: "5pt", marginTop: "4pt", marginBottom: "5pt" } },
+        invR.map(function(r) {
+          return /*#__PURE__*/React.createElement("div", { key: r.index, style: { borderBottom: "0.5pt solid #eee", paddingBottom: "3pt", marginBottom: "3pt", fontSize: "7pt" } },
+            /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between" } },
+              /*#__PURE__*/React.createElement("span", { style: { fontFamily: "monospace", color: "#0055aa", fontWeight: 700 } }, r.trackingNumber),
+              /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700 } }, "$", r.amount.toFixed(2))
+            ),
+            /*#__PURE__*/React.createElement("div", { style: { color: "#444" } }, r.boxType||"", r.contents ? " · " + r.contents : ""),
+            r.recipientName && /*#__PURE__*/React.createElement("div", { style: { color: "#666" } }, "→ ", r.recipientName, r.recipientCity ? ", " + r.recipientCity : "")
+          );
+        })
+      );
+    })(),
+    receipt.notes && /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: "6.5pt",
         fontStyle: "italic",
@@ -10333,7 +10468,7 @@ var ReceiptModal = function ReceiptModal(_ref83) {
       className: "rp-sig-date"
     }, "Date: ", receipt.date)), /*#__PURE__*/React.createElement("div", {
       className: "rp-terms"
-    }, "By signing, customer certifies contents are accurately described, contain no prohibited items, and agrees to all terms including liability limits up to $1,200 declared value."));
+    }, "By signing, customer certifies contents are accurately described, contain no prohibited items, and agrees to all terms including liability limits up to $1,200 declared value.")));
   }))), /*#__PURE__*/React.createElement("div", {
     className: "overlay",
     onClick: function onClick(e) {
@@ -10431,7 +10566,7 @@ var ReceiptModal = function ReceiptModal(_ref83) {
         gap: "5px 12px",
         fontSize: 11.5
       }
-    }, [[t("Customer", "Cliente"), receipt.customerName], ["Phone", receipt.customerPhone], ["Order #", receipt.orderId], ["Driver", receipt.driverName], ["Office", receipt.officeName], ["Destination", receipt.destination], ["Box Type", receipt.boxType], ["# of Boxes", receipt.boxCount]].map(function (_ref86) {
+    }, [[t("Customer", "Cliente"), receipt.customerName], ["Phone", receipt.customerPhone], ["Order #", receipt.orderId], ["Driver", receipt.driverName], ["Office", receipt.officeName]].map(function (_ref86) {
       var _ref87 = _slicedToArray(_ref86, 2),
         k = _ref87[0],
         v = _ref87[1];
@@ -10443,7 +10578,28 @@ var ReceiptModal = function ReceiptModal(_ref83) {
           fontSize: 10
         }
       }, k, ": "), /*#__PURE__*/React.createElement("strong", null, v));
-    })), /*#__PURE__*/React.createElement("div", {
+    })),
+    (function(){
+      var invR = typeof getInvoiceBoxRows === "function" ? getInvoiceBoxRows(order, null) : null;
+      if (!invR) return null;
+      return /*#__PURE__*/React.createElement("div", { style: { borderTop: "1px dashed #aaa", marginTop: 8, paddingTop: 8 } },
+        invR.map(function(r) {
+          return /*#__PURE__*/React.createElement("div", { key: r.index, style: { border: "1px solid #e8e8e8", borderRadius: 5, padding: "7px 9px", marginBottom: 6, background: "#fafafa" } },
+            /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 4 } },
+              /*#__PURE__*/React.createElement("span", { style: { fontFamily: "monospace", fontSize: 10, color: "#0055aa", fontWeight: 700 } }, r.trackingNumber),
+              /*#__PURE__*/React.createElement("span", { style: { fontWeight: 800 } }, "$", r.amount.toFixed(2))
+            ),
+            /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1px 8px", fontSize: 10, color: "#444" } },
+              /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "Box: "), r.boxType||"—"),
+              /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "Declared: "), r.declaredValue ? "$"+r.declaredValue.toFixed(2) : "—"),
+              r.contents && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1" } }, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "Contents: "), r.contents),
+              r.recipientName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1/-1" } }, /*#__PURE__*/React.createElement("span", { style: { color: "#888" } }, "To: "), r.recipientName, r.recipientCity ? ", " + r.recipientCity : "")
+            )
+          );
+        })
+      );
+    })(),
+    /*#__PURE__*/React.createElement("div", {
       style: {
         borderTop: "1px dashed #aaa",
         marginTop: 10,
@@ -11115,10 +11271,12 @@ var ManifestModal = function ManifestModal(_ref89) {
       var zoneKey = box.zone || (GT_DEPARTMENTS.find(function(d){ return d.dept === dept; }) || {}).zone || "unknown";
       rows.push({ orderId:o.id,
         trackingId: box.subId || (renderBoxes.length > 1 ? o.id+"-"+(i+1) : o.id),
-        boxType: box.boxType || o.boxType || "Small",
-        destination:dest, dept:dept, zone:zoneKey, senderName:o.name||"", senderPhone:o.phone||"",
-        receiverName:o.consigneeName||"", receiverPhone:o.consigneePhone||o.phone||"",
-        receiverAddress:o.consigneeAddress||o.address||"", description:box.description||"" });
+        boxType: box.boxType || o.boxType || "Unknown",
+        destination:dest, dept:dept, zone:zoneKey,
+        senderName: box.senderName||o.name||"", senderPhone: box.senderPhone||o.phone||"", senderAddress: box.senderAddress||o.address||"",
+        receiverName: box.recipientName||o.consigneeName||o.name||"", receiverPhone: box.recipientPhone||o.consigneePhone||o.phone||"",
+        receiverAddress: box.recipientAddress||o.consigneeAddress||o.address||"",
+        description:box.description||"" });
     });
   });
   var warnings = rows.filter(function(r){ return !r.receiverName||!r.receiverPhone; });
@@ -11128,10 +11286,6 @@ var ManifestModal = function ManifestModal(_ref89) {
     var z=r.zone||"unknown", d=r.dept||r.destination||"Unknown";
     if(!grouped[z])grouped[z]={}; if(!grouped[z][d])grouped[z][d]=[]; grouped[z][d].push(r);
   });
-  var _useState_mlayout = useState(shipment.defaultManifestLayout || "compact"),
-    _useState_mlayout2 = _slicedToArray(_useState_mlayout, 2),
-    manifestLayout = _useState_mlayout2[0],
-    setManifestLayout = _useState_mlayout2[1];
   var printManifest = function() {
     if (warnings.length > 0) {
       var ok = window.confirm("\u26A0 " + warnings.length + " box(es) missing receiver info. Print anyway?");
@@ -11143,14 +11297,14 @@ var ManifestModal = function ManifestModal(_ref89) {
     var logoHtml = logoSrc
       ? '<img src="' + logoSrc + '" style="height:.45in;max-width:2in;object-fit:contain;display:block;margin-bottom:4pt">'
       : '<div style="font-family:Syne,Arial,sans-serif;font-size:18pt;font-weight:900;letter-spacing:.04em;color:#000">' + coName + '</div>';
-    var zonesHtml = (["yellow","green","blue","orange","red","unknown"]).filter(function(z){return grouped[z];}).map(function(zKey, zIdx){
+    var zonesHtml = (["yellow","green","blue","orange","red","unknown"]).filter(function(z){return grouped[z];}).map(function(zKey){
       var zCfg = (typeof ZONE_CONFIG !== "undefined" && ZONE_CONFIG[zKey]) || {label:"Unknown",color:"#888",bg:"#f0f0f0",emoji:"\u2B1C",days:""};
       var zTotal = Object.values(grouped[zKey]).reduce(function(s,a){return s+a.length;},0);
-      var deptsHtml = Object.entries(grouped[zKey]).map(function(ent, deptIdx){
+      var deptsHtml = Object.entries(grouped[zKey]).map(function(ent){
         var dept=ent[0], deptRows=ent[1];
         var rowsHtml = deptRows.map(function(r){
           return '<tr style="background:#fff">'
-            +'<td class="tracking-cell" style="font-family:monospace;font-weight:700">'+r.trackingId+'</td>'
+            +'<td style="font-family:monospace;font-weight:700">'+r.trackingId+'</td>'
             +'<td>'+(r.receiverName||'<span style="color:#cc0000">&#9888; missing</span>')+'</td>'
             +'<td>'+(r.receiverAddress||'\u2014')+'</td>'
             +'<td>'+(r.receiverPhone||'<span style="color:#cc0000">&#9888; missing</span>')+'</td>'
@@ -11159,21 +11313,20 @@ var ManifestModal = function ManifestModal(_ref89) {
             +'<td>'+r.senderPhone+'</td>'
             +'</tr>';
         }).join('');
-        return '<div class="manifest-city '+(zIdx===0 && deptIdx===0 ? 'manifest-city-first' : '')+'">'
-          +'<div style="border-left:3pt solid '+zCfg.color+';background:'+zCfg.bg+';color:'+zCfg.color+';padding:4px 12px;font-weight:700;font-size:9.5pt;display:flex;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact">'
+        return '<div style="border-left:3pt solid '+zCfg.color+';background:'+zCfg.bg+';color:'+zCfg.color+';padding:4px 12px;font-weight:700;font-size:9.5pt;display:flex;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact">'
           +'<span>\uD83D\uDCCD '+dept+'</span><span>'+deptRows.length+' box'+(deptRows.length!==1?'es':'')+'</span></div>'
-          +'<table class="manifest-table" style="width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:4px">'
+          +'<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:4px">'
           +'<thead><tr style="background:'+zCfg.color+';color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact">'
-          +'<th class="tracking-col" style="padding:4px 6px;text-align:left">Tracking Number</th>'
+          +'<th style="padding:4px 6px;text-align:left">Tracking Number</th>'
           +'<th style="padding:4px 6px;text-align:left">Receiver Name</th>'
           +'<th style="padding:4px 6px;text-align:left">Receiver Address</th>'
           +'<th style="padding:4px 6px;text-align:left">Receiver Phone Number</th>'
           +'<th style="padding:4px 6px;text-align:left">Box Type</th>'
           +'<th style="padding:4px 6px;text-align:left">Sender Name</th>'
           +'<th style="padding:4px 6px;text-align:left">Sender Phone Number</th>'
-          +'</tr></thead><tbody>'+rowsHtml+'</tbody></table></div>';
+          +'</tr></thead><tbody>'+rowsHtml+'</tbody></table>';
       }).join('');
-      return '<div class="manifest-zone '+(zIdx===0 ? 'manifest-zone-first' : '')+'" style="margin-bottom:.15in">'
+      return '<div style="margin-bottom:.15in;page-break-inside:avoid">'
         +'<div style="background:'+zCfg.color+';color:#fff;padding:7px 14px;font-family:Syne,Arial,sans-serif;font-weight:700;font-size:11pt;display:flex;justify-content:space-between;-webkit-print-color-adjust:exact;print-color-adjust:exact">'
         +'<span>'+zCfg.emoji+' '+zCfg.label+' Zone \u2014 '+zCfg.days+'</span>'
         +'<span style="font-weight:400;font-size:9pt">'+zTotal+' box'+(zTotal!==1?'es':'')+' total</span>'
@@ -11188,16 +11341,8 @@ var ManifestModal = function ManifestModal(_ref89) {
       +'.hdr-right{text-align:right;font-size:9pt;color:#333;line-height:1.6}'
       +'.meta{font-size:9pt;color:#555;margin-bottom:.15in}'
       +'table td{border:1px solid #ddd;padding:4px 6px;vertical-align:top}'
-      +'.manifest-table td.tracking-cell,.manifest-table th.tracking-col{white-space:nowrap;word-break:keep-all;overflow-wrap:normal;font-variant-numeric:tabular-nums;min-width:11ch}'
-      +'.manifest-zone,.manifest-city{break-inside:auto;page-break-inside:auto}'
-      +'.manifest-zone>*:first-child,.manifest-city>*:first-child{break-after:avoid;page-break-after:avoid}'
-      +'.manifest-layout-zone .manifest-zone{break-before:page;page-break-before:always}'
-      +'.manifest-layout-zone .manifest-zone.manifest-zone-first{break-before:auto;page-break-before:auto}'
-      +'.manifest-layout-city .manifest-city{break-before:page;page-break-before:always}'
-      +'.manifest-layout-city .manifest-city.manifest-city-first{break-before:auto;page-break-before:auto}'
       +'@page{margin:.4in}'
       +'</style></head><body>'
-      +'<div class="manifest-root manifest-layout-'+manifestLayout+'">'
       +'<div class="hdr">'
       +'<div>'+logoHtml+'<div style="font-size:7.5pt;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#555;margin-top:3pt">Shipment Manifest</div></div>'
       +'<div class="hdr-right"><strong>'+( shipment.name||shipment.id)+'</strong>'
@@ -11206,7 +11351,6 @@ var ManifestModal = function ManifestModal(_ref89) {
       +'</div></div>'
       +'<div class="meta">'+rows.length+' boxes \u00B7 '+shpOrders.length+' orders \u00B7 '+Object.keys(grouped).length+' zone(s) \u00A0|\u00A0 Generated '+new Date().toLocaleDateString()+'</div>'
       +zonesHtml
-      +'</div>'
       +'</body></html>';
     var iframe = document.createElement('iframe');
     iframe.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:none;z-index:99998;background:#fff;';
@@ -11246,7 +11390,7 @@ var ManifestModal = function ManifestModal(_ref89) {
       ),
       ZONE_ORDER.filter(function(z){return grouped[z];}).map(function(zKey){
         var zCfg=ZONE_CONFIG[zKey]||{label:"Unknown",color:"#888",bg:"#f5f5f5",emoji:"\u2B1C",days:""};
-        return /*#__PURE__*/React.createElement("div",{key:zKey,className:"manifest-zone",style:{marginBottom:"0.2in"}},
+        return /*#__PURE__*/React.createElement("div",{key:zKey,style:{marginBottom:"0.2in",pageBreakInside:"avoid"}},
           /*#__PURE__*/React.createElement("div",{style:{background:zCfg.color,color:"#fff",padding:"6px 12px",fontFamily:"'Syne',Arial,sans-serif",fontWeight:700,fontSize:"11pt",display:"flex",justifyContent:"space-between",WebkitPrintColorAdjust:"exact",printColorAdjust:"exact"}},
             /*#__PURE__*/React.createElement("span",null,zCfg.emoji," ",zCfg.label," Zone \u2014 ",zCfg.days),
             /*#__PURE__*/React.createElement("span",{style:{fontWeight:400,fontSize:"9pt"}},
@@ -11254,23 +11398,23 @@ var ManifestModal = function ManifestModal(_ref89) {
           ),
           Object.entries(grouped[zKey]).map(function(ent){
             var dept=ent[0],deptRows=ent[1];
-            return /*#__PURE__*/React.createElement("div",{key:dept,className:"manifest-city"},
+            return /*#__PURE__*/React.createElement("div",{key:dept},
               /*#__PURE__*/React.createElement("div",{style:{background:zCfg.bg,color:zCfg.color,padding:"4px 12px",fontSize:"9.5pt",fontWeight:700,borderLeft:"3pt solid "+zCfg.color,display:"flex",justifyContent:"space-between",WebkitPrintColorAdjust:"exact",printColorAdjust:"exact"}},
                 /*#__PURE__*/React.createElement("span",null,"\uD83D\uDCCD ",dept),
                 /*#__PURE__*/React.createElement("span",null,deptRows.length," box",deptRows.length!==1?"es":"")
               ),
-              /*#__PURE__*/React.createElement("table",{className:"exp-print-tbl manifest-table"},
+              /*#__PURE__*/React.createElement("table",{className:"exp-print-tbl"},
                 /*#__PURE__*/React.createElement("thead",null,
                   /*#__PURE__*/React.createElement("tr",null,
-                    ["Tracking Number","Receiver Name","Receiver Address","Receiver Phone Number","Box Type","Sender Name","Sender Phone Number"].map(function(h,hi){
-                      return /*#__PURE__*/React.createElement("th",{key:h,className:hi===0?"tracking-col":undefined},h);
+                    ["Tracking Number","Receiver Name","Receiver Address","Receiver Phone Number","Box Type","Sender Name","Sender Phone Number"].map(function(h){
+                      return /*#__PURE__*/React.createElement("th",{key:h},h);
                     })
                   )
                 ),
                 /*#__PURE__*/React.createElement("tbody",null,
                   deptRows.map(function(r,ri){
                     return /*#__PURE__*/React.createElement("tr",{key:r.trackingId+ri},
-                      /*#__PURE__*/React.createElement("td",{className:"tracking-cell",style:{fontFamily:"monospace",fontWeight:700}},r.trackingId),
+                      /*#__PURE__*/React.createElement("td",{style:{fontFamily:"monospace",fontWeight:700}},r.trackingId),
                       /*#__PURE__*/React.createElement("td",null,r.receiverName||/*#__PURE__*/React.createElement("span",{style:{color:"#cc0000"}},"\u26A0 missing")),
                       /*#__PURE__*/React.createElement("td",null,r.receiverAddress||"\u2014"),
                       /*#__PURE__*/React.createElement("td",null,r.receiverPhone||/*#__PURE__*/React.createElement("span",{style:{color:"#cc0000"}},"\u26A0 missing")),
@@ -11297,25 +11441,6 @@ var ManifestModal = function ManifestModal(_ref89) {
           /*#__PURE__*/React.createElement("button",{className:"btn btn-primary btn-sm",onClick:printManifest},"\uD83D\uDDA8 Print Manifest"),
           /*#__PURE__*/React.createElement("button",{className:"btn btn-ghost btn-sm",onClick:onClose},"\u2715 Close")
         )
-      ),
-      /*#__PURE__*/React.createElement("div",{className:"row g14 mb12",style:{flexWrap:"wrap",alignItems:"center",fontSize:11.5,color:"var(--text2)"}},
-        /*#__PURE__*/React.createElement("span",{style:{fontSize:10.5,fontWeight:700,color:"var(--text3)",textTransform:"uppercase",letterSpacing:".06em"}},"Print layout"),
-        [
-          {key:"compact",label:"Compact"},
-          {key:"zone",label:"Page per zone"},
-          {key:"city",label:"Page per city"}
-        ].map(function(opt){
-          return /*#__PURE__*/React.createElement("label",{key:opt.key,style:{display:"inline-flex",alignItems:"center",gap:5,cursor:"pointer"}},
-            /*#__PURE__*/React.createElement("input",{
-              type:"radio",
-              name:"manifestLayout",
-              value:opt.key,
-              checked:manifestLayout===opt.key,
-              onChange:function(){ setManifestLayout(opt.key); }
-            }),
-            opt.label
-          );
-        })
       ),
       warnings.length>0&&/*#__PURE__*/React.createElement("div",{className:"alert alert-a mb12",style:{fontSize:12}},
         "\u26A0 ",/*#__PURE__*/React.createElement("strong",null,"Missing receiver info: "),warnings.map(function(w){return w.trackingId;}).join(", ")
@@ -11585,8 +11710,7 @@ var NewShipmentModal = function NewShipmentModal(_ref93ns) {
       revenue: 0,
       cost: 0,
       expenseForms: [],
-      notes: "",
-      defaultManifestLayout: "compact"
+      notes: ""
     });
   };
   return /*#__PURE__*/React.createElement("div", {
@@ -11689,9 +11813,6 @@ var EditShipmentModal = function EditShipmentModal(_ref_esm) {
   var _useState_esm11 = useState(shipment.notes || ""),
     _useState_esm12 = _slicedToArray(_useState_esm11, 2),
     notes = _useState_esm12[0], setNotes = _useState_esm12[1];
-  var _useState_esm13 = useState(shipment.defaultManifestLayout || "compact"),
-    _useState_esm14 = _slicedToArray(_useState_esm13, 2),
-    defaultManifestLayout = _useState_esm14[0], setDefaultManifestLayout = _useState_esm14[1];
   return /*#__PURE__*/React.createElement("div", {
     className: "overlay",
     onClick: function onClick(e) { return e.target === e.currentTarget && onClose(); }
@@ -11748,17 +11869,6 @@ var EditShipmentModal = function EditShipmentModal(_ref_esm) {
         placeholder: "Optional notes..."
       })
     ),
-    /*#__PURE__*/React.createElement("div", { className: "fg" },
-      /*#__PURE__*/React.createElement("label", { className: "fl" }, "Default Manifest Layout"),
-      /*#__PURE__*/React.createElement("select", {
-        className: "fi", value: defaultManifestLayout,
-        onChange: function onChange(e) { return setDefaultManifestLayout(e.target.value); }
-      },
-        /*#__PURE__*/React.createElement("option", { value: "compact" }, "Compact (all zones flow together)"),
-        /*#__PURE__*/React.createElement("option", { value: "zone" }, "Page per zone"),
-        /*#__PURE__*/React.createElement("option", { value: "city" }, "Page per city")
-      )
-    ),
     /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 18 } },
       /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost", onClick: onClose }, "Cancel"),
       /*#__PURE__*/React.createElement("button", {
@@ -11768,8 +11878,7 @@ var EditShipmentModal = function EditShipmentModal(_ref_esm) {
           onSave(Object.assign({}, shipment, {
             name: name.trim(), date: date,
             destination: destination, eta: eta,
-            status: status, notes: notes,
-            defaultManifestLayout: defaultManifestLayout
+            status: status, notes: notes
           }));
           onClose();
         }
@@ -12521,9 +12630,8 @@ var BOX_UNIT_COSTS = {};
       return /*#__PURE__*/React.createElement("tr", {
         key: o.id
       }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-        className: "tracking-pill tracking-pill-table",
-        title: o.id,
-        style: {cursor:"pointer"},
+        className: "tamb",
+        style: {cursor:"pointer",textDecoration:"underline"},
         onClick: function onClick(){return onSelectOrder && onSelectOrder(o);}
       }, o.id)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
         className: "tb"
@@ -12550,8 +12658,7 @@ var BOX_UNIT_COSTS = {};
       return /*#__PURE__*/React.createElement("tr", {
         key: id
       }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-        className: "tracking-pill tracking-pill-table",
-        title: id
+        className: "tamb"
       }, id)), /*#__PURE__*/React.createElement("td", {
         colSpan: 5,
         className: "mut",
@@ -12603,7 +12710,7 @@ var BOX_UNIT_COSTS = {};
       className: "card-title"
     }, t("Box Mix", "Mezcla de Cajas"))), /*#__PURE__*/React.createElement("div", {
       className: "card-bd"
-    }, BOX_TYPES.map(function (bt) {
+    }, BOX_CONFIG.filter(function(b){ return b.active && !b.legacy; }).map(function (bt) {
       var count = shpOrders.reduce(function(sum, o) {
         return sum + getShipmentBoxRows(o, selected.id).filter(function(b){ return b.boxType === bt; }).length;
       }, 0);
@@ -13077,7 +13184,7 @@ var BOX_UNIT_COSTS = {};
                   },
                     /*#__PURE__*/React.createElement("span", { className: "tb", style: { flex: 1 } }, o.name),
                     /*#__PURE__*/React.createElement("span", { className: "mut" }, ph || "no phone"),
-                    /*#__PURE__*/React.createElement("span", { className: "tracking-pill tracking-pill-sm", title: o.id }, o.id)
+                    /*#__PURE__*/React.createElement("span", { className: "tamb", style: { fontSize: 10 } }, o.id)
                   );
                 })
               )
@@ -13309,13 +13416,22 @@ var BOX_UNIT_COSTS = {};
         fontSize: 16
       }
     }, "\u203A")), /*#__PURE__*/React.createElement("div", {
-      className: "tracking-rail-scroll",
-      onClick: function(e) { e.stopPropagation(); }
+      style: {
+        display: "flex",
+        gap: 4,
+        flexWrap: "wrap"
+      }
     }, shp.orderIds.map(function (id) {
       return /*#__PURE__*/React.createElement("span", {
         key: id,
-        className: "tracking-pill tracking-pill-sm",
-        title: id
+        style: {
+          fontFamily: "'IBM Plex Mono',monospace",
+          fontSize: 10,
+          color: "var(--text4)",
+          background: "var(--bg3)",
+          padding: "2px 6px",
+          borderRadius: 4
+        }
       }, id);
     })));
   })));
@@ -13567,8 +13683,10 @@ var RoutesPage = function RoutesPage(_ref101) {
           color: "var(--text)"
         }
       }, o.name), /*#__PURE__*/React.createElement("span", {
-        className: "tracking-pill tracking-pill-sm",
-        title: o.id
+        className: "tamb",
+        style: {
+          fontSize: 11
+        }
       }, o.id), /*#__PURE__*/React.createElement(Sbadge, {
         s: o.status
       })), /*#__PURE__*/React.createElement("div", {
@@ -14416,7 +14534,7 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
                   var isRetrying = retryingId === row.id;
                   var statusColor = row.status==="ok" ? "var(--green)" : row.status==="failed" ? "var(--red)" : "var(--amber)";
                   return /*#__PURE__*/React.createElement("tr", { key: row.id },
-                    /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tracking-pill tracking-pill-table", title: row.order_id }, row.order_id)),
+                    /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tamb" }, row.order_id)),
                     /*#__PURE__*/React.createElement("td", null, row.phone || "\u2014"),
                     /*#__PURE__*/React.createElement("td", null, (row.channels||[]).join(", ")),
                     /*#__PURE__*/React.createElement("td", { style: { color: statusColor, fontWeight: 600 } }, row.status),
@@ -14906,7 +15024,7 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
                 (office.orders || []).map(function(o) {
                   var comm = getOrderCommission(o, tenant, office.name);
                   return /*#__PURE__*/React.createElement("tr", { key: o.id },
-                    /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tracking-pill tracking-pill-table", title: o.id }, o.id)),
+                    /*#__PURE__*/React.createElement("td", { className: "tamb" }, o.id),
                     /*#__PURE__*/React.createElement("td", { className: "tb" }, o.name),
                     /*#__PURE__*/React.createElement("td", null, getCommissionBoxes(o).map(function(b){ return b.boxType||"Small"; }).join(", ")),
                     /*#__PURE__*/React.createElement("td", { className: "mono" }, "$", (o.payment && o.payment.amount || 0).toFixed(2)),
@@ -15449,7 +15567,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
                 onChange: function(e) { updateOfficePercentage(idx, e.target.value); },
                 style: { width: 70, padding: "5px 8px", fontSize: 13 }
               }),
-              /*#__PURE__*/React.createElement("span", { className: "mut xs" }, "% of gross charged"),
+              /*#__PURE__*/React.createElement("span", { className: "mut xs" }, "% of box subtotal only — insurance is not commissionable"),
               model.percentage > 0 && /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { marginLeft: "auto" } },
                 "e.g. $300 order → $", Math.round(300 * (model.percentage || 0) * 100) / 100, " commission"
               )
@@ -16016,8 +16134,10 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
     }, /*#__PURE__*/React.createElement("div", {
       className: "row g8"
     }, /*#__PURE__*/React.createElement("span", {
-      className: "tracking-pill tracking-pill-sm",
-      title: o.id
+      className: "tamb",
+      style: {
+        fontSize: 11
+      }
     }, o.id), /*#__PURE__*/React.createElement("span", {
       style: {
         fontSize: 12.5,
@@ -16582,7 +16702,7 @@ var CustomerProfilePage = function CustomerProfilePage(_ref113) {
       className: "card-title"
     }, "\uD83D\uDCCA ", t("Shipping Breakdown", "Desglose del Envío"))), /*#__PURE__*/React.createElement("div", {
       className: "card-bd"
-    }, ["Large", "Medium", "Small", "Freight"].map(function (bt) {
+    }, BOX_CONFIG.filter(function(b){ return b.active; }).map(function (bt) {
       var count = c.orders.filter(function (o) {
         return o.boxType === bt;
       }).length;
@@ -16672,8 +16792,7 @@ var CustomerProfilePage = function CustomerProfilePage(_ref113) {
       return /*#__PURE__*/React.createElement("tr", {
         key: o.id
       }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-        className: "tracking-pill tracking-pill-table",
-        title: o.id
+        className: "tamb"
       }, o.id)), /*#__PURE__*/React.createElement("td", {
         className: "xs mut"
       }, o.createdAt), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
@@ -21540,8 +21659,18 @@ setOrders(function (prev) {
         if (o.id !== id) return o;
         // ── IDEMPOTENT deposit credit (RISK #8) ──────────────────
         var depositCredit = newStatus === "in_warehouse" && o.boxDeposit && !o.depositCredited;
+        // Sync all child boxes to the new parent status
+        var syncedBoxes = (o.boxes || []).map(function(b) {
+          return Object.assign({}, b, {
+            orderStatus: newStatus,
+            status: newStatus,
+            statusUpdatedAt: now(),
+            statusUpdatedBy: roleKey || "system"
+          });
+        });
         var updated = _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, o), {}, {
-          status: newStatus
+          status: newStatus,
+          boxes: syncedBoxes.length > 0 ? syncedBoxes : o.boxes
         }, newDriver !== undefined ? {
           assignedDriver: newDriver
         } : {}), depositCredit ? {
@@ -21818,8 +21947,32 @@ setOrders(function (prev) {
         });
         if (shp) {
           var lockOrders = getOrdersForShipment(shp, orders);
+          // Only advance child boxes that belong to THIS shipment — not unrelated boxes
           lockOrders.forEach(function(o) {
-            return changeStatus(o.id, newStatus || "loaded_container");
+            var shipmentBoxes = getShipmentBoxRows(o, id);
+            var allBoxesInThisShipment = !o.boxes || o.boxes.length === 0 ||
+              (shipmentBoxes.length === (o.boxes || []).length);
+            if (allBoxesInThisShipment) {
+              // Whole order is in this shipment — use changeStatus (syncs all boxes)
+              changeStatus(o.id, newStatus || "loaded_container");
+            } else {
+              // Split order — update only the boxes assigned to this shipment
+              setOrders(function(prev) {
+                return prev.map(function(ord) {
+                  if (ord.id !== o.id) return ord;
+                  var updatedBoxes = (ord.boxes || []).map(function(b) {
+                    if (b.shipmentId !== id) return b;
+                    return Object.assign({}, b, { orderStatus: newStatus || "loaded_container", status: newStatus || "loaded_container" });
+                  });
+                  var updatedOrd = Object.assign({}, ord, { boxes: updatedBoxes });
+                  if (session && session.tenantId) {
+                    _db.init(session.tenantId);
+                    _db.upsert("orders", ord.id, updatedOrd).catch(function(e){ console.error("[lock batch box sync]", e); });
+                  }
+                  return updatedOrd;
+                });
+              });
+            }
           });
           notify("⚡ " + lockOrders.length + " orders updated · WhatsApp messages queued for all customers");
         }
@@ -21837,6 +21990,7 @@ setOrders(function (prev) {
       },
       onSelectOrder: function onSelectOrder(o) {
         setSelectedOrder(o);
+        setPage("orders");
       },
       notify: notify,
       onUpdateShipment: function onUpdateShipment(updated) {
@@ -21926,9 +22080,8 @@ setOrders(function (prev) {
       return /*#__PURE__*/React.createElement("tr", {
         key: o.id
       }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-        className: "tracking-pill tracking-pill-table",
-        title: o.id,
-        style: {cursor:"pointer"},
+        className: "tamb",
+        style: {cursor:"pointer",textDecoration:"underline"},
         onClick: function onClick(){return onSelectOrder && onSelectOrder(o);}
       }, o.id)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
         className: "tb"
@@ -22010,9 +22163,8 @@ setOrders(function (prev) {
       return /*#__PURE__*/React.createElement("tr", {
         key: o.id
       }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-        className: "tracking-pill tracking-pill-table",
-        title: o.id,
-        style: {cursor:"pointer"},
+        className: "tamb",
+        style: {cursor:"pointer",textDecoration:"underline"},
         onClick: function onClick(){return onSelectOrder && onSelectOrder(o);}
       }, o.id)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
         className: "tb"
@@ -22065,8 +22217,7 @@ setOrders(function (prev) {
           fontSize: 13.5
         }
       }, o.name), /*#__PURE__*/React.createElement("span", {
-        className: "tracking-pill tracking-pill-sm",
-        title: o.id
+        className: "tamb"
       }, o.id), /*#__PURE__*/React.createElement("span", {
         className: "tag"
       }, o.boxType)), /*#__PURE__*/React.createElement("div", {
@@ -22210,6 +22361,8 @@ setOrders(function (prev) {
     },
     onVoid: function(o){ setSelectedOrder(null); setTimeout(function(){ setVoidTarget(o); }, 0); },
     isHQ: roleKey === "hq",
+    shipmentsList: shipments,
+    boxConfig: appBoxConfig || BOX_CONFIG,
     onBoxStatusChange: function(subId, changes) {
       setOrders(function(prev) {
         return prev.map(function(o) {
@@ -22224,6 +22377,54 @@ setOrders(function (prev) {
           return updated;
         });
       });
+    },
+    onBoxChange: function(subId, changes) {
+      if (!selectedOrder) return;
+      var prevOrder = selectedOrder;
+      // Capture old box.shipmentId before mutation
+      var prevBoxShipId = (prevOrder.boxes || []).reduce(function(m,b){ m[b.subId]=b.shipmentId||null; return m; }, {});
+      var updatedOrder = null;
+      setOrders(function(prev) {
+        return prev.map(function(o) {
+          if (o.id !== prevOrder.id) return o;
+          var newBoxes = (o.boxes || []).map(function(b) {
+            if (b.subId !== subId) return b;
+            var upd = Object.assign({}, b);
+            if (changes.orderStatus !== undefined) { upd.orderStatus = changes.orderStatus; upd.status = changes.orderStatus; }
+            if (changes.shipmentId !== undefined) upd.shipmentId = changes.shipmentId;
+            if (changes.boxType !== undefined) upd.boxType = changes.boxType;
+            return upd;
+          });
+          var allStatuses = Array.from(new Set(newBoxes.map(function(b){ return b.orderStatus||b.status||o.status; })));
+          var parentStatus = allStatuses.length === 1 ? allStatuses[0] : o.status;
+          updatedOrder = Object.assign({}, o, { boxes: newBoxes, status: parentStatus });
+          setSelectedOrder(updatedOrder);
+          return updatedOrder;
+        });
+      });
+      if (!updatedOrder || !session || !session.tenantId) return;
+      _db.init(session.tenantId);
+      _db.upsert("orders", updatedOrder.id, updatedOrder).catch(function(e){ console.error("[box change sync]", e); });
+      // Recompute shipments: include old box shipmentId AND new shipmentId
+      if (changes.shipmentId !== undefined) {
+        var oldShipId = prevBoxShipId[subId];
+        var newShipId = changes.shipmentId;
+        var affectedIds = Array.from(new Set([oldShipId, newShipId].filter(Boolean)));
+        if (affectedIds.length > 0) {
+          setOrders(function(currentOrders) {
+            setShipments(function(prevShps) {
+              return prevShps.map(function(s) {
+                if (!affectedIds.includes(s.id)) return s;
+                var met = computeShipmentMetrics(s, currentOrders, tenant);
+                var upd = Object.assign({}, s, { revenue: met.revenue, totalBoxes: met.boxCount });
+                _db.upsert("shipments", s.id, upd).catch(function(e){ console.error("[shipment sync]", e); });
+                return upd;
+              });
+            });
+            return currentOrders;
+          });
+        }
+      }
     }
   }),
   showBulkScan && /*#__PURE__*/React.createElement(BulkScanModal, {
