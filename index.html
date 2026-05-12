@@ -201,6 +201,63 @@ var getOfficeById = function getOfficeById(tenant, idOrName) {
 };
 
 /* ════════════════════════════════════════════
+   PHASE A RESOLVER — public.offices + public.partners
+   ════════════════════════════════════════════
+   Frontend Refactor Plan §4 Phase A.
+   Reads from the new relational columns (orders.office_id /
+   orders.partner_id) populated by Migration 07b, with legacy fallback
+   for older orders that never got backfilled or for orders whose data
+   only has data.office text.
+
+   Returns:
+     { kind: "office" | "partner" | "legacy",
+       config: { id, name, commissionModel, ... } }    on success
+     null                                              when nothing resolves
+
+   Normalizes commission_model (DB snake_case) -> commissionModel
+   (legacy camelCase) at this boundary so existing functions like
+   calculateOfficeCommission() keep working unchanged.
+   ════════════════════════════════════════════ */
+var normalizeSource = function normalizeSource(row, kind) {
+  if (!row) return null;
+  // DB rows use commission_model (jsonb). Legacy code reads commissionModel.
+  // Mirror the field so both shapes work without churning every caller.
+  var model = row.commissionModel || row.commission_model || {};
+  return {
+    id: row.id,
+    name: row.name,
+    commissionModel: model,
+    commission_model: model,
+    is_active: row.is_active !== false,
+    kind: kind,
+    raw: row
+  };
+};
+var resolveOrderSource = function resolveOrderSource(order, dbOffices, dbPartners, tenant) {
+  if (!order) return null;
+  // 1. Relational columns first — written by Migration 07b backfill or
+  //    by future order creation flows that target office_id/partner_id.
+  if (order.office_id && dbOffices && dbOffices.length) {
+    var off = dbOffices.find(function(o){ return o.id === order.office_id; });
+    if (off) return normalizeSource(off, "office");
+  }
+  if (order.partner_id && dbPartners && dbPartners.length) {
+    var par = dbPartners.find(function(p){ return p.id === order.partner_id; });
+    if (par) return normalizeSource(par, "partner");
+  }
+  // 2. Legacy fallback — the existing fallback chain, used for orders
+  //    that have data.office text but no relational FK yet (e.g. the
+  //    3 unmapped Miami HQ rows, or any order created pre-07b before
+  //    the columns existed).
+  var officeName = order.officeNameSnapshot || order.officeId || order.office;
+  if (officeName) {
+    var legacy = getOfficeById(tenant, officeName);
+    if (legacy) return normalizeSource(legacy, "legacy");
+  }
+  return null;
+};
+
+/* ════════════════════════════════════════════
    COMMISSION ENGINE — shared calculator
 ════════════════════════════════════════════ */
 // ── Shared: expand legacy orders into a proper boxes array ─────────────────
@@ -425,9 +482,20 @@ var getOrderCommission = function getOrderCommission(order, tenant, officeNameOv
     }
   }
   // 3. Live calculation — use box subtotal (excludes insurance) as commission basis
-  var officeName = officeNameOverride || order.officeNameSnapshot || order.officeId || order.office;
+  // Phase A: prefer relational resolver (reads order.office_id / order.partner_id
+  // from public.offices / public.partners), fall back to legacy office name.
+  // dbOffices/dbPartners hang off the tenant object (populated at app boot).
+  var dbOffices  = (tenant && tenant.__dbOffices)  || [];
+  var dbPartners = (tenant && tenant.__dbPartners) || [];
+  var resolved   = resolveOrderSource(order, dbOffices, dbPartners, tenant);
   var offCfg = (order.commissionSnapshot && order.commissionSnapshot.commissionConfigSnapshot)
-    || getOfficeById(tenant, officeName);
+            || (officeNameOverride ? getOfficeById(tenant, officeNameOverride) : null)
+            || resolved
+            || (function(){
+                 // Final fallback: legacy order fields.
+                 var officeName = order.officeNameSnapshot || order.officeId || order.office;
+                 return getOfficeById(tenant, officeName);
+               })();
   if (!offCfg) return 0;
   var basisAmt = getBoxSubtotal(order, tenant);
   var boxes = getCommissionBoxes(order);
@@ -455,9 +523,16 @@ var computeShipmentMetrics = function computeShipmentMetrics(shipment, allOrders
     // Commission basis = box subtotal only (strip out allocated insurance portion)
     var allocInsurance = Math.round(calculateInsuranceFee(o, tenant) * fraction * 100) / 100;
     var allocBoxSubtotal = Math.max(0, allocGross - allocInsurance);
-    var officeName = o.officeNameSnapshot || o.officeId || o.office;
+    // Phase A: relational resolver with legacy fallback.
+    var dbOffices_sm  = (tenant && tenant.__dbOffices)  || [];
+    var dbPartners_sm = (tenant && tenant.__dbPartners) || [];
+    var resolved_sm   = resolveOrderSource(o, dbOffices_sm, dbPartners_sm, tenant);
     var offCfg = (o.commissionSnapshot && o.commissionSnapshot.commissionConfigSnapshot)
-      || getOfficeById(tenant, officeName);
+              || resolved_sm
+              || (function(){
+                   var officeName = o.officeNameSnapshot || o.officeId || o.office;
+                   return getOfficeById(tenant, officeName);
+                 })();
     if (offCfg) {
       totComm += Math.round(calculateOfficeCommission(offCfg, allocBoxSubtotal, hereBoxes) * 100) / 100;
     }
@@ -2147,18 +2222,38 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
   var tenant   = props.tenant || {};
   var pricing  = props.pricing || {};
 
-  var _stCh = useState(["whatsapp"]), _stCh2 = _slicedToArray(_stCh,2),
+  // E.164 phone normalizer for WhatsApp (digits only, US numbers get +1 prefix)
+  var normalizePhone = function(p) {
+    var d = (p || "").replace(/\D/g, "");
+    if (d.length === 10) d = "1" + d;
+    return d;
+  };
+  var isValidWaPhone = function(p) {
+    var n = normalizePhone(p);
+    return n.length >= 10 && n.length <= 15;
+  };
+
+  var _senderTarget = getSenderNotificationTarget(order, null);
+  var rawPhone = _senderTarget.phone;
+  var phone = rawPhone;
+  var waPhone = normalizePhone(rawPhone);
+  var phoneOk = isValidWaPhone(rawPhone);
+  var email = (order && order.email) || "";
+  var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  var toName = _senderTarget.name || order.name || "";
+  var coName = getCompanyName(tenant);
+
+  // Default channels: whatsapp if valid phone, email if valid email
+  var _defaultChannels = [];
+  if (phoneOk) _defaultChannels.push("whatsapp");
+  if (emailOk) _defaultChannels.push("email");
+
+  var _stCh = useState(_defaultChannels), _stCh2 = _slicedToArray(_stCh,2),
       channels = _stCh2[0], setChannels = _stCh2[1];
   var _stSend = useState("idle"), _stSend2 = _slicedToArray(_stSend,2),
       sendState = _stSend2[0], setSendState = _stSend2[1];
   var _stRes = useState(null), _stRes2 = _slicedToArray(_stRes,2),
       sendResult = _stRes2[0], setSendResult = _stRes2[1];
-
-  var _senderTarget = getSenderNotificationTarget(order, null);
-  var phone  = _senderTarget.phone;
-  var phoneOk = phone.trim().length >= 7;
-  var toName = _senderTarget.name || order.name || "";
-  var coName = getCompanyName(tenant);
 
   // Rendered message preview
   var msgPreview = "Hi " + toName + ", your " + coName + " invoice for order " + order.id + " is confirmed paid.\n\n"
@@ -2240,28 +2335,46 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
   }
 
   function doSend() {
-    if (!phoneOk || channels.length === 0) return;
+    if (channels.length === 0) return;
+    if (channels.includes("whatsapp") && !phoneOk) return;
+    if (channels.includes("email") && !emailOk) return;
     setSendState("sending");
+
+    var amount = parseFloat((order.payment && order.payment.amount) || 0);
+    var invoiceDate = order.createdAt || new Date().toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" });
+    var shipmentId = order.shipmentId || "";
+
     fetch(PAID_INVOICE_EDGE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        orderId:     order.id,
-        tenantId:    (tenant && tenant.id) || "casabe-xpress",
-        channels:    channels,
-        phone:       phone.trim(),
-        targetRole:  "sender",
-        invoiceHtml: buildInvoiceHtml(),
-        messageBody: msgPreview,
-        source: "paid_modal",
-        triggeredBy: (tenant && tenant.currentUser) || "staff"
+        orderId:        order.id,
+        tenantId:       (tenant && tenant.id) || "casabe-xpress",
+        channels:       channels,
+        // Legacy field — kept so currently-deployed Edge Function keeps working
+        phone:          channels.includes("whatsapp") ? waPhone : "",
+        // New fields for the upcoming Edge Function rewrite
+        customerName:   toName,
+        customerPhone:  channels.includes("whatsapp") ? waPhone : "",
+        customerEmail:  channels.includes("email") ? email : "",
+        invoiceNumber:  order.id,
+        amount:         amount,
+        shipmentId:     shipmentId,
+        invoiceDate:    invoiceDate,
+        templateName:   "paid_invoice",
+        templateLang:   "en_US",
+        invoiceHtml:    buildInvoiceHtml(),
+        messageBody:    msgPreview,
+        targetRole:     "sender",
+        source:         "paid_modal",
+        triggeredBy:    (tenant && tenant.currentUser) || "staff"
       })
     })
     .then(function(r){ return r.json(); })
     .then(function(data) {
-      setSendResult(data.results || {});
+      setSendResult(data.results || data || {});
       setSendState("done");
-      setTimeout(function(){ onConfirm(); }, 2200);
+      setTimeout(function(){ onConfirm(); }, 2800);
     })
     .catch(function(err) {
       setSendResult({ _error: String(err) });
@@ -2288,12 +2401,22 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
         "Review the invoice and message below, select a channel, then confirm to save and send."
       ),
 
-      // ── Missing phone warning ─────────────────────────────────────────
-      !phoneOk && /*#__PURE__*/React.createElement("div", {
+      // ── Missing channel data warnings ─────────────────────────────────
+      !phoneOk && !emailOk && /*#__PURE__*/React.createElement("div", {
         className: "alert alert-a mb12", style: { fontSize: 12.5 }
       },
-        "\u26A0\uFE0F ", /*#__PURE__*/React.createElement("strong", null, "No phone number on this order."),
-        " Sender phone is required before sending WhatsApp invoice. Cancel, update the order with a sender phone, then mark as Paid."
+        "\u26A0\uFE0F ", /*#__PURE__*/React.createElement("strong", null, "No phone or email on this order."),
+        " Add a sender phone or email before sending. Cancel, update the order, then mark as Paid."
+      ),
+      phoneOk && !emailOk && /*#__PURE__*/React.createElement("div", {
+        className: "mut xs mb12"
+      },
+        "\u24D8 No email on file \u2014 WhatsApp only. Add email to send invoice PDF."
+      ),
+      !phoneOk && emailOk && /*#__PURE__*/React.createElement("div", {
+        className: "mut xs mb12"
+      },
+        "\u24D8 No phone on file \u2014 Email only. Add WhatsApp to send instant notification."
       ),
 
       // ── Invoice preview ──────────────────────────────────────────────
@@ -2383,9 +2506,26 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
 
       // ── Channel selection ─────────────────────────────────────────────
       /*#__PURE__*/React.createElement("div", { className: "modal-section" }, "Send via"),
-      /*#__PURE__*/React.createElement("div", { className: "row g10 mb14" },
-        /*#__PURE__*/React.createElement("button", { type: "button", style: chStyle("whatsapp"), onClick: function(){ toggleChannel("whatsapp"); } }, "\uD83D\uDCAC WhatsApp"),
-        /*#__PURE__*/React.createElement("button", { type: "button", style: chStyle("sms"), onClick: function(){ toggleChannel("sms"); } }, "\uD83D\uDCF1 SMS")
+      /*#__PURE__*/React.createElement("div", { className: "row g10 mb6" },
+        /*#__PURE__*/React.createElement("button", {
+          type: "button",
+          style: Object.assign({}, chStyle("whatsapp"), !phoneOk ? { opacity: 0.4, cursor: "not-allowed" } : {}),
+          disabled: !phoneOk,
+          title: !phoneOk ? "No valid phone on order" : "Send WhatsApp to " + waPhone,
+          onClick: function(){ if (phoneOk) toggleChannel("whatsapp"); }
+        }, "\uD83D\uDCAC WhatsApp"),
+        /*#__PURE__*/React.createElement("button", {
+          type: "button",
+          style: Object.assign({}, chStyle("email"), !emailOk ? { opacity: 0.4, cursor: "not-allowed" } : {}),
+          disabled: !emailOk,
+          title: !emailOk ? "No valid email on order" : "Send email to " + email,
+          onClick: function(){ if (emailOk) toggleChannel("email"); }
+        }, "\u2709\uFE0F Email")
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "mut xs mb14" },
+        channels.includes("whatsapp") && phoneOk ? ("WhatsApp \u2192 +" + waPhone) : null,
+        channels.includes("whatsapp") && channels.includes("email") ? " \xB7 " : null,
+        channels.includes("email") && emailOk ? ("Email \u2192 " + email) : null
       ),
 
       // ── Send feedback ─────────────────────────────────────────────────
@@ -2394,9 +2534,33 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
         className: "alert mb12",
         style: { fontSize: 12, background: "rgba(0,229,160,.1)", color: "var(--green)", border: "1px solid var(--green)" }
       },
-        "\u2713 Sent! ",
-        sendResult && sendResult.whatsapp && ("WhatsApp: " + (sendResult.whatsapp.ok ? "\u2713 OK" : "\u26A0 " + sendResult.whatsapp.error)),
-        sendResult && sendResult.sms && (" \xB7 SMS: " + (sendResult.sms.ok ? "\u2713 OK" : "\u26A0 " + sendResult.sms.error))
+        (function(){
+          // Normalize: support BOTH old shape { whatsapp:{ok,error} } AND new shape { results:[{channel,ok,error,messageId}] }
+          var rows = [];
+          if (sendResult && Array.isArray(sendResult.results)) {
+            rows = sendResult.results;
+          } else if (sendResult && Array.isArray(sendResult)) {
+            rows = sendResult;
+          } else if (sendResult && typeof sendResult === "object") {
+            ["whatsapp","email","sms"].forEach(function(k){
+              if (sendResult[k]) rows.push(Object.assign({ channel: k }, sendResult[k]));
+            });
+          }
+          if (rows.length === 0) return "\u2713 Sent!";
+          return /*#__PURE__*/React.createElement(React.Fragment, null,
+            /*#__PURE__*/React.createElement("strong", null, "\u2713 Send complete"),
+            /*#__PURE__*/React.createElement("div", { style: { marginTop: 6, fontSize: 11.5 } },
+              rows.map(function(r, idx){
+                var label = r.channel === "whatsapp" ? "WhatsApp" : (r.channel === "email" ? "Email" : (r.channel || "Channel"));
+                return /*#__PURE__*/React.createElement("div", { key: idx },
+                  r.ok ? "\u2705 " : "\u26A0\uFE0F ",
+                  /*#__PURE__*/React.createElement("strong", null, label, ": "),
+                  r.ok ? ("Sent" + (r.messageId ? " (" + String(r.messageId).slice(0, 24) + "\u2026)" : "")) : ("Failed \u2014 " + (r.error || "unknown error"))
+                );
+              })
+            )
+          );
+        })()
       ),
       sendState === "error" && /*#__PURE__*/React.createElement("div", { className: "alert alert-a mb12", style: { fontSize: 12 } },
         "\u26A0 Send failed: ", (sendResult && sendResult._error) || "Unknown error",
@@ -2412,7 +2576,10 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
         }, "Cancel \u2014 Revert to Pending"),
         /*#__PURE__*/React.createElement("button", {
           type: "button", className: "btn btn-primary btn-sm mla",
-          disabled: !phoneOk || channels.length === 0 || sendState === "sending" || sendState === "done",
+          disabled: channels.length === 0
+            || (channels.includes("whatsapp") && !phoneOk)
+            || (channels.includes("email") && !emailOk)
+            || sendState === "sending" || sendState === "done",
           onClick: doSend
         }, sendState === "sending" ? "Sending\u2026" : "\u2713 Confirm & Send Invoice")
       )
@@ -4352,7 +4519,24 @@ var OrdersPage = function OrdersPage(_ref31) {
   var filtered = useMemo(function () {
     return orders.filter(function (o) {
       if (o.voided) return false;
-      if (officeFilter && officeFilter !== "all" && o.office !== officeFilter) return false;
+      // Phase A: officeFilter may be:
+      //   - "all" or null/empty    -> no filter
+      //   - a UUID string          -> match against o.office_id (new relational column)
+      //   - a legacy display name  -> match against o.office (legacy text)
+      // UUID detection: simple heuristic — exactly 36 chars with dashes at standard positions.
+      if (officeFilter && officeFilter !== "all") {
+        var isUuid = typeof officeFilter === "string"
+                  && officeFilter.length === 36
+                  && officeFilter[8] === "-"
+                  && officeFilter[13] === "-"
+                  && officeFilter[18] === "-"
+                  && officeFilter[23] === "-";
+        if (isUuid) {
+          if (o.office_id !== officeFilter) return false;
+        } else {
+          if (o.office !== officeFilter) return false;
+        }
+      }
       if (filter !== "all" && o.status !== filter) return false;
       var q = search.toLowerCase();
       return !q || o.name.toLowerCase().includes(q) || o.phone.includes(q) || o.id.toLowerCase().includes(q) || o.address.toLowerCase().includes(q);
@@ -21085,6 +21269,24 @@ var _db = {
 
   // Load all rows for this tenant. RLS filters automatically.
   loadAll: function(table) {
+    if (table === "orders") {
+      return _supabase
+        .from(table)
+        .select("tenant_id, office_id, partner_id, data")
+        .order("updated_at", { ascending: false })
+        .then(function(res) {
+          if (res.error) {
+            console.error("[db] loadAll error", table, res.error.message);
+            throw new Error("db:load:" + table);
+          }
+          return (res.data || []).map(function(r) {
+            return Object.assign({}, r.data, {
+              office_id: r.office_id || null,
+              partner_id: r.partner_id || null
+            });
+          });
+        });
+    }
     return _supabase
       .from(table)
       .select("data")
@@ -21141,6 +21343,34 @@ var _db = {
       .upsert([{ id: id, tenant_id: _db._tenantId, config_key: key, data: data }], { onConflict: "id" })
       .then(function(res) {
         if (res.error) console.error("[db] saveSettings error", key, res.error.message);
+      });
+  },
+
+  // ── Phase A: Offices (public.offices) ──────────────────────────────────────
+  // Reads owned operating locations for the current tenant. Returns full
+  // rows including commission_model JSONB. Caller may filter by is_active.
+  loadOffices: function() {
+    return _supabase.from("offices").select("*")
+      .eq("tenant_id", _db._tenantId)
+      .order("name", { ascending: true })
+      .then(function(res) {
+        if (res.error) { console.error("[db] loadOffices error", res.error.message); return []; }
+        return res.data || [];
+      });
+  },
+
+  // ── Phase A: Partners (public.partners) ────────────────────────────────────
+  // Reads external intake/referral sources for the current tenant. Returns
+  // full rows including commission_model JSONB and parent_partner_id hierarchy.
+  // Inactive partners are included so historical orders can still resolve
+  // their partner name for display; caller filters by is_active for dropdowns.
+  loadPartners: function() {
+    return _supabase.from("partners").select("*")
+      .eq("tenant_id", _db._tenantId)
+      .order("name", { ascending: true })
+      .then(function(res) {
+        if (res.error) { console.error("[db] loadPartners error", res.error.message); return []; }
+        return res.data || [];
       });
   },
 
@@ -21945,7 +22175,9 @@ function AppShell(_ref130) {
       _db.loadSettings("main"),
       _db.loadSettings("pricing"),
       _db.loadSettings("boxConfig"),
-      _db.loadSettings("destinations")
+      _db.loadSettings("destinations"),
+      _db.loadOffices(),    // Phase A: public.offices rows for this tenant
+      _db.loadPartners()    // Phase A: public.partners rows for this tenant
     ]).then(function(results) {
       var dbOrders    = results[0];
       var dbShipments = results[1];
@@ -21955,11 +22187,21 @@ function AppShell(_ref130) {
       var dbPricing   = results[5];
       var dbBoxConfig = results[6];
       var dbDests     = results[7];
+      var dbOffices   = results[8];   // Phase A
+      var dbPartners  = results[9];   // Phase A
       if (dbOrders.length    > 0) setOrders(dbOrders);
       if (dbShipments.length > 0) setShipments(dbShipments);
       if (dbClaims.length    > 0) setClaims(dbClaims);
       if (dbReceipts.length  > 0) setReceipts(dbReceipts);
-      if (dbTenant)               setTenant(dbTenant);
+      if (dbTenant) {
+        // Phase A: attach DB offices/partners to tenant object so the
+        // resolver functions (getOrderCommission, computeShipmentMetrics)
+        // can reach them via tenant.__dbOffices / tenant.__dbPartners
+        // without threading them through every call site.
+        dbTenant.__dbOffices  = dbOffices  || [];
+        dbTenant.__dbPartners = dbPartners || [];
+        setTenant(dbTenant);
+      }
       if (dbPricing)              setPricing(mergePricingWithBoxKeys(dbPricing, dbBoxConfig && Array.isArray(dbBoxConfig) ? dbBoxConfig : null));
       if (dbBoxConfig && Array.isArray(dbBoxConfig)) {
         // Merge: add any BOX_CONFIG entries missing from tenant's saved list (by key)
@@ -22712,7 +22954,22 @@ setOrders(function (prev) {
       onEdit: setEditOrder,
       onStatusChange: changeStatus,
       onSelect: setSelectedOrder,
-      officeFilter: roleKey === "office" ? "Casabe NY (HQ)" : null,
+      // Phase A fix (Frontend Refactor Plan §8.1):
+      // Previous filter `"Casabe NY (HQ)"` matched only 23 orders. The same
+      // physical NY office has 3 display aliases in legacy data ("Casabe NY (HQ)",
+      // "Casabe Xpress NY", "HQ"). After Migration 07b, all 81 NY orders point
+      // to the same office_id UUID. Resolve to that UUID at render time so the
+      // dispatcher view shows all NY-office orders, not just one alias's worth.
+      officeFilter: (function(){
+        if (roleKey !== "office") return null;
+        var off = (tenant && tenant.__dbOffices) || [];
+        // Casabe Xpress currently has exactly one office (Casabe Xpress NY).
+        // If multiple exist in the future, we'd scope by the user's office
+        // membership; for Phase A we filter to the first/only owned office.
+        var ny = off.find(function(o){ return o.slug === "casabe-xpress-ny"; })
+              || off[0];
+        return ny ? ny.id : "Casabe NY (HQ)";  // fallback to legacy if offices not loaded yet
+      })(),
       onTrack: setTrackOrder,
       onLabel: function onLabel(o) {
         return setLabelOrder(o);
