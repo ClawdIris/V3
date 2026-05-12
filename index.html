@@ -7973,6 +7973,24 @@ var CampaignsPage = function CampaignsPage(_ref55) {
     tab = _useState14[0],
     setTab = _useState14[1];
   var inactiveCount = 3;
+
+  // Create Campaign modal — UI only; full send engine not yet wired.
+  var _useStateCC = useState(false), _useStateCC2 = _slicedToArray(_useStateCC, 2),
+      showCreate = _useStateCC2[0], setShowCreate = _useStateCC2[1];
+  var _useStateCN = useState(""), _useStateCN2 = _slicedToArray(_useStateCN, 2),
+      ccName = _useStateCN2[0], setCcName = _useStateCN2[1];
+  var _useStateCH = useState("whatsapp"), _useStateCH2 = _slicedToArray(_useStateCH, 2),
+      ccChannel = _useStateCH2[0], setCcChannel = _useStateCH2[1];
+  var _useStateCT = useState("all"), _useStateCT2 = _slicedToArray(_useStateCT, 2),
+      ccTarget = _useStateCT2[0], setCcTarget = _useStateCT2[1];
+  var _useStateCM = useState(""), _useStateCM2 = _slicedToArray(_useStateCM, 2),
+      ccMessage = _useStateCM2[0], setCcMessage = _useStateCM2[1];
+
+  function resetCreateForm() {
+    setCcName(""); setCcChannel("whatsapp"); setCcTarget("all"); setCcMessage("");
+  }
+  function closeCreate() { setShowCreate(false); resetCreateForm(); }
+
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
   }, /*#__PURE__*/React.createElement("div", {
@@ -8036,7 +8054,8 @@ var CampaignsPage = function CampaignsPage(_ref55) {
   }, "All Campaigns"), /*#__PURE__*/React.createElement("div", {
     className: "mla"
   }, /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-primary"
+    className: "btn btn-primary",
+    onClick: function onClick() { setShowCreate(true); }
   }, t("+ Create Campaign", "+ Crear Campaña")))), CAMPAIGNS_DATA.map(function (c, i) {
     return /*#__PURE__*/React.createElement("div", {
       key: i,
@@ -8314,7 +8333,112 @@ var CampaignsPage = function CampaignsPage(_ref55) {
     }, "View List"), /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost btn-sm"
     }, "Send Campaign"))));
-  })));
+  })), showCreate && /*#__PURE__*/React.createElement("div", {
+    className: "overlay",
+    style: { zIndex: 10002 },
+    onClick: function onClick(e) { if (e.target === e.currentTarget) closeCreate(); }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "modal modal-lg fu",
+    style: { maxWidth: 560 }
+  },
+    /*#__PURE__*/React.createElement("div", { className: "row g10 mb14" },
+      /*#__PURE__*/React.createElement("div", { className: "modal-title", style: { margin: 0 } }, "📣 ", t("Create Campaign", "Crear Campaña")),
+      /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm mla", onClick: closeCreate }, "✕ ", t("Close", "Cerrar"))
+    ),
+
+    /* Coming-soon banner */
+    /*#__PURE__*/React.createElement("div", {
+      className: "alert alert-a",
+      style: { fontSize: 12, marginBottom: 14, lineHeight: 1.4 }
+    }, /*#__PURE__*/React.createElement("strong", null, "⚠ ", t("Send engine not yet live.", "Motor de envío no disponible aún.")),
+       " ", t("You can draft a campaign here, but Send and Save as Draft are coming soon.", "Puedes redactar una campaña aquí, pero Enviar y Guardar Borrador estarán disponibles pronto.")),
+
+    /* Name */
+    /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginBottom: 12 } },
+      /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Campaign Name", "Nombre de Campaña")),
+      /*#__PURE__*/React.createElement("input", {
+        className: "fi",
+        value: ccName,
+        onChange: function onChange(e) { setCcName(e.target.value); },
+        placeholder: "e.g. Mother's Day — Ship Early"
+      })
+    ),
+
+    /* Channel */
+    /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginBottom: 12 } },
+      /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Channel", "Canal")),
+      /*#__PURE__*/React.createElement("select", {
+        className: "fi",
+        value: ccChannel,
+        onChange: function onChange(e) { setCcChannel(e.target.value); }
+      },
+        /*#__PURE__*/React.createElement("option", { value: "whatsapp" }, "WhatsApp"),
+        /*#__PURE__*/React.createElement("option", { value: "sms" }, "SMS"),
+        /*#__PURE__*/React.createElement("option", { value: "email" }, "Email"),
+        /*#__PURE__*/React.createElement("option", { value: "multi" }, t("Multi-channel (WhatsApp + SMS)", "Multi-canal (WhatsApp + SMS)"))
+      )
+    ),
+
+    /* Audience */
+    /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginBottom: 12 } },
+      /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Audience", "Audiencia")),
+      /*#__PURE__*/React.createElement("select", {
+        className: "fi",
+        value: ccTarget,
+        onChange: function onChange(e) { setCcTarget(e.target.value); }
+      },
+        /*#__PURE__*/React.createElement("option", { value: "all" }, t("All Customers", "Todos los Clientes")),
+        /*#__PURE__*/React.createElement("option", { value: "active" }, t("Active (last 30 days)", "Activos (últimos 30 días)")),
+        /*#__PURE__*/React.createElement("option", { value: "inactive" }, t("Inactive (90+ days)", "Inactivos (90+ días)")),
+        /*#__PURE__*/React.createElement("option", { value: "vip" }, t("VIP Tier", "Nivel VIP")),
+        /*#__PURE__*/React.createElement("option", { value: "small_med" }, t("Small/Med Shippers", "Envíos Pequeños/Medianos")),
+        /*#__PURE__*/React.createElement("option", { value: "pending_pay" }, t("Pending Payment", "Pago Pendiente"))
+      ),
+      /*#__PURE__*/React.createElement("div", {
+        className: "mut xs",
+        style: { marginTop: 4 }
+      }, t("Audience size will be computed when send engine is live.", "Tamaño de audiencia se calculará cuando el motor de envío esté activo."))
+    ),
+
+    /* Message body */
+    /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginBottom: 12 } },
+      /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Message", "Mensaje")),
+      /*#__PURE__*/React.createElement("textarea", {
+        className: "fi",
+        value: ccMessage,
+        onChange: function onChange(e) { setCcMessage(e.target.value); },
+        rows: 5,
+        placeholder: t("Use {{name}} for customer first name, {{tracking}} for tracking ID.", "Usa {{name}} para nombre del cliente, {{tracking}} para ID de rastreo."),
+        style: { fontFamily: "inherit", fontSize: 13, lineHeight: 1.4, resize: "vertical" }
+      }),
+      /*#__PURE__*/React.createElement("div", {
+        className: "mut xs",
+        style: { marginTop: 4 }
+      }, ccMessage.length, " ", t("characters", "caracteres"),
+         ccChannel === "sms" && ccMessage.length > 160 ? " · ⚠ " + t("SMS limit 160 chars", "Límite SMS 160 caracteres") : ""
+      )
+    ),
+
+    /* Footer actions — both disabled, coming-soon */
+    /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 16, flexWrap: "wrap" } },
+      /*#__PURE__*/React.createElement("button", {
+        className: "btn btn-ghost btn-sm",
+        onClick: closeCreate
+      }, t("Cancel", "Cancelar")),
+      /*#__PURE__*/React.createElement("button", {
+        className: "btn btn-ghost btn-sm mla",
+        disabled: true,
+        title: t("Coming soon — send engine not yet wired", "Próximamente — motor de envío no disponible"),
+        style: { opacity: 0.5, cursor: "not-allowed" }
+      }, "💾 ", t("Save as Draft", "Guardar Borrador"), " (", t("soon", "pronto"), ")"),
+      /*#__PURE__*/React.createElement("button", {
+        className: "btn btn-primary btn-sm",
+        disabled: true,
+        title: t("Coming soon — send engine not yet wired", "Próximamente — motor de envío no disponible"),
+        style: { opacity: 0.5, cursor: "not-allowed" }
+      }, "📣 ", t("Send Campaign", "Enviar Campaña"), " (", t("soon", "pronto"), ")")
+    )
+  )));
 };
 
 /* ════════════════════════════════════════════
