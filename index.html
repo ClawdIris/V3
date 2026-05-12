@@ -7967,6 +7967,15 @@ var CAMPAIGNS_DATA = [{
 }];
 var CampaignsPage = function CampaignsPage(_ref55) {
   var orders = _ref55.orders;
+  // Phase 1 campaign engine: parent now passes live campaigns + setter + session + notifier.
+  // These are optional for backward compat — fall back to empty/no-op so the
+  // component still renders if invoked from a legacy site that didn't pass them.
+  var campaigns = _ref55.campaigns || [];
+  var setCampaigns = _ref55.setCampaigns || function(){};
+  var session = _ref55.session || {};
+  var tenant = _ref55.tenant || {};
+  var notify = _ref55.notify || function(msg){ try { console.log("[notify]", msg); } catch(e){} };
+
   var t = useT();
   var _useState13 = useState("campaigns"),
     _useState14 = _slicedToArray(_useState13, 2),
@@ -7974,7 +7983,10 @@ var CampaignsPage = function CampaignsPage(_ref55) {
     setTab = _useState14[1];
   var inactiveCount = 3;
 
-  // Create Campaign modal — UI only; full send engine not yet wired.
+  // ── Create Campaign modal state ──────────────────────────────────────────
+  // Phase 1: drafts persist to public.campaigns. Send is still disabled —
+  // it remains "coming soon" until Meta approves the marketing_campaign
+  // template AND the cost confirmation UX is ready (see CAMPAIGN_ENGINE_PLAN.md).
   var _useStateCC = useState(false), _useStateCC2 = _slicedToArray(_useStateCC, 2),
       showCreate = _useStateCC2[0], setShowCreate = _useStateCC2[1];
   var _useStateCN = useState(""), _useStateCN2 = _slicedToArray(_useStateCN, 2),
@@ -7983,11 +7995,164 @@ var CampaignsPage = function CampaignsPage(_ref55) {
       ccChannel = _useStateCH2[0], setCcChannel = _useStateCH2[1];
   var _useStateCT = useState("all"), _useStateCT2 = _slicedToArray(_useStateCT, 2),
       ccTarget = _useStateCT2[0], setCcTarget = _useStateCT2[1];
-  var _useStateCM = useState(""), _useStateCM2 = _slicedToArray(_useStateCM, 2),
-      ccMessage = _useStateCM2[0], setCcMessage = _useStateCM2[1];
+  // EN/ES message bodies — separate so users author both languages.
+  var _useStateCMen = useState(""), _useStateCMen2 = _slicedToArray(_useStateCMen, 2),
+      ccMessageEn = _useStateCMen2[0], setCcMessageEn = _useStateCMen2[1];
+  var _useStateCMes = useState(""), _useStateCMes2 = _slicedToArray(_useStateCMes, 2),
+      ccMessageEs = _useStateCMes2[0], setCcMessageEs = _useStateCMes2[1];
+  // Which language tab is active in the message editor (en/es).
+  var _useStateCL = useState("en"), _useStateCL2 = _slicedToArray(_useStateCL, 2),
+      ccLang = _useStateCL2[0], setCcLang = _useStateCL2[1];
+  var _useStateCSaving = useState(false), _useStateCSaving2 = _slicedToArray(_useStateCSaving, 2),
+      ccSaving = _useStateCSaving2[0], setCcSaving = _useStateCSaving2[1];
+
+  // Refs to EN/ES textareas — needed for cursor-aware token insertion.
+  var msgEnRef = React.useRef(null);
+  var msgEsRef = React.useRef(null);
+
+  // ── Token catalogue ──────────────────────────────────────────────────────
+  // Tokens stored in DB as {{key}} (forward-compat for Phase 2 send engine).
+  // The chip label is the human-readable name shown in the editor UI.
+  var TOKENS = [
+    { key: "name",        labelEn: "Customer Name",  labelEs: "Nombre" },
+    { key: "tracking",    labelEn: "Tracking ID",    labelEs: "ID Rastreo" },
+    { key: "status",      labelEn: "Status",         labelEs: "Estado" },
+    { key: "destination", labelEn: "Destination",    labelEs: "Destino" },
+    { key: "boxType",     labelEn: "Box Type",       labelEs: "Tipo Caja" },
+    { key: "balance",     labelEn: "Balance Due",    labelEs: "Saldo" }
+  ];
+
+  // Insert a {{token}} at the current cursor position in the active textarea,
+  // or append to end if no selection. Updates state for the active language.
+  function insertToken(tokenKey) {
+    var ref = ccLang === "en" ? msgEnRef : msgEsRef;
+    var cur = ccLang === "en" ? ccMessageEn : ccMessageEs;
+    var setter = ccLang === "en" ? setCcMessageEn : setCcMessageEs;
+    var insert = "{{" + tokenKey + "}}";
+    var ta = ref.current;
+    if (!ta) { setter(cur + insert); return; }
+    var start = ta.selectionStart || 0;
+    var end = ta.selectionEnd || 0;
+    var next = cur.slice(0, start) + insert + cur.slice(end);
+    setter(next);
+    // Re-focus and place cursor after the inserted token on next tick.
+    setTimeout(function(){
+      try {
+        ta.focus();
+        var pos = start + insert.length;
+        ta.setSelectionRange(pos, pos);
+      } catch(e){}
+    }, 0);
+  }
+
+  // Render a message body with sample order data substituted. Used for the
+  // live preview pane. Phase 2 send engine MUST mirror this logic exactly
+  // (kept simple: dumb string replace, no expressions).
+  function renderTokens(body, sample) {
+    if (!body) return "";
+    var out = body;
+    TOKENS.forEach(function(tok) {
+      var val = sample[tok.key] != null ? String(sample[tok.key]) : ("{" + tok.labelEn + "}");
+      out = out.split("{{" + tok.key + "}}").join(val);
+    });
+    return out;
+  }
+
+  // Pick a sample order for the preview pane. Prefer one with a child box
+  // so {{tracking}} shows a real subId; else first order; else dummy.
+  function pickSampleOrder() {
+    if (!orders || orders.length === 0) return null;
+    var withBox = orders.find(function(o){ return o.boxes && o.boxes.length > 0; });
+    return withBox || orders[0];
+  }
+  function buildSampleContext() {
+    var o = pickSampleOrder();
+    if (!o) return {
+      name: "Maria Pérez", tracking: "CC20260428D072-1", status: "In Transit",
+      destination: "Guatemala City", boxType: "Large", balance: "$185.00"
+    };
+    var firstBox = (o.boxes && o.boxes[0]) || {};
+    var firstName = (o.consigneeName || o.name || "").split(" ")[0] || "Customer";
+    var statusKey = firstBox.orderStatus || firstBox.status || o.status || "order_placed";
+    var statusLabel = ({
+      order_placed:"Order Placed",ready_pickup:"Ready for Pickup",picked_up:"Picked Up",
+      in_warehouse:"In Warehouse",loaded_container:"Loaded in Container",en_route:"En Route",
+      in_customs:"In Customs",customs_released:"Released from Customs",sorting:"Sorting / Preparing",
+      out_for_delivery:"Out for Delivery",delivered:"Delivered",cancelled:"Cancelled",
+      need_box:"Need a Box",rerouted:"Rerouted"
+    })[statusKey] || statusKey;
+    var bal = (o.totalCharged || 0) - (o.totalPaid || 0);
+    return {
+      name:        firstName,
+      tracking:    firstBox.subId || o.id || "—",
+      status:      statusLabel,
+      destination: firstBox.destinationCountry || o.destination || "—",
+      boxType:     firstBox.boxType || o.boxType || "—",
+      balance:     "$" + (bal > 0 ? bal.toFixed(2) : "0.00")
+    };
+  }
+
+  // Audience size — counts unique customer-equivalents in `orders` for the
+  // selected audience_key. Client-side filter; cheap.
+  function computeAudienceSize(audienceKey) {
+    if (!orders || orders.length === 0) return 0;
+    var now = Date.now();
+    var DAY = 86400000;
+    function ageDays(d) {
+      if (!d) return Infinity;
+      try { return (now - new Date(d).getTime()) / DAY; } catch(e){ return Infinity; }
+    }
+    // Dedupe by customer (phone or email or name) — best-effort match to a
+    // "recipient". Phase 2 send engine will do this server-side too.
+    var keyFn = function(o){ return (o.consigneeWhatsapp||o.whatsapp||o.consigneePhone||o.phone||o.email||o.consigneeName||o.name||o.id); };
+    var filtered = orders;
+    if (audienceKey === "active")     filtered = orders.filter(function(o){ return ageDays(o.createdAt) <= 30; });
+    else if (audienceKey === "inactive") filtered = orders.filter(function(o){ return ageDays(o.createdAt) > 90; });
+    else if (audienceKey === "vip")   filtered = orders.filter(function(o){ return o.vip || (o.totalCharged||0) >= 500; });
+    else if (audienceKey === "small_med") filtered = orders.filter(function(o){
+      var bt = (o.boxType||"").toLowerCase(); return bt === "small" || bt === "medium";
+    });
+    else if (audienceKey === "pending_pay") filtered = orders.filter(function(o){
+      return (o.totalCharged||0) > (o.totalPaid||0);
+    });
+    // "all" → no filter
+    var seen = {};
+    filtered.forEach(function(o){ var k = keyFn(o); if (k) seen[k] = true; });
+    return Object.keys(seen).length;
+  }
+  var audienceSize = computeAudienceSize(ccTarget);
+
+  // ── Save as Draft ────────────────────────────────────────────────────────
+  // Persists to public.campaigns via _db.saveCampaign. Prepends the new draft
+  // to the live `campaigns` list (optimistic since server is authoritative).
+  // Validates name is non-empty; everything else can be blank for a draft.
+  function saveDraft() {
+    var name = (ccName || "").trim();
+    if (!name) { notify("\u26A0 " + t("Campaign name required", "Nombre de campaña requerido")); return; }
+    if (!session.tenantId) { notify("\u26A0 " + t("Not signed in — cannot save", "No has iniciado sesión")); return; }
+    setCcSaving(true);
+    _db.saveCampaign({
+      name:         name,
+      channel:      ccChannel,
+      audience_key: ccTarget,
+      status:       "draft",
+      created_by:   session.userId || null,
+      message_en:   ccMessageEn,
+      message_es:   ccMessageEs
+    }).then(function(saved) {
+      setCcSaving(false);
+      setCampaigns(function(prev){ return [saved].concat(prev); });
+      notify("\u2713 " + t("Draft saved", "Borrador guardado") + ": " + saved.name);
+      closeCreate();
+    }).catch(function(err) {
+      setCcSaving(false);
+      notify("\u26A0 " + t("Save failed", "Error al guardar") + ": " + (err.message || "unknown"));
+    });
+  }
 
   function resetCreateForm() {
-    setCcName(""); setCcChannel("whatsapp"); setCcTarget("all"); setCcMessage("");
+    setCcName(""); setCcChannel("whatsapp"); setCcTarget("all");
+    setCcMessageEn(""); setCcMessageEs(""); setCcLang("en");
   }
   function closeCreate() { setShowCreate(false); resetCreateForm(); }
 
@@ -8056,9 +8221,47 @@ var CampaignsPage = function CampaignsPage(_ref55) {
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary",
     onClick: function onClick() { setShowCreate(true); }
-  }, t("+ Create Campaign", "+ Crear Campaña")))), CAMPAIGNS_DATA.map(function (c, i) {
+  }, t("+ Create Campaign", "+ Crear Campaña")))),
+  /* Phase 1 campaign engine: render real campaigns from public.campaigns.
+     The card layout was built against the old static CAMPAIGNS_DATA shape,
+     so we adapt each DB row to that shape inline. Phase 2 will refactor
+     the card to read native fields directly. */
+  campaigns.length === 0 && /*#__PURE__*/React.createElement("div", {
+    className: "alert alert-b",
+    style: { fontSize: 13, padding: "12px 14px", textAlign: "center" }
+  },
+    /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, marginBottom: 4 } },
+      t("No campaigns yet", "Aún no hay campañas")),
+    /*#__PURE__*/React.createElement("div", { className: "mut xs" },
+      t("Click + Create Campaign above to author your first draft.", "Haz clic en + Crear Campaña arriba para redactar tu primer borrador."))
+  ),
+  campaigns.map(function(camp, i) {
+    // Adapt the DB row to the legacy card shape so the existing render works
+    // unchanged. Maps: name → name, status → status, channel → type-like label,
+    // audience_key → target, sent_count → sent. Open/click/revenue stay 0
+    // (placeholders until Phase 2 tracking ships).
+    var AUDIENCE_LABELS = {
+      all: "All Customers", active: "Active (30d)", inactive: "Inactive (90+)",
+      vip: "VIP Tier", small_med: "Small/Med Shippers", pending_pay: "Pending Payment"
+    };
+    var CHANNEL_LABELS = {
+      whatsapp: "WhatsApp", sms: "SMS", email: "Email", multi: "Multi-channel"
+    };
+    var endsLabel = camp.sent_at ? new Date(camp.sent_at).toISOString().slice(0,10)
+                  : camp.created_at ? new Date(camp.created_at).toISOString().slice(0,10) : "—";
+    var c = {
+      name:    camp.name || "(untitled)",
+      status:  camp.status || "draft",
+      type:    CHANNEL_LABELS[camp.channel] || camp.channel || "—",
+      target:  AUDIENCE_LABELS[camp.audience_key] || camp.audience_key || "—",
+      ends:    endsLabel,
+      sent:    camp.sent_count || 0,
+      open:    0,    // placeholder — Phase 2 tracking
+      click:   0,    // placeholder — Phase 2 tracking
+      revenue: 0     // placeholder — Phase 2 attribution
+    };
     return /*#__PURE__*/React.createElement("div", {
-      key: i,
+      key: camp.id || i,
       style: {
         background: "var(--bg2)",
         border: "1px solid var(--border)",
@@ -8084,12 +8287,12 @@ var CampaignsPage = function CampaignsPage(_ref55) {
         fontSize: 13.5
       }
     }, c.name), /*#__PURE__*/React.createElement("span", {
-      className: "badge ".concat(c.status === "active" ? "bg" : c.status === "scheduled" ? "bb" : "bgr")
+      className: "badge ".concat(c.status === "sent" || c.status === "active" ? "bg" : c.status === "scheduled" || c.status === "sending" ? "bb" : c.status === "failed" ? "bgr" : "bgr")
     }, c.status), /*#__PURE__*/React.createElement("span", {
       className: "tag"
     }, c.type)), /*#__PURE__*/React.createElement("div", {
       className: "xs mut"
-    }, "Target: ", c.target, " \xB7 Ends ", c.ends)), /*#__PURE__*/React.createElement("div", {
+    }, "Target: ", c.target, " \xB7 Created ", c.ends)), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
         gridTemplateColumns: "repeat(4,72px)",
@@ -8118,7 +8321,10 @@ var CampaignsPage = function CampaignsPage(_ref55) {
     }, c.status === "active" && /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost btn-sm"
     }, "\u23F8"), c.status === "draft" && /*#__PURE__*/React.createElement("button", {
-      className: "btn btn-primary btn-sm"
+      className: "btn btn-primary btn-sm",
+      disabled: true,
+      title: t("Send is gated on Meta template + cost UX (Phase 2)", "Envío bloqueado hasta Fase 2"),
+      style: { opacity: 0.5, cursor: "not-allowed" }
     }, "\u25B6 Launch"), c.status === "scheduled" && /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost btn-sm"
     }, "\u25B6 Now"), /*#__PURE__*/React.createElement("button", {
@@ -8346,12 +8552,15 @@ var CampaignsPage = function CampaignsPage(_ref55) {
       /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm mla", onClick: closeCreate }, "✕ ", t("Close", "Cerrar"))
     ),
 
-    /* Coming-soon banner */
+    /* Status banner — Phase 1: drafts persist; Send remains gated on Meta + cost UX */
     /*#__PURE__*/React.createElement("div", {
       className: "alert alert-a",
       style: { fontSize: 12, marginBottom: 14, lineHeight: 1.4 }
-    }, /*#__PURE__*/React.createElement("strong", null, "⚠ ", t("Send engine not yet live.", "Motor de envío no disponible aún.")),
-       " ", t("You can draft a campaign here, but Send and Save as Draft are coming soon.", "Puedes redactar una campaña aquí, pero Enviar y Guardar Borrador estarán disponibles pronto.")),
+    }, /*#__PURE__*/React.createElement("strong", null, "\u26A0 ", t("Drafts save. Sending is in Phase 2.", "Los borradores se guardan. Envío en Fase 2.")),
+       " ", t(
+         "You can author, save, and edit drafts now. Send Campaign unlocks once Meta approves the marketing_campaign template and cost-confirmation UX ships.",
+         "Puedes redactar, guardar y editar borradores. Enviar Campaña se desbloquea cuando Meta apruebe la plantilla marketing_campaign y la UX de confirmación de costo esté lista."
+       )),
 
     /* Name */
     /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginBottom: 12 } },
@@ -8397,46 +8606,138 @@ var CampaignsPage = function CampaignsPage(_ref55) {
       /*#__PURE__*/React.createElement("div", {
         className: "mut xs",
         style: { marginTop: 4 }
-      }, t("Audience size will be computed when send engine is live.", "Tamaño de audiencia se calculará cuando el motor de envío esté activo."))
+      }, "~", audienceSize, " ", t("matching recipients (audience preview; final filtering happens at send time)", "destinatarios aproximados (vista previa; el filtrado final ocurre al enviar)"))
     ),
 
-    /* Message body */
+    /* Message body — Phase 1: EN/ES tabs, token-chip insertion, live preview */
     /*#__PURE__*/React.createElement("div", { className: "fg", style: { marginBottom: 12 } },
-      /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Message", "Mensaje")),
-      /*#__PURE__*/React.createElement("textarea", {
+      /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginBottom: 6, alignItems: "center" } },
+        /*#__PURE__*/React.createElement("label", { className: "fl", style: { margin: 0 } }, t("Message", "Mensaje")),
+        /* EN/ES language tabs */
+        /*#__PURE__*/React.createElement("div", { className: "row g6", style: { marginLeft: "auto" } },
+          /*#__PURE__*/React.createElement("button", {
+            type: "button",
+            className: "btn btn-ghost btn-sm",
+            onClick: function(){ setCcLang("en"); },
+            style: {
+              fontSize: 11, padding: "3px 10px",
+              background: ccLang === "en" ? "var(--amber)" : "transparent",
+              color: ccLang === "en" ? "#000" : "var(--text2)",
+              fontWeight: ccLang === "en" ? 700 : 500
+            }
+          }, "EN"),
+          /*#__PURE__*/React.createElement("button", {
+            type: "button",
+            className: "btn btn-ghost btn-sm",
+            onClick: function(){ setCcLang("es"); },
+            style: {
+              fontSize: 11, padding: "3px 10px",
+              background: ccLang === "es" ? "var(--amber)" : "transparent",
+              color: ccLang === "es" ? "#000" : "var(--text2)",
+              fontWeight: ccLang === "es" ? 700 : 500
+            }
+          }, "ES")
+        )
+      ),
+      /* Token chip row */
+      /*#__PURE__*/React.createElement("div", { className: "row g6", style: { flexWrap: "wrap", marginBottom: 8 } },
+        /*#__PURE__*/React.createElement("span", { className: "mut xs", style: { marginRight: 4 } }, t("Insert:", "Insertar:")),
+        TOKENS.map(function(tok) {
+          return /*#__PURE__*/React.createElement("button", {
+            key: tok.key,
+            type: "button",
+            className: "btn btn-ghost btn-sm",
+            onClick: function(){ insertToken(tok.key); },
+            title: "{{" + tok.key + "}}",
+            style: {
+              fontSize: 10.5, padding: "2px 8px",
+              background: "rgba(245,158,11,0.08)",
+              border: "1px solid rgba(245,158,11,0.3)",
+              color: "var(--amber)",
+              borderRadius: 12
+            }
+          }, "+ ", ccLang === "es" ? tok.labelEs : tok.labelEn);
+        })
+      ),
+      /* EN textarea — only mounted when ccLang === "en" so cursor focus stays on the visible field */
+      ccLang === "en" && /*#__PURE__*/React.createElement("textarea", {
+        ref: msgEnRef,
         className: "fi",
-        value: ccMessage,
-        onChange: function onChange(e) { setCcMessage(e.target.value); },
+        value: ccMessageEn,
+        onChange: function onChange(e) { setCcMessageEn(e.target.value); },
         rows: 5,
-        placeholder: t("Use {{name}} for customer first name, {{tracking}} for tracking ID.", "Usa {{name}} para nombre del cliente, {{tracking}} para ID de rastreo."),
+        placeholder: t("Hi {{name}}, your shipment {{tracking}} is now {{status}}…", "Hola {{name}}, tu envío {{tracking}} ahora está {{status}}…"),
         style: { fontFamily: "inherit", fontSize: 13, lineHeight: 1.4, resize: "vertical" }
       }),
-      /*#__PURE__*/React.createElement("div", {
-        className: "mut xs",
-        style: { marginTop: 4 }
-      }, ccMessage.length, " ", t("characters", "caracteres"),
-         ccChannel === "sms" && ccMessage.length > 160 ? " · ⚠ " + t("SMS limit 160 chars", "Límite SMS 160 caracteres") : ""
-      )
+      ccLang === "es" && /*#__PURE__*/React.createElement("textarea", {
+        ref: msgEsRef,
+        className: "fi",
+        value: ccMessageEs,
+        onChange: function onChange(e) { setCcMessageEs(e.target.value); },
+        rows: 5,
+        placeholder: t("Hola {{name}}, tu envío {{tracking}} ahora está {{status}}…", "Hola {{name}}, tu envío {{tracking}} ahora está {{status}}…"),
+        style: { fontFamily: "inherit", fontSize: 13, lineHeight: 1.4, resize: "vertical" }
+      }),
+      (function(){
+        var curMsg = ccLang === "en" ? ccMessageEn : ccMessageEs;
+        return /*#__PURE__*/React.createElement("div", {
+          className: "mut xs",
+          style: { marginTop: 4 }
+        }, curMsg.length, " ", t("characters", "caracteres"),
+           ccChannel === "sms" && curMsg.length > 160 ? " · \u26A0 " + t("SMS limit 160 chars", "Límite SMS 160 caracteres") : "");
+      })()
     ),
 
-    /* Footer actions — both disabled, coming-soon */
+    /* Live preview pane — substitutes sample order into the current language body */
+    (function(){
+      var curMsg = ccLang === "en" ? ccMessageEn : ccMessageEs;
+      if (!curMsg) return null;
+      var sample = buildSampleContext();
+      var rendered = renderTokens(curMsg, sample);
+      return /*#__PURE__*/React.createElement("div", {
+        style: {
+          background: "var(--bg3)",
+          border: "1px dashed var(--border)",
+          borderRadius: 8,
+          padding: "10px 12px",
+          marginBottom: 14
+        }
+      },
+        /*#__PURE__*/React.createElement("div", {
+          style: { fontSize: 10, fontWeight: 700, color: "var(--text4)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }
+        }, t("Preview", "Vista Previa"), " · ", sample.name, " · ", sample.tracking),
+        /*#__PURE__*/React.createElement("div", {
+          style: { fontSize: 13, lineHeight: 1.5, whiteSpace: "pre-wrap", color: "var(--text)" }
+        }, rendered)
+      );
+    })(),
+
+    /* Footer actions — Save as Draft is now real; Send stays disabled until
+       (a) Meta approves marketing_campaign template, (b) cost confirmation UX ships. */
     /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 16, flexWrap: "wrap" } },
       /*#__PURE__*/React.createElement("button", {
         className: "btn btn-ghost btn-sm",
-        onClick: closeCreate
+        onClick: closeCreate,
+        disabled: ccSaving
       }, t("Cancel", "Cancelar")),
       /*#__PURE__*/React.createElement("button", {
         className: "btn btn-ghost btn-sm mla",
-        disabled: true,
-        title: t("Coming soon — send engine not yet wired", "Próximamente — motor de envío no disponible"),
-        style: { opacity: 0.5, cursor: "not-allowed" }
-      }, "💾 ", t("Save as Draft", "Guardar Borrador"), " (", t("soon", "pronto"), ")"),
+        onClick: saveDraft,
+        disabled: ccSaving || !(ccName || "").trim(),
+        title: !(ccName || "").trim()
+          ? t("Enter a campaign name to save", "Ingresa un nombre para guardar")
+          : t("Save this campaign as a draft. Drafts persist and can be edited later.", "Guarda esta campaña como borrador. Los borradores persisten y se pueden editar."),
+        style: { fontWeight: 600 }
+      }, ccSaving ? ("\u23F3 " + t("Saving...", "Guardando...")) : ("\uD83D\uDCBE " + t("Save as Draft", "Guardar Borrador"))),
       /*#__PURE__*/React.createElement("button", {
         className: "btn btn-primary btn-sm",
         disabled: true,
-        title: t("Coming soon — send engine not yet wired", "Próximamente — motor de envío no disponible"),
+        title: t(
+          "Send is gated by: (1) Meta marketing_campaign template approval, (2) cost confirmation UX. Coming in Phase 2.",
+          "Enviar requiere: (1) aprobación de plantilla Meta marketing_campaign, (2) UX de confirmación de costo. Disponible en Fase 2."
+        ),
         style: { opacity: 0.5, cursor: "not-allowed" }
-      }, "📣 ", t("Send Campaign", "Enviar Campaña"), " (", t("soon", "pronto"), ")")
+      }, "\uD83D\uDCE3 ", t("Send Campaign", "Enviar Campaña"), " (", t("Phase 2", "Fase 2"), ")")
     )
   )));
 };
@@ -21646,6 +21947,93 @@ var _db = {
       });
   },
 
+  // ── Phase 1 (Campaign Engine): Campaigns (public.campaigns) ───────────────
+  // Reads marketing campaigns for the current tenant. Returns rows with
+  // typed columns merged with `data` JSONB blob (message_en, message_es,
+  // template_meta, etc.). Strict tenant scoping enforced by .eq("tenant_id").
+  loadCampaigns: function() {
+    return _supabase.from("campaigns").select("*")
+      .eq("tenant_id", _db._tenantId)
+      .order("created_at", { ascending: false })
+      .then(function(res) {
+        if (res.error) { console.error("[db] loadCampaigns error", res.error.message); return []; }
+        // Merge JSONB `data` into top-level so the frontend reads one flat shape:
+        // { id, name, channel, ..., message_en, message_es, ...extras }
+        return (res.data || []).map(function(r) {
+          var d = r.data || {};
+          return Object.assign({}, d, {
+            id:           r.id,
+            tenant_id:    r.tenant_id,
+            name:         r.name,
+            channel:      r.channel,
+            audience_key: r.audience_key,
+            status:       r.status,
+            created_by:   r.created_by,
+            created_at:   r.created_at,
+            updated_at:   r.updated_at,
+            sent_at:      r.sent_at,
+            sent_count:   r.sent_count,
+            failed_count: r.failed_count
+          });
+        });
+      });
+  },
+
+  // Insert a new campaign draft. Returns the saved row (merged shape) on
+  // success, or throws on failure so callers can show an error to the user.
+  // Phase 1: status is always 'draft'; Phase 2 will add status transitions.
+  saveCampaign: function(campaign) {
+    var jsonb = {
+      message_en:    campaign.message_en || "",
+      message_es:    campaign.message_es || ""
+    };
+    // Pass through anything else under `data` that the caller wanted to persist
+    // (forward-compat for Phase 2: template_meta, schedule_at, etc.).
+    Object.keys(campaign).forEach(function(k) {
+      if (["id","tenant_id","name","channel","audience_key","status","created_by",
+           "created_at","updated_at","sent_at","sent_count","failed_count",
+           "message_en","message_es"].indexOf(k) === -1) {
+        jsonb[k] = campaign[k];
+      }
+    });
+    var row = {
+      tenant_id:    _db._tenantId,
+      name:         campaign.name,
+      channel:      campaign.channel,
+      audience_key: campaign.audience_key,
+      status:       campaign.status || "draft",
+      created_by:   campaign.created_by || null,
+      data:         jsonb
+    };
+    if (campaign.id) row.id = campaign.id;
+    return _supabase.from("campaigns")
+      .upsert([row], { onConflict: "id" })
+      .select()
+      .single()
+      .then(function(res) {
+        if (res.error) {
+          console.error("[db] saveCampaign error", res.error.message);
+          throw new Error(res.error.message);
+        }
+        var r = res.data;
+        var d = r.data || {};
+        return Object.assign({}, d, {
+          id:           r.id,
+          tenant_id:    r.tenant_id,
+          name:         r.name,
+          channel:      r.channel,
+          audience_key: r.audience_key,
+          status:       r.status,
+          created_by:   r.created_by,
+          created_at:   r.created_at,
+          updated_at:   r.updated_at,
+          sent_at:      r.sent_at,
+          sent_count:   r.sent_count,
+          failed_count: r.failed_count
+        });
+      });
+  },
+
   // ── Office Payments ────────────────────────────────────────────────────────
   // Schema: { id, tenantId, officeId, shipmentId?, amount, method, receivedAt, loggedBy, loggedAt, notes }
   loadOfficePayments: function(officeId) {
@@ -22244,6 +22632,13 @@ function AppShell(_ref130) {
     _useState124 = _slicedToArray(_useState123, 2),
     claims = _useState124[0],
     setClaims = _useState124[1];
+  // Phase 1 campaign engine: holds rows from public.campaigns for this tenant.
+  // Eager-loaded in the Promise.all batch below; CampaignsPage reads & mutates
+  // via setCampaigns when a draft is saved.
+  var _useStateCamp = useState([]),
+    _useStateCamp2 = _slicedToArray(_useStateCamp, 2),
+    campaigns = _useStateCamp2[0],
+    setCampaigns = _useStateCamp2[1];
   var _useState125 = useState(DEFAULT_PRICING),
     _useState126 = _slicedToArray(_useState125, 2),
     pricing = _useState126[0],
@@ -22449,7 +22844,8 @@ function AppShell(_ref130) {
       _db.loadSettings("boxConfig"),
       _db.loadSettings("destinations"),
       _db.loadOffices(),    // Phase A: public.offices rows for this tenant
-      _db.loadPartners()    // Phase A: public.partners rows for this tenant
+      _db.loadPartners(),   // Phase A: public.partners rows for this tenant
+      _db.loadCampaigns()   // Phase 1 campaign engine: public.campaigns rows
     ]).then(function(results) {
       var dbOrders    = results[0];
       var dbShipments = results[1];
@@ -22461,10 +22857,12 @@ function AppShell(_ref130) {
       var dbDests     = results[7];
       var dbOffices   = results[8];   // Phase A
       var dbPartners  = results[9];   // Phase A
+      var dbCampaigns = results[10];  // Phase 1 campaign engine
       if (dbOrders.length    > 0) setOrders(dbOrders);
       if (dbShipments.length > 0) setShipments(dbShipments);
       if (dbClaims.length    > 0) setClaims(dbClaims);
       if (dbReceipts.length  > 0) setReceipts(dbReceipts);
+      if (dbCampaigns && dbCampaigns.length > 0) setCampaigns(dbCampaigns);
       if (dbTenant) {
         // Phase A: attach DB offices/partners to tenant object so the
         // resolver functions (getOrderCommission, computeShipmentMetrics)
@@ -22870,7 +23268,12 @@ setOrders(function (prev) {
       }
     });
     if (page === "campaigns") return /*#__PURE__*/React.createElement(CampaignsPage, {
-      orders: orders
+      orders: orders,
+      campaigns: campaigns,
+      setCampaigns: setCampaigns,
+      session: session,
+      tenant: tenant,
+      notify: notify
     });
     if (page === "payments") return /*#__PURE__*/React.createElement(PaymentsPage, {
       orders: orders
@@ -22946,7 +23349,12 @@ setOrders(function (prev) {
       session: session
     });
     if (page === "notifications") return /*#__PURE__*/React.createElement(CampaignsPage, {
-      orders: orders
+      orders: orders,
+      campaigns: campaigns,
+      setCampaigns: setCampaigns,
+      session: session,
+      tenant: tenant,
+      notify: notify
     });
     if (page === "bulk") return /*#__PURE__*/React.createElement(BulkStatusPage, {
       orders: orders,
