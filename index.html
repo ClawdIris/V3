@@ -8598,6 +8598,21 @@ var CampaignsPage = function CampaignsPage(_ref55) {
       /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm mla", onClick: closeCreate }, "✕ ", t("Close", "Cerrar"))
     ),
 
+    /* Sub-header when editing: shows the campaign name being edited */
+    editingId && /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 11,
+        color: "var(--text4)",
+        marginBottom: 12,
+        paddingBottom: 8,
+        borderBottom: "1px solid var(--border)",
+        fontFamily: "'IBM Plex Mono', monospace"
+      }
+    },
+      /*#__PURE__*/React.createElement("span", { style: { opacity: 0.7 } }, t("Editing:", "Editando:"), " "),
+      /*#__PURE__*/React.createElement("span", { style: { color: "var(--amber)", fontWeight: 600 } }, ccName || "(untitled)")
+    ),
+
     /* Status banner — Phase 1: drafts persist; Send remains gated on Meta + cost UX */
     /*#__PURE__*/React.createElement("div", {
       className: "alert alert-a",
@@ -21893,6 +21908,7 @@ var _db = {
     return _supabase
       .from(table)
       .select(selectCols)
+      .eq("tenant_id", _db._tenantId)  // Explicit tenant filter (defense in depth + supports test-login without RLS)
       .order("updated_at", { ascending: false })
       .then(function(res) {
         if (res.error) {
@@ -22690,7 +22706,7 @@ function App() {
   var handleTestLogin = function handleTestLogin() {
     _db.init('test-tenant');
     setSession({
-      userId:      'test-user-' + Math.random().toString(36).slice(2,9),
+      userId:      '00000000-0000-0000-0000-000000000001',
       email:       'test@example.com',
       roleKey:     'hq',
       displayName: 'Test User (Smoke Testing)',
