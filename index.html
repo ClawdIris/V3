@@ -8005,6 +8005,10 @@ var CampaignsPage = function CampaignsPage(_ref55) {
       ccLang = _useStateCL2[0], setCcLang = _useStateCL2[1];
   var _useStateCSaving = useState(false), _useStateCSaving2 = _slicedToArray(_useStateCSaving, 2),
       ccSaving = _useStateCSaving2[0], setCcSaving = _useStateCSaving2[1];
+  // editingId === null  → modal is in CREATE mode (fresh draft)
+  // editingId === uuid  → modal is in EDIT mode (rehydrated from saved draft)
+  var _useStateCEdit = useState(null), _useStateCEdit2 = _slicedToArray(_useStateCEdit, 2),
+      editingId = _useStateCEdit2[0], setEditingId = _useStateCEdit2[1];
 
   // Refs to EN/ES textareas — needed for cursor-aware token insertion.
   var msgEnRef = React.useRef(null);
@@ -8122,16 +8126,18 @@ var CampaignsPage = function CampaignsPage(_ref55) {
   }
   var audienceSize = computeAudienceSize(ccTarget);
 
-  // ── Save as Draft ────────────────────────────────────────────────────────
-  // Persists to public.campaigns via _db.saveCampaign. Prepends the new draft
-  // to the live `campaigns` list (optimistic since server is authoritative).
+  // ── Save as Draft / Save Changes ─────────────────────────────────────────
+  // Persists to public.campaigns via _db.saveCampaign (upsert on id).
+  //   editingId === null → INSERT new draft, prepend to list
+  //   editingId === uuid → UPDATE existing draft, replace in place
   // Validates name is non-empty; everything else can be blank for a draft.
   function saveDraft() {
     var name = (ccName || "").trim();
     if (!name) { notify("\u26A0 " + t("Campaign name required", "Nombre de campaña requerido")); return; }
     if (!session.tenantId) { notify("\u26A0 " + t("Not signed in — cannot save", "No has iniciado sesión")); return; }
+    var isEdit = !!editingId;
     setCcSaving(true);
-    _db.saveCampaign({
+    var payload = {
       name:         name,
       channel:      ccChannel,
       audience_key: ccTarget,
@@ -8139,10 +8145,21 @@ var CampaignsPage = function CampaignsPage(_ref55) {
       created_by:   session.userId || null,
       message_en:   ccMessageEn,
       message_es:   ccMessageEs
-    }).then(function(saved) {
+    };
+    if (isEdit) payload.id = editingId;
+    _db.saveCampaign(payload).then(function(saved) {
       setCcSaving(false);
-      setCampaigns(function(prev){ return [saved].concat(prev); });
-      notify("\u2713 " + t("Draft saved", "Borrador guardado") + ": " + saved.name);
+      if (isEdit) {
+        // Replace the edited draft in place (preserve list ordering).
+        setCampaigns(function(prev){
+          return prev.map(function(c){ return c.id === saved.id ? saved : c; });
+        });
+        notify("\u2713 " + t("Changes saved", "Cambios guardados") + ": " + saved.name);
+      } else {
+        // Prepend new draft so it shows at the top.
+        setCampaigns(function(prev){ return [saved].concat(prev); });
+        notify("\u2713 " + t("Draft saved", "Borrador guardado") + ": " + saved.name);
+      }
       closeCreate();
     }).catch(function(err) {
       setCcSaving(false);
@@ -8150,9 +8167,28 @@ var CampaignsPage = function CampaignsPage(_ref55) {
     });
   }
 
+  // Rehydrate the modal with a saved draft's values, then open in edit mode.
+  // Only allowed for status='draft' — guarded at call site too.
+  function openEdit(draft) {
+    if (!draft) return;
+    if (draft.status && draft.status !== "draft") {
+      notify("\u26A0 " + t("Only drafts can be edited", "Solo se pueden editar borradores"));
+      return;
+    }
+    setEditingId(draft.id);
+    setCcName(draft.name || "");
+    setCcChannel(draft.channel || "whatsapp");
+    setCcTarget(draft.audience_key || "all");
+    setCcMessageEn(draft.message_en || "");
+    setCcMessageEs(draft.message_es || "");
+    setCcLang("en");
+    setShowCreate(true);
+  }
+
   function resetCreateForm() {
     setCcName(""); setCcChannel("whatsapp"); setCcTarget("all");
     setCcMessageEn(""); setCcMessageEs(""); setCcLang("en");
+    setEditingId(null);
   }
   function closeCreate() { setShowCreate(false); resetCreateForm(); }
 
@@ -8328,8 +8364,14 @@ var CampaignsPage = function CampaignsPage(_ref55) {
     }, "\u25B6 Launch"), c.status === "scheduled" && /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost btn-sm"
     }, "\u25B6 Now"), /*#__PURE__*/React.createElement("button", {
-      className: "btn btn-ghost btn-sm"
-    }, "Edit"))), c.open > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "btn btn-ghost btn-sm",
+      onClick: function onClick() { openEdit(camp); },
+      disabled: c.status !== "draft",
+      title: c.status === "draft"
+        ? t("Edit this draft", "Editar este borrador")
+        : t("Only drafts can be edited", "Solo se pueden editar borradores"),
+      style: c.status !== "draft" ? { opacity: 0.5, cursor: "not-allowed" } : null
+    }, "\u270F Edit"))), c.open > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
         marginTop: 10
       }
@@ -8548,7 +8590,11 @@ var CampaignsPage = function CampaignsPage(_ref55) {
     style: { maxWidth: 560 }
   },
     /*#__PURE__*/React.createElement("div", { className: "row g10 mb14" },
-      /*#__PURE__*/React.createElement("div", { className: "modal-title", style: { margin: 0 } }, "📣 ", t("Create Campaign", "Crear Campaña")),
+      /*#__PURE__*/React.createElement("div", { className: "modal-title", style: { margin: 0 } },
+        editingId
+          ? ("\u270F " + t("Edit Draft", "Editar Borrador"))
+          : ("\uD83D\uDCE3 " + t("Create Campaign", "Crear Campaña"))
+      ),
       /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm mla", onClick: closeCreate }, "✕ ", t("Close", "Cerrar"))
     ),
 
@@ -8726,9 +8772,13 @@ var CampaignsPage = function CampaignsPage(_ref55) {
         disabled: ccSaving || !(ccName || "").trim(),
         title: !(ccName || "").trim()
           ? t("Enter a campaign name to save", "Ingresa un nombre para guardar")
-          : t("Save this campaign as a draft. Drafts persist and can be edited later.", "Guarda esta campaña como borrador. Los borradores persisten y se pueden editar."),
+          : (editingId
+              ? t("Save changes to this draft.", "Guardar cambios a este borrador.")
+              : t("Save this campaign as a draft. Drafts persist and can be edited later.", "Guarda esta campaña como borrador. Los borradores persisten y se pueden editar.")),
         style: { fontWeight: 600 }
-      }, ccSaving ? ("\u23F3 " + t("Saving...", "Guardando...")) : ("\uD83D\uDCBE " + t("Save as Draft", "Guardar Borrador"))),
+      }, ccSaving
+          ? ("\u23F3 " + t("Saving...", "Guardando..."))
+          : ("\uD83D\uDCBE " + (editingId ? t("Save Changes", "Guardar Cambios") : t("Save as Draft", "Guardar Borrador")))),
       /*#__PURE__*/React.createElement("button", {
         className: "btn btn-primary btn-sm",
         disabled: true,
@@ -22109,6 +22159,7 @@ var _db = {
 };
 var LoginScreen = function LoginScreen(_ref126) {
   var onLogin = _ref126.onLogin;
+  var onTestLogin = _ref126.onTestLogin;
   var _useState103 = useState("login"),
     _useState104 = _slicedToArray(_useState103, 2),
     mode = _useState104[0],
@@ -22543,7 +22594,40 @@ var LoginScreen = function LoginScreen(_ref126) {
       setError("");
       setMsg("");
     }
-  }, "\u2190 Back to sign in")))), /*#__PURE__*/React.createElement("div", {
+  }, "\u2190 Back to sign in")))),
+  /* Debug: test-login button (shown only when ?debug=1) */
+  onTestLogin && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "center",
+      marginTop: 14,
+      paddingTop: 14,
+      borderTop: "1px dashed #333"
+    }
+  },
+    /*#__PURE__*/React.createElement("button", {
+      type: "button",
+      onClick: onTestLogin,
+      style: {
+        background: "linear-gradient(90deg, #d97706, #f59e0b)",
+        color: "#000",
+        border: "none",
+        padding: "8px 16px",
+        borderRadius: 6,
+        fontWeight: 600,
+        fontSize: 12,
+        cursor: "pointer",
+        fontFamily: "'Syne',sans-serif"
+      }
+    }, "\uD83D\uDD2C Test Login (Smoke Testing)"),
+    /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontSize: 10,
+        color: "#666",
+        marginTop: 6,
+        fontFamily: "'IBM Plex Mono', monospace"
+      }
+    }, "Tenant: test-tenant \xB7 ~3 test orders")
+  ), /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center",
       marginTop: 20,
@@ -22597,6 +22681,23 @@ function App() {
   }, []);
 
   var handleLogin = function handleLogin(s) { setSession(s); };
+  
+  // Debug mode: ?debug=1 enables test-login button for smoke testing
+  var isDebugMode = (function(){
+    try { return new URLSearchParams(window.location.search).get('debug') === '1'; }
+    catch(e){ return false; }
+  })();
+  var handleTestLogin = function handleTestLogin() {
+    _db.init('test-tenant');
+    setSession({
+      userId:      'test-user-' + Math.random().toString(36).slice(2,9),
+      email:       'test@example.com',
+      roleKey:     'hq',
+      displayName: 'Test User (Smoke Testing)',
+      dbRole:      'admin',
+      tenantId:    'test-tenant'
+    });
+  };
   var handleSignOut = function handleSignOut() {
     _supabase.auth.signOut();
     setSession(false);
@@ -22609,7 +22710,8 @@ function App() {
   }, "Loading…");
 
   if (!session) return /*#__PURE__*/React.createElement(LoginScreen, {
-    onLogin: handleLogin
+    onLogin: handleLogin,
+    onTestLogin: isDebugMode ? handleTestLogin : null
   });
   return /*#__PURE__*/React.createElement(AppShell, {
     session: session,
