@@ -17661,9 +17661,11 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
   // v9: status list scoped by role. Drivers see only the 8 statuses they can set.
   // The variable name is legacy ("warehouse_statuses") but for drivers it's the
   // driver-allowed set; the dropdown renders whatever this resolves to.
+  // v9.3: added picked_up to the non-driver list so office/HQ can manually
+  // correct missed driver scans.
   var warehouse_statuses = roleKey === "driver"
     ? DRIVER_STATUS_KEYS
-    : ["in_warehouse", "loaded_container", "en_route", "in_customs", "customs_released", "sorting", "out_for_delivery", "delivered"];
+    : ["picked_up", "in_warehouse", "loaded_container", "en_route", "in_customs", "customs_released", "sorting", "out_for_delivery", "delivered"];
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
   }, /*#__PURE__*/React.createElement("div", {
@@ -23639,7 +23641,7 @@ setOrders(function (prev) {
           })
         } : {}), {}, {
           // ── AUDIT TRAIL entry ─────────────────────────────────
-          history: [].concat(_toConsumableArray(o.history), [{
+          history: [].concat(_toConsumableArray(o.history || []), [{
             status: newStatus,
             ts: now(),
             note: reason || "",
