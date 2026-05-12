@@ -4279,11 +4279,21 @@ var OrderDetail = function OrderDetail(_ref22) {
       return e.target === e.currentTarget && onClose();
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "modal modal-lg fu"
+    className: "modal modal-lg fu",
+    style: {
+      maxWidth: 880,
+      width: "100%",
+      maxHeight: "calc(100vh - 40px)",
+      display: "flex",
+      flexDirection: "column",
+      padding: 16,
+      overflow: "hidden"
+    }
   }, /*#__PURE__*/React.createElement("div", {
     className: "row g10",
     style: {
-      marginBottom: 16
+      marginBottom: 10,
+      flexShrink: 0
     }
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     style: {
@@ -4316,8 +4326,16 @@ var OrderDetail = function OrderDetail(_ref22) {
   /*#__PURE__*/React.createElement(PayBadge, {
     s: order.payment.status
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "g2 mb12"
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      flex: "1 1 auto",
+      minHeight: 0,
+      overflowY: "auto",
+      paddingRight: 4,
+      marginRight: -4
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "g21 mb12"
+  }, /*#__PURE__*/React.createElement("div", { style: { minWidth: 0 } }, /*#__PURE__*/React.createElement("div", {
     className: "modal-section",
     style: {
       marginTop: 0
@@ -4349,8 +4367,8 @@ var OrderDetail = function OrderDetail(_ref22) {
     className: "modal-section"
   }, "Boxes"), (order.boxes && order.boxes.length > 0)
     ? /*#__PURE__*/React.createElement("div", { style: { marginBottom: 12 } },
-        /*#__PURE__*/React.createElement("div", { className: "tbl" },
-          /*#__PURE__*/React.createElement("table", null,
+        /*#__PURE__*/React.createElement("div", { className: "tbl", style: { overflowX: "auto" } },
+          /*#__PURE__*/React.createElement("table", { style: { fontSize: 11.5 } },
             /*#__PURE__*/React.createElement("thead", null,
               /*#__PURE__*/React.createElement("tr", null,
                 /*#__PURE__*/React.createElement("th", null, "Sub-ID"),
@@ -4375,7 +4393,7 @@ var OrderDetail = function OrderDetail(_ref22) {
                     var bEdit = boxEdits[box.subId] || {};
                     var curBT = bEdit.boxType !== undefined ? bEdit.boxType : (box.boxType || order.boxType || "");
                     return /*#__PURE__*/React.createElement("select", {
-                      className: "fi", style: { fontSize: 11, padding: "2px 4px", minWidth: 110 },
+                      className: "fi", style: { fontSize: 11, padding: "2px 4px", minWidth: 88 },
                       value: curBT,
                       onClick: function(e){ e.stopPropagation(); },
                       onChange: function(e) {
@@ -4404,7 +4422,7 @@ var OrderDetail = function OrderDetail(_ref22) {
                       var bEdit = boxEdits[box.subId] || {};
                       var curOS = bEdit.orderStatus !== undefined ? bEdit.orderStatus : (box.orderStatus || box.status || "");
                       return /*#__PURE__*/React.createElement("select", {
-                        className: "fi", style: { fontSize: 11, padding: "2px 4px", minWidth: 130 },
+                        className: "fi", style: { fontSize: 11, padding: "2px 4px", minWidth: 100 },
                         value: curOS,
                         onChange: function(e) {
                           var v = e.target.value;
@@ -4424,7 +4442,7 @@ var OrderDetail = function OrderDetail(_ref22) {
                       var bEdit = boxEdits[box.subId] || {};
                       var curShipId = bEdit.shipmentId !== undefined ? bEdit.shipmentId : (box.shipmentId || "");
                       return /*#__PURE__*/React.createElement("select", {
-                        className: "fi", style: { fontSize: 11, padding: "2px 4px", minWidth: 130 },
+                        className: "fi", style: { fontSize: 11, padding: "2px 4px", minWidth: 100 },
                         value: curShipId,
                         onChange: function(e) {
                           var v = e.target.value;
@@ -4526,18 +4544,21 @@ var OrderDetail = function OrderDetail(_ref22) {
       future = curIdx < i && order.status !== "attempted";
     return /*#__PURE__*/React.createElement("div", {
       key: s,
-      className: "tl-step"
+      className: "tl-step",
+      style: { paddingBottom: 6 }
     }, /*#__PURE__*/React.createElement("div", {
       className: "tl-dot ".concat(done ? "done" : cur ? "cur" : "")
     }), /*#__PURE__*/React.createElement("div", {
       className: "tl-lbl",
       style: {
-        color: done || cur ? "var(--text)" : "var(--text4)"
+        color: done || cur ? "var(--text)" : "var(--text4)",
+        fontSize: 11.5
       }
     }, STATUS_CFG[s].label), cur && /*#__PURE__*/React.createElement("div", {
       className: "tl-desc",
       style: {
-        color: "var(--amber)"
+        color: "var(--amber)",
+        fontSize: 10
       }
     }, "\u2190 Current status"));
   })), order.notes && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
@@ -4569,8 +4590,9 @@ var OrderDetail = function OrderDetail(_ref22) {
         return onStatusChange(order.id, k);
       }
     }, v.label);
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "row g10"
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "row g10",
+    style: { flexShrink: 0, marginTop: 10, flexWrap: "wrap" }
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost",
     onClick: onClose
