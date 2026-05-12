@@ -2066,15 +2066,15 @@ var BulkScanModal = function BulkScanModal(props) {
   }, [resolved]);
 
   function resolveBox(raw) {
-    var q = raw.trim();
+    var q = (raw || "").trim().toUpperCase();
     if (!q) return;
-    // Search all orders for a matching child box subId
+    // Search all orders for a matching child box subId (case-insensitive)
     for (var oi = 0; oi < orders.length; oi++) {
       var ord = orders[oi];
       if (!ord.boxes || !ord.boxes.length) continue;
       for (var bi = 0; bi < ord.boxes.length; bi++) {
         var box = ord.boxes[bi];
-        if (box.subId === q) {
+        if ((box.subId || "").toUpperCase() === q) {
           var bzKey = box.zone || (GT_DEPARTMENTS.find(function(d){ return d.dept === box.gtDept; }) || {}).zone || "";
           var bzCfg = ZONE_CONFIG[bzKey] || null;
           setResolved({ order: ord, box: box, bzCfg: bzCfg });
@@ -2085,8 +2085,10 @@ var BulkScanModal = function BulkScanModal(props) {
         }
       }
     }
-    // Also try matching parent order id for legacy orders
-    var legacyOrder = orders.find(function(o){ return o.id === q && (!o.boxes || !o.boxes.length); });
+    // Also try matching parent order id for legacy orders (no boxes array)
+    var legacyOrder = orders.find(function(o){
+      return (o.id || "").toUpperCase() === q && (!o.boxes || !o.boxes.length);
+    });
     if (legacyOrder) {
       setResolved({ order: legacyOrder, box: null, bzCfg: null });
       setNewOrderStatus(legacyOrder.status || "");
@@ -2094,9 +2096,19 @@ var BulkScanModal = function BulkScanModal(props) {
       setScanInput("");
       return;
     }
-    setFeedback({ type: "error", msg: "No box found for tracking ID: " + q });
+    // Better not-found message: distinguish "parent id but has boxes" case
+    // from "completely unknown id" — guides user to scan the box ID instead.
+    var parentWithBoxes = orders.find(function(o){
+      return (o.id || "").toUpperCase() === q && o.boxes && o.boxes.length > 0;
+    });
+    if (parentWithBoxes) {
+      var firstBoxId = (parentWithBoxes.boxes[0] && parentWithBoxes.boxes[0].subId) || (q + "-1");
+      setFeedback({ type: "error", msg: "That's a parent order ID. Scan the box ID instead (e.g. " + firstBoxId + ")" });
+    } else {
+      setFeedback({ type: "error", msg: "No box found for tracking ID: " + raw });
+    }
     setScanInput("");
-    setTimeout(function(){ setFeedback(null); }, 3000);
+    setTimeout(function(){ setFeedback(null); }, 3500);
   }
 
   function applyUpdate() {
@@ -17296,6 +17308,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
 var BulkStatusPage = function BulkStatusPage(_ref112) {
   var orders = _ref112.orders,
     onStatusChange = _ref112.onStatusChange,
+    onBoxStatusChange = _ref112.onBoxStatusChange,
     _ref112$tenant = _ref112.tenant,
     tenant = _ref112$tenant === void 0 ? null : _ref112$tenant;
   var t = useT();
@@ -17303,6 +17316,14 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
     _useState76 = _slicedToArray(_useState75, 2),
     selected = _useState76[0],
     setSelected = _useState76[1];
+  // P4: when user scans a box subId, record orderId -> subId so we can
+  // dispatch a box-scoped update instead of touching the whole order on apply.
+  // When user toggles a checkbox manually, we treat it as order-level intent
+  // and clear that order's entry from this map.
+  var _useScSt = useState({}),
+    _useScSt2 = _slicedToArray(_useScSt, 2),
+    scannedBoxes = _useScSt2[0],
+    setScannedBoxes = _useScSt2[1];
   var _useState77 = useState("in_warehouse"),
     _useState78 = _slicedToArray(_useState77, 2),
     targetStatus = _useState78[0],
@@ -17327,9 +17348,21 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
     if (filter !== "all" && o.status !== filter) return false;
     if (!search) return true;
     var q = search.toLowerCase();
-    return o.id.toLowerCase().includes(q) || o.name.toLowerCase().includes(q) || o.phone.includes(q);
+    // Defensive: any of id/name/phone may be undefined for seed/test data
+    var id    = (o.id    || "").toLowerCase();
+    var name  = (o.name  || o.consigneeName || "").toLowerCase();
+    var phone = String(o.phone || o.consigneePhone || "");
+    return id.includes(q) || name.includes(q) || phone.includes(q);
   });
   var toggle = function toggle(id) {
+    // P4: manual toggle = order-level intent. Clear any recorded box scope
+    // for this order so applyBulk treats it as a whole-order update.
+    setScannedBoxes(function(prev){
+      if (!prev[id]) return prev;
+      var next = Object.assign({}, prev);
+      delete next[id];
+      return next;
+    });
     return setSelected(function (prev) {
       var next = new Set(prev);
       next.has(id) ? next["delete"](id) : next.add(id);
@@ -17337,6 +17370,8 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
     });
   };
   var toggleAll = function toggleAll() {
+    // Toggle-all is order-level intent for everyone — clear all box scopes.
+    setScannedBoxes({});
     if (selected.size === filtered.length) setSelected(new Set());else setSelected(new Set(filtered.map(function (o) {
       return o.id;
     })));
@@ -17346,18 +17381,33 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
       alert("Select at least one order");
       return;
     }
+    // P4: per-order dispatch. If scannedBoxes[orderId] is set, do a box-scoped
+    // update via onBoxStatusChange (touches only that one box). Otherwise,
+    // do the legacy whole-order update via onStatusChange (touches parent
+    // status and syncs all child boxes).
     selected.forEach(function (id) {
-      return onStatusChange(id, targetStatus);
+      var subId = scannedBoxes[id];
+      if (subId && typeof onBoxStatusChange === "function") {
+        onBoxStatusChange(id, subId, targetStatus);
+      } else {
+        onStatusChange(id, targetStatus);
+      }
     });
     setRecentScans(function (prev) {
+      // Annotate each applied entry so the user can see what scope was used
+      var orderIds = _toConsumableArray(selected);
+      var details = orderIds.map(function(oid){
+        return scannedBoxes[oid] ? (oid + " (box " + scannedBoxes[oid] + ")") : oid;
+      });
       return [{
-        ids: _toConsumableArray(selected),
+        ids: details,
         status: targetStatus,
         ts: now(),
         count: selected.size
       }].concat(_toConsumableArray(prev.slice(0, 9)));
     });
     setSelected(new Set());
+    setScannedBoxes({});
   };
 
   // Scan by tracking ID — simulates barcode scanner
@@ -17374,22 +17424,46 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
         }, 2500);
         return;
       }
+      // P4: detect whether scan matched a child box subId or a parent order id.
+      // Box-scoped scans record orderId -> subId so applyBulk updates only that box.
+      var matchedSubId = null;
       var order = orders.find(function (o) {
-        return o.id === id || (o.boxes || []).some(function (b) {
-          return b.subId === id;
+        if ((o.id || "").toUpperCase() === id) return true;
+        var box = (o.boxes || []).find(function (b) {
+          return (b.subId || "").toUpperCase() === id;
         });
+        if (box) { matchedSubId = box.subId; return true; }
+        return false;
       });
       if (order) {
         setSelected(function (prev) {
           return new Set([].concat(_toConsumableArray(prev), [order.id]));
         });
+        // Record scan scope: if subId matched, remember which box.
+        // If parent-id matched (no subId), explicitly clear any prior box scope
+        // for this order so apply will be order-level.
+        if (matchedSubId) {
+          setScannedBoxes(function(prev){
+            var next = Object.assign({}, prev);
+            next[order.id] = matchedSubId;
+            return next;
+          });
+        } else {
+          setScannedBoxes(function(prev){
+            if (!prev[order.id]) return prev;
+            var next = Object.assign({}, prev);
+            delete next[order.id];
+            return next;
+          });
+        }
         setRecentScans(function (prev) {
           return [{
             ids: [id],
             status: "scanned",
             ts: now(),
             count: 1,
-            name: order.name
+            name: order.consigneeName || order.name,
+            subId: matchedSubId
           }].concat(_toConsumableArray(prev.slice(0, 9)));
         });
         setScanInput("");
@@ -17549,7 +17623,24 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
       style: {
         fontSize: 9.5
       }
-    }, o.boxType))), selected.has(o.id) && /*#__PURE__*/React.createElement("span", {
+    }, o.boxType))),
+    // P4: box-scope badge. Shows when this row was selected via a subId scan
+    // and apply will update ONLY that box, not the whole order.
+    scannedBoxes[o.id] && /*#__PURE__*/React.createElement("span", {
+      title: "Will update only this box: " + scannedBoxes[o.id],
+      style: {
+        marginLeft: 6,
+        padding: "2px 7px",
+        background: "rgba(245,158,11,.15)",
+        border: "1px solid rgba(245,158,11,.4)",
+        color: "var(--amber)",
+        borderRadius: 10,
+        fontSize: 10,
+        fontWeight: 600,
+        fontFamily: "'IBM Plex Mono', monospace"
+      }
+    }, "\uD83D\uDCE6 ", scannedBoxes[o.id]),
+    selected.has(o.id) && /*#__PURE__*/React.createElement("span", {
       style: {
         color: "var(--amber)",
         fontSize: 16
@@ -23416,6 +23507,59 @@ setOrders(function (prev) {
     });
     if (rule) notify("\u26A1 ".concat(rule.action));else if (newDriver !== undefined) notify("\u2713 Assigned to ".concat(newDriver || "unassigned"));else if (reason) notify("\u26A0 Status reversed \u2014 reason logged");else notify("\u2713 Status updated to ".concat((_STATUS_CFG$newStatus = STATUS_CFG[newStatus]) === null || _STATUS_CFG$newStatus === void 0 ? void 0 : _STATUS_CFG$newStatus.label));
   }, [notify, orders, roleKey]);
+
+  // P4: box-scoped status change. Used by BulkStatusPage when a scan matched a
+  // child box subId rather than a parent order id. Updates only that specific
+  // box; parent order status is recomputed (single status if all boxes agree,
+  // 'mixed' otherwise). Persists via _db.upsert. Mirrors changeStatus shape
+  // (logs an audit history entry on the parent order so it shows in the order
+  // timeline).
+  var changeBoxStatus = useCallback(function(orderId, subId, newStatus) {
+    // Compute the updated order BEFORE setOrders. Doing it inside the updater
+    // and capturing into an outer variable is unreliable (React may defer the
+    // updater past the synchronous flow that reads the capture). Compute up
+    // front, persist, then write to state.
+    var existing = orders.find(function(o){ return o.id === orderId; });
+    if (!existing) {
+      console.error("[bulk-status] changeBoxStatus: order not found", orderId);
+      return;
+    }
+    var updated = updateBoxStatus(
+      existing,
+      subId,
+      { orderStatus: newStatus },
+      {
+        tenantId: (session && session.tenantId) || "casabe-xpress",
+        userId:   (session && session.userId) || "",
+        userName: (session && session.displayName) || "",
+        source:   "bulk_status_page"
+      }
+    );
+    // Append audit history at order level so the timeline shows the change
+    updated.history = [].concat(_toConsumableArray(existing.history || []), [{
+      status: newStatus,
+      ts: now(),
+      note: "box " + subId,
+      by: roleKey || "system",
+      subId: subId
+    }]);
+    // Update React state
+    setOrders(function(prev) {
+      return prev.map(function(o) {
+        return o.id === orderId ? updated : o;
+      });
+    });
+    // Persist to Supabase
+    if (session && session.tenantId) {
+      _db.init(session.tenantId);
+      _db.upsert("orders", orderId, updated).catch(function(err) {
+        console.error("[bulk-status] box persist failed", err);
+        notify("\u26A0 Box status updated locally but failed to sync");
+      });
+    }
+    var _STATUS_CFG$nb;
+    notify("\u2713 Box " + subId + " \u2192 " + ((_STATUS_CFG$nb = STATUS_CFG[newStatus]) === null || _STATUS_CFG$nb === void 0 ? void 0 : _STATUS_CFG$nb.label));
+  }, [notify, orders, roleKey, session]);
   var switchRole = function switchRole(r) {
     // Only HQ users can switch roles; others are locked to their assigned role
     if (session.roleKey !== "hq" && r !== session.roleKey) return;
@@ -23553,6 +23697,7 @@ setOrders(function (prev) {
     if (page === "bulk") return /*#__PURE__*/React.createElement(BulkStatusPage, {
       orders: orders,
       onStatusChange: changeStatus,
+      onBoxStatusChange: changeBoxStatus,
       tenant: tenant
     });
     if (page === "shipments") return /*#__PURE__*/React.createElement(ShipmentsPage, {
@@ -24175,7 +24320,16 @@ setOrders(function (prev) {
     userId: session.userId || "",
     onClose: function() { setShowBulkScan(false); },
     onUpdate: function(updatedOrder) {
+      // Update React state
       setOrders(function(prev){ return prev.map(function(o){ return o.id===updatedOrder.id ? updatedOrder : o; }); });
+      // Persist to Supabase (was missing — caused refresh-loss bug)
+      if (session && session.tenantId) {
+        _db.init(session.tenantId);
+        _db.upsert("orders", updatedOrder.id, updatedOrder).catch(function(err){
+          console.error("[bulk-scan] persist failed", err);
+          notify("⚠ Bulk scan update saved locally but failed to sync");
+        });
+      }
     }
   }),
   voidTarget && /*#__PURE__*/React.createElement(VoidOrderModal, {
