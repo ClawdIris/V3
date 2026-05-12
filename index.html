@@ -24878,17 +24878,18 @@ setOrders(function (prev) {
     className: "topbar-title"
   }, lang === "es" ? ES[role.titles[page]] || role.titles[page] || page : role.titles[page] || page), /*#__PURE__*/React.createElement("div", {
     className: "row g10"
-  }, (roleKey === "office" || roleKey === "hq") && page !== "all_orders" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-primary btn-sm",
-    onClick: function onClick() {
-      return setShowNewOrder(true);
-    }
-  }, t("+ New Order", "+ Nuevo Pedido")),
+  },
   (roleKey === "office" || roleKey === "hq" || roleKey === "driver") && /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost btn-sm",
     onClick: function onClick() { setShowBulkScan(true); },
     title: "Bulk Scan"
   }, "\uD83D\uDD0D Bulk Scan"),
+  (roleKey === "office" || roleKey === "hq") && page !== "all_orders" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary btn-sm",
+    onClick: function onClick() {
+      return setShowNewOrder(true);
+    }
+  }, t("+ New Order", "+ Nuevo Pedido")),
   /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost btn-sm",
     onClick: function onClick() {
