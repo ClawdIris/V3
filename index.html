@@ -482,20 +482,26 @@ var getOrderCommission = function getOrderCommission(order, tenant, officeNameOv
     }
   }
   // 3. Live calculation — use box subtotal (excludes insurance) as commission basis
-  // Phase A: prefer relational resolver (reads order.office_id / order.partner_id
-  // from public.offices / public.partners), fall back to legacy office name.
-  // dbOffices/dbPartners hang off the tenant object (populated at app boot).
-  var dbOffices  = (tenant && tenant.__dbOffices)  || [];
-  var dbPartners = (tenant && tenant.__dbPartners) || [];
-  var resolved   = resolveOrderSource(order, dbOffices, dbPartners, tenant);
-  var offCfg = (order.commissionSnapshot && order.commissionSnapshot.commissionConfigSnapshot)
-            || (officeNameOverride ? getOfficeById(tenant, officeNameOverride) : null)
-            || resolved
-            || (function(){
-                 // Final fallback: legacy order fields.
-                 var officeName = order.officeNameSnapshot || order.officeId || order.office;
-                 return getOfficeById(tenant, officeName);
-               })();
+  // Phase A: prefer caller-provided override (legacy behavior), then frozen
+  // commissionSnapshot, then relational resolver (reads order.office_id /
+  // order.partner_id from public.offices / public.partners), then legacy
+  // name fallback. dbOffices/dbPartners hang off the tenant object
+  // (populated at app boot).
+  var offCfg;
+  if (officeNameOverride) {
+    // Caller explicitly forced a name (commission breakdown UIs etc.).
+    // Honor that first — preserves pre-Phase-A behavior for these callers.
+    offCfg = getOfficeById(tenant, officeNameOverride);
+  } else if (order.commissionSnapshot && order.commissionSnapshot.commissionConfigSnapshot) {
+    // Frozen snapshot wins next — historical accuracy for past commissions.
+    offCfg = order.commissionSnapshot.commissionConfigSnapshot;
+  } else {
+    // Relational resolver, then legacy name fallback.
+    var dbOffices  = (tenant && tenant.__dbOffices)  || [];
+    var dbPartners = (tenant && tenant.__dbPartners) || [];
+    offCfg = resolveOrderSource(order, dbOffices, dbPartners, tenant)
+          || getOfficeById(tenant, order.officeNameSnapshot || order.officeId || order.office);
+  }
   if (!offCfg) return 0;
   var basisAmt = getBoxSubtotal(order, tenant);
   var boxes = getCommissionBoxes(order);
@@ -6976,6 +6982,14 @@ var HQOverview = function HQOverview(_ref51) {
     notify = _ref51.notify;
   var t = useT();
 
+  // Phase A.1 — duplicate-address banner UI state (hook hoisted to top
+  // to satisfy React Rules of Hooks; the IIFE below uses these directly).
+  // dismissedKey holds the dismissKey of the dup set the user dismissed in
+  // this session. When the live dup set changes, its dismissKey changes too,
+  // so this stale dismissedKey no longer matches and the banner re-shows.
+  var _dupBannerSt = useState({ dismissedKey: null, expanded: false });
+  var dupBannerState = _dupBannerSt[0]; var setDupBannerState = _dupBannerSt[1];
+
   // ── Auto-optimize preference (persisted in localStorage) ─────────────────
   var _stAutoOpt = useState(function(){
     try { return localStorage.getItem("casabe_auto_optimize_dups") === "1"; } catch(e){ return false; }
@@ -7200,45 +7214,98 @@ var HQOverview = function HQOverview(_ref51) {
       className: "sc-delta delta-n"
     }, s.d));
   })), function () {
+    // Phase A.1 — Compact duplicate-address banner with expand/dismiss.
+    // Uses dupBannerState hook hoisted to HQOverview top. Dismiss persists
+    // in localStorage keyed by today's date + dup signature so a refresh
+    // keeps it hidden but a new day or a new dup re-shows it.
     var dups = findDuplicateAddresses(orders, null);
+    if (!dups.length) return null;
     var hasCrossDriver = dups.some(function(g){
       var ds = g.map(function(o){ return o.assignedDriver; }).filter(Boolean);
       return ds.length >= 2 && !ds.every(function(d){ return d === ds[0]; });
     });
-    return dups.length > 0 && /*#__PURE__*/React.createElement("div", {
+    var dupSig = dups.map(function(g){ return g.map(function(o){return o.id;}).sort().join("+"); }).sort().join(",");
+    var today = new Date().toISOString().slice(0,10);
+    var dismissKey = "casabe.dupBanner.dismiss." + today + "." + dupSig;
+    // Persistent dismiss: was this exact dup set dismissed today (any session)?
+    var persistedDismiss = false;
+    try { persistedDismiss = localStorage.getItem(dismissKey) === "1"; } catch(e) {}
+    // In-session dismiss: only suppress if the dismissedKey in state matches
+    // the CURRENT dismissKey. When the dup set changes mid-session, the key
+    // changes, so a stale in-session dismiss no longer applies.
+    var sessionDismissed = dupBannerState.dismissedKey === dismissKey;
+    if (persistedDismiss || sessionDismissed) return null;
+    var statusLine = hasCrossDriver
+      ? "Cross-driver duplicates need review"
+      : "Same-driver duplicates auto-group on route";
+    return /*#__PURE__*/React.createElement("div", {
       className: "alert alert-a mb12",
-      style: {
-        fontSize: 12
-      }
-    }, "\u26A0 ", /*#__PURE__*/React.createElement("strong", null, dups.length, " duplicate address", dups.length > 1 ? "es" : "", " detected"), " \u2014 ",
-      dups.map(function (g) {
-        var drivers = g.map(function(o){ return o.assignedDriver; }).filter(Boolean);
-        var sameDriver = drivers.length === g.length && drivers.every(function(d){ return d === drivers[0]; });
-        return g.map(function(o){ return o.id; }).join("+") + (sameDriver && drivers[0] ? " (" + drivers[0] + ")" : " (cross-driver)");
-      }).join(", "),
-      ". Same-driver dupes auto-group on route. Cross-driver dupes need reassignment.",
-      hasCrossDriver && /*#__PURE__*/React.createElement("div", {
-        style: { marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }
+      style: { fontSize: 12 }
+    },
+      /*#__PURE__*/React.createElement("div", {
+        style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }
       },
-        /*#__PURE__*/React.createElement("button", {
-          className: "btn btn-sm",
-          style: { background: "var(--amber)", color: "#000", fontWeight: 600, padding: "4px 12px", fontSize: 11 },
-          disabled: optimizing,
-          onClick: function(){ runOptimize(false); }
-        }, optimizing ? "\u2026 Optimizing" : "\uD83D\uDEE3 Optimize Now"),
-        /*#__PURE__*/React.createElement("label", {
-          style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, color: "var(--text2)" },
-          title: "When on, cross-driver duplicates auto-consolidate on Overview load and when new orders are saved"
-        },
-          /*#__PURE__*/React.createElement("input", {
-            type: "checkbox",
-            checked: autoOptimize,
-            onChange: toggleAutoOptimize,
-            style: { cursor: "pointer" }
-          }),
-          "Always auto-optimize"
+        /*#__PURE__*/React.createElement("div", null,
+          "\u26A0 ",
+          /*#__PURE__*/React.createElement("strong", null,
+            dups.length, " duplicate address", dups.length > 1 ? "es" : "", " detected"
+          ),
+          " \u2014 ",
+          /*#__PURE__*/React.createElement("span", { style: { color: "var(--text2)" } }, statusLine)
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 6 } },
+          /*#__PURE__*/React.createElement("button", {
+            className: "btn btn-ghost btn-sm",
+            style: { fontSize: 11, padding: "3px 10px" },
+            onClick: function() {
+              setDupBannerState(function(s){ return { dismissedKey: s.dismissedKey, expanded: !s.expanded }; });
+            }
+          }, dupBannerState.expanded ? "Hide details" : "View details"),
+          /*#__PURE__*/React.createElement("button", {
+            className: "btn btn-ghost btn-sm",
+            style: { fontSize: 11, padding: "3px 10px" },
+            title: "Hide this alert for the current set",
+            onClick: function() {
+              try { localStorage.setItem(dismissKey, "1"); } catch(e) {}
+              setDupBannerState({ dismissedKey: dismissKey, expanded: false });
+            }
+          }, "Dismiss")
         )
-      ));
+      ),
+      dupBannerState.expanded && /*#__PURE__*/React.createElement("div", {
+        style: { marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border)", color: "var(--text2)", fontSize: 11.5 }
+      },
+        /*#__PURE__*/React.createElement("div", null,
+          dups.map(function (g) {
+            var drivers = g.map(function(o){ return o.assignedDriver; }).filter(Boolean);
+            var sameDriver = drivers.length === g.length && drivers.every(function(d){ return d === drivers[0]; });
+            return g.map(function(o){ return o.id; }).join("+") + (sameDriver && drivers[0] ? " (" + drivers[0] + ")" : " (cross-driver)");
+          }).join(", ")
+        ),
+        hasCrossDriver && /*#__PURE__*/React.createElement("div", {
+          style: { marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }
+        },
+          /*#__PURE__*/React.createElement("button", {
+            className: "btn btn-sm",
+            style: { background: "var(--amber)", color: "#000", fontWeight: 600, padding: "4px 12px", fontSize: 11 },
+            disabled: optimizing,
+            onClick: function(){ runOptimize(false); }
+          }, optimizing ? "\u2026 Optimizing" : "\uD83D\uDEE3 Optimize Now"),
+          /*#__PURE__*/React.createElement("label", {
+            style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 11, color: "var(--text2)" },
+            title: "When on, cross-driver duplicates auto-consolidate on Overview load and when new orders are saved"
+          },
+            /*#__PURE__*/React.createElement("input", {
+              type: "checkbox",
+              checked: autoOptimize,
+              onChange: toggleAutoOptimize,
+              style: { cursor: "pointer" }
+            }),
+            "Always auto-optimize"
+          )
+        )
+      )
+    );
   }(), /*#__PURE__*/React.createElement("div", {
     className: "alert alert-a mb18"
   }, t("☀️ Today:", "☀️ Hoy:"), " ", pickups, " ", t("pickup(s) pending", "recogida(s) pendiente(s)"), ", ", dropoffs, " ", t("box drop-off(s) needed", "entrega(s) de caja pendiente(s)"), ", ", unpaid, " ", t("unpaid order(s)", "orden(es) sin pagar"), ". ", t("Batch-ready:", "Listos para lote:"), " ", /*#__PURE__*/React.createElement("strong", null, batchReady, " ", t("boxes", "cajas")), "."), /*#__PURE__*/React.createElement("div", {
@@ -8515,7 +8582,9 @@ var CustomerPortal = function CustomerPortal(_ref59) {
   }, "My Account"))), /*#__PURE__*/React.createElement("div", {
     className: "mla row g10"
   }, /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-ghost btn-sm nd"
+    className: "btn btn-ghost btn-sm nd",
+    onClick: function onClick() { setPage("notifications"); },
+    title: "Notifications"
   }, "\uD83D\uDD14"), /*#__PURE__*/React.createElement("div", {
     className: "av",
     style: {
@@ -21269,34 +21338,36 @@ var _db = {
 
   // Load all rows for this tenant. RLS filters automatically.
   loadAll: function(table) {
-    if (table === "orders") {
-      return _supabase
-        .from(table)
-        .select("tenant_id, office_id, partner_id, data")
-        .order("updated_at", { ascending: false })
-        .then(function(res) {
-          if (res.error) {
-            console.error("[db] loadAll error", table, res.error.message);
-            throw new Error("db:load:" + table);
-          }
-          return (res.data || []).map(function(r) {
-            return Object.assign({}, r.data, {
-              office_id: r.office_id || null,
-              partner_id: r.partner_id || null
-            });
-          });
-        });
-    }
+    // Phase A: for `orders`, also pull the top-level relational FK columns
+    // (office_id, partner_id) added by Migration 07a. The legacy generic
+    // shape only selected `data` (jsonb), which would silently drop these
+    // columns and leave the new resolver with nothing to match against.
+    // Other tables keep the old data-only shape — they don't have
+    // additional top-level columns the frontend needs yet.
+    var selectCols = (table === "orders")
+      ? "data, office_id, partner_id"
+      : "data";
     return _supabase
       .from(table)
-      .select("data")
+      .select(selectCols)
       .order("updated_at", { ascending: false })
       .then(function(res) {
         if (res.error) {
           console.error("[db] loadAll error", table, res.error.message);
           throw new Error("db:load:" + table);
         }
-        return (res.data || []).map(function(r) { return r.data; });
+        return (res.data || []).map(function(r) {
+          // Merge top-level FK columns into the returned object so callers
+          // see a single shape: { ...data, office_id, partner_id }.
+          // For non-orders tables this is a no-op (only `data` present).
+          if (table === "orders") {
+            return Object.assign({}, r.data, {
+              office_id:  r.office_id  || null,
+              partner_id: r.partner_id || null
+            });
+          }
+          return r.data;
+        });
       });
   },
 
@@ -23580,7 +23651,39 @@ setOrders(function (prev) {
       color: "var(--text3)",
       marginTop: 1
     }
-  }, role.user.name))), role.nav.map(function (grp) {
+  }, role.user.name)),
+  /* Phase A.1 — Desktop role switcher (HQ-only).
+     Mirrors the mobile More-sheet behavior. Uses existing switchRole(r). */
+  session.roleKey === "hq" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 4,
+      marginTop: 8,
+      paddingTop: 8,
+      borderTop: "1px dashed var(--border)"
+    }
+  }, ["hq", "office", "driver"].map(function (rk) {
+    var isActive = roleKey === rk;
+    var label = rk === "hq" ? "HQ" : rk === "office" ? "Office" : "Driver";
+    return /*#__PURE__*/React.createElement("button", {
+      key: rk,
+      onClick: function onClick() { switchRole(rk); },
+      title: "Switch to " + label + " view",
+      style: {
+        flex: 1,
+        padding: "5px 8px",
+        fontSize: 10.5,
+        fontWeight: 700,
+        background: isActive ? "var(--amber)" : "var(--bg3)",
+        color: isActive ? "#000" : "var(--text2)",
+        border: "1px solid " + (isActive ? "var(--amber)" : "var(--border)"),
+        borderRadius: 6,
+        cursor: "pointer",
+        fontFamily: "'Syne',sans-serif",
+        letterSpacing: ".02em"
+      }
+    }, label);
+  }))), role.nav.map(function (grp) {
     return /*#__PURE__*/React.createElement("div", {
       key: grp.grp,
       className: "nav-grp"
@@ -23665,7 +23768,9 @@ setOrders(function (prev) {
   }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDD0D"), /*#__PURE__*/React.createElement("input", {
     placeholder: t("Search...", "Buscar...")
   })), /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-ghost btn-sm nd"
+    className: "btn btn-ghost btn-sm nd",
+    onClick: function onClick() { setPage("notifications"); },
+    title: "Notifications"
   }, "\uD83D\uDD14"), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
