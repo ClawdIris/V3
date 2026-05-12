@@ -2618,6 +2618,22 @@ var OrderForm = function OrderForm(_ref4) {
     _ref4$destinations = _ref4.destinations,
     destinations = _ref4$destinations === void 0 ? DESTINATIONS : _ref4$destinations;
   var t = useT();
+  // Phase B: resolve smart defaults for office_id / partner_id at mount.
+  // - For NEW orders (no initial.id): default office_id to the tenant's
+  //   sole office (Casabe Xpress NY). Operator can switch to partner.
+  // - For EXISTING orders: preserve initial.office_id / initial.partner_id
+  //   which were merged in by _db.loadAll's FK column read (Phase A v2).
+  // - The DB tables are reached via tenant.__dbOffices / __dbPartners
+  //   (stashed onto the tenant object at app boot — Phase A v2 wiring).
+  var _phaseB_isNew = !initial || !initial.id;
+  var _phaseB_defaultOfficeId = (function(){
+    if (!_phaseB_isNew) return initial.office_id || null;
+    var offs = (tenant && tenant.__dbOffices) || [];
+    // Prefer the canonical slug; fall back to first office if only one exists.
+    var ny = offs.find(function(o){ return o.slug === "casabe-xpress-ny"; }) || offs[0];
+    return ny ? ny.id : null;
+  })();
+  var _phaseB_defaultPartnerId = _phaseB_isNew ? null : (initial.partner_id || null);
   var _useState = useState(_objectSpread(_objectSpread(_objectSpread({}, EMPTY_ORDER), initial), {}, {
       payment: _objectSpread(_objectSpread({}, EMPTY_ORDER.payment), initial.payment),
       boxes: initial.boxes || [],
@@ -2625,7 +2641,10 @@ var OrderForm = function OrderForm(_ref4) {
       insurance: initial.insurance || false,
       declaredValue: initial.declaredValue || "",
       boxDeposit: initial.boxDeposit || false,
-      depositCredited: initial.depositCredited || false
+      depositCredited: initial.depositCredited || false,
+      // Phase B: relational FK columns (truth)
+      office_id:  _phaseB_defaultOfficeId,
+      partner_id: _phaseB_defaultPartnerId
     })),
     _useState2 = _slicedToArray(_useState, 2),
     f = _useState2[0],
@@ -2758,7 +2777,24 @@ var OrderForm = function OrderForm(_ref4) {
     // BASIS: box subtotal only (excludes insurance). Insurance is not commissionable.
     var amt = parseFloat(f.payment.amount) || 0;
     var paidAmt = parseFloat(f.payment.paid) || 0;
-    var _offCfg = getOfficeById(tenant, f.officeId || f.office);
+    // Phase B: resolve commission source using the Phase A resolver.
+    // Prefers f.office_id (DB UUID) → f.partner_id (DB UUID) → legacy
+    // fallback by name (covers historical orders / Miami HQ / edge cases).
+    var _phaseB_dbOffices  = (tenant && tenant.__dbOffices)  || [];
+    var _phaseB_dbPartners = (tenant && tenant.__dbPartners) || [];
+    var _phaseB_resolved   = (typeof resolveOrderSource === "function")
+      ? resolveOrderSource(
+          { office_id: f.office_id || null,
+            partner_id: f.partner_id || null,
+            officeNameSnapshot: f.officeNameSnapshot,
+            officeId: f.officeId,
+            office: f.office },
+          _phaseB_dbOffices, _phaseB_dbPartners, tenant)
+      : null;
+    // _offCfg is the legacy-shape config that calculateOfficeCommission expects.
+    // resolveOrderSource already normalizes to { id, name, commissionModel, ... },
+    // so it's drop-in compatible. Legacy fallback chain preserved.
+    var _offCfg = _phaseB_resolved || getOfficeById(tenant, f.officeId || f.office);
     // Build a draft order object so getBoxSubtotal can read boxes and insurance fields
     var _draftForSubtotal = Object.assign({}, f, { boxes: boxes, payment: { amount: amt } });
     var _boxSubtotal = getBoxSubtotal(_draftForSubtotal, tenant);
@@ -2794,7 +2830,22 @@ var OrderForm = function OrderForm(_ref4) {
       declaredValue: parseFloat(f.declaredValue) || 0,
       boxDeposit: f.boxDeposit,
       depositCredited: f.depositCredited || false,
-      officeId: _offCfg ? _offCfg.id : (f.officeId || null),
+      // Phase B: RELATIONAL TRUTH — top-level FK columns
+      office_id:  f.office_id  || null,
+      partner_id: f.partner_id || null,
+      // Phase B: LEGACY JSONB MIRROR — kept for current UI compat.
+      // Phase C will deprecate these writes.
+      // CRITICAL: data.officeId must NOT receive a partner UUID. When the
+      // order is partner-routed (partner_id set), legacy officeId stays
+      // empty string. _offCfg may be a partner config when resolveOrderSource
+      // returns one — its .id would be the partner UUID, which legacy
+      // display code interprets as an office identifier and gets wrong.
+      officeId: f.partner_id ? "" : (_offCfg ? _offCfg.id : (f.officeId || null)),
+      // data.office: legacy display name. For office orders, mirror office
+      // name. For partner orders, mirror partner name (temporary compat).
+      // Don't trust f.office — it may carry stale defaults like
+      // "Casabe NY (HQ)" from EMPTY_ORDER for a freshly opened form.
+      office: _offCfg ? _offCfg.name : (f.office || ""),
       officeNameSnapshot: _offCfg ? _offCfg.name : (f.office || ""),
       commissionSnapshot: _commSnapshot,
       payment: _objectSpread(_objectSpread({}, f.payment), {}, {
@@ -2932,22 +2983,89 @@ var OrderForm = function OrderForm(_ref4) {
     )
   ),
   /*#__PURE__*/React.createElement("div", {
+    className: "fr2"
+  },
+  /* ──────────────────────────────────────────────────────────────────────
+     Phase B — Office dropdown (owned operating locations)
+     Sourced from public.offices via tenant.__dbOffices.
+     Value = UUID. Mutual-exclusive with Partner: picking an office
+     clears partner_id. Legacy data.office stays mirrored for back-compat.
+     ────────────────────────────────────────────────────────────────────── */
+  /*#__PURE__*/React.createElement("div", {
     className: "fg"
   }, /*#__PURE__*/React.createElement("label", {
     className: "fl"
   }, "Office"), /*#__PURE__*/React.createElement("select", {
     className: "fi",
-    value: f.office,
+    value: f.office_id || "",
     onChange: function onChange(e) {
-      var _oName = e.target.value;
-      var _oCfg = getOfficeById(tenant, _oName);
-      set("office", _oName);
-      set("officeId", _oCfg ? _oCfg.id : "");
+      var uuid = e.target.value;
+      var offs = (tenant && tenant.__dbOffices) || [];
+      var off = uuid ? offs.find(function(o){ return o.id === uuid; }) : null;
+      // Set the relational truth
+      set("office_id",  uuid || null);
+      set("partner_id", null);                    // mutual exclusion
+      // Mirror legacy fields for backward compat (read by display sites
+      // and the legacy resolver fallback). Phase C will retire these.
+      set("office",     off ? off.name : "");
+      set("officeId",   uuid || "");              // legacy text/id field
     }
   }, /*#__PURE__*/React.createElement("option", { value: "" }, "— None —"),
-  (tenant ? getOfficeOptions(tenant) : (officesList || OFFICES_LIST)).map(function(o) {
-    return /*#__PURE__*/React.createElement("option", { key: o, value: o }, o);
-  })))), /*#__PURE__*/React.createElement("div", {
+  ((tenant && tenant.__dbOffices) || []).map(function(o) {
+    return /*#__PURE__*/React.createElement("option", { key: o.id, value: o.id }, o.name);
+  }))),
+  /* ──────────────────────────────────────────────────────────────────────
+     Phase B — Partner / Intake Source dropdown
+     Sourced from public.partners filtered to is_active=true. Inactive
+     partners (e.g. rb-travel-legacy) stay in DB for historical display
+     but do not appear in the new-order dropdown.
+     ────────────────────────────────────────────────────────────────────── */
+  /*#__PURE__*/React.createElement("div", {
+    className: "fg"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "fl"
+  }, "Partner / Intake Source"), /*#__PURE__*/React.createElement("select", {
+    className: "fi",
+    value: f.partner_id || "",
+    onChange: function onChange(e) {
+      var uuid = e.target.value;
+      var pars = (tenant && tenant.__dbPartners) || [];
+      var par = uuid ? pars.find(function(p){ return p.id === uuid; }) : null;
+      // Relational truth
+      set("partner_id", uuid || null);
+      set("office_id",  null);                    // mutual exclusion
+      // Legacy mirror — keep data.office / officeNameSnapshot populated
+      // so existing display sites (16 plain-text reads, invoice/label
+      // templates, order list cells) keep rendering a name. Truth-wise,
+      // this order is partner-routed (partner_id set, office_id null).
+      set("office",     par ? par.name : "");
+      set("officeId",   "");                      // legacy office id stays empty for partner orders
+    }
+  }, /*#__PURE__*/React.createElement("option", { value: "" }, "— None —"),
+  (function(){
+    // Phase B: dropdown lists active partners.
+    // EXCEPTION: when editing an order whose current partner_id is inactive
+    // (e.g. rb-travel-legacy on a historical order), include that partner
+    // as a disabled "(historical)" option so the operator can see what's
+    // set without being able to pick another inactive one for a new order.
+    var allPartners = (tenant && tenant.__dbPartners) || [];
+    var active = allPartners.filter(function(p){ return p.is_active !== false; });
+    var currentSelectedId = f.partner_id;
+    if (currentSelectedId && !active.find(function(p){ return p.id === currentSelectedId; })) {
+      var historical = allPartners.find(function(p){ return p.id === currentSelectedId; });
+      if (historical) {
+        return active.concat([{ _historical: true, id: historical.id, name: historical.name + " (historical)" }]);
+      }
+    }
+    return active;
+  })().map(function(p) {
+    return /*#__PURE__*/React.createElement("option", {
+      key: p.id,
+      value: p.id,
+      disabled: !!p._historical
+    }, p.name);
+  })))
+  )), /*#__PURE__*/React.createElement("div", {
     className: "fg"
   }, /*#__PURE__*/React.createElement("label", {
     className: "fl"
@@ -21373,9 +21491,18 @@ var _db = {
 
   // Upsert one record. tenant_id in body is required for WITH CHECK.
   upsert: function(table, id, data) {
+    // Phase B: for `orders`, write office_id/partner_id as top-level
+    // columns alongside the data JSONB. The FK columns (added by
+    // Migration 07a) are the relational truth; the JSONB stays for UI
+    // compatibility. Other tables continue to write data-only.
+    var row = { id: id, tenant_id: _db._tenantId, data: data };
+    if (table === "orders") {
+      row.office_id  = data.office_id  || null;
+      row.partner_id = data.partner_id || null;
+    }
     return _supabase
       .from(table)
-      .upsert([{ id: id, tenant_id: _db._tenantId, data: data }], { onConflict: "id,tenant_id" })
+      .upsert([row], { onConflict: "id,tenant_id" })
       .then(function(res) {
         if (res.error) console.error("[db] upsert error", table, id, res.error.message);
       });
