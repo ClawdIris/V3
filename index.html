@@ -2292,9 +2292,20 @@ var BulkScanModal = function BulkScanModal(props) {
 
   return /*#__PURE__*/React.createElement("div", { className: "overlay", style: { zIndex: 10002 }, onClick: function(e){ return e.target===e.currentTarget&&onClose(); } },
     /*#__PURE__*/React.createElement("div", { className: "modal modal-lg fu", style: { maxWidth: 640 } },
-      /*#__PURE__*/React.createElement("div", { className: "row g10 mb14" },
-        /*#__PURE__*/React.createElement("div", { className: "modal-title", style: { margin: 0 } }, "\uD83D\uDD0D Bulk Scan — Box Status Update"),
+      /*#__PURE__*/React.createElement("div", { className: "row g10 mb6" },
+        /*#__PURE__*/React.createElement("div", { className: "modal-title", style: { margin: 0 } }, "\uD83D\uDD0D Quick Scan — Single Box Update"),
         /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm mla", onClick: onClose }, "\u2715 Close")
+      ),
+      // v9.6: helper note. The Quick Scan modal is single-box only; users
+      // wanting to apply a status to many boxes at once should use the
+      // sidebar Bulk Status Update page. This contrast is intentional.
+      /*#__PURE__*/React.createElement("div", {
+        className: "mut xs mb14",
+        style: { lineHeight: 1.4, fontStyle: "italic" }
+      },
+        "\uD83D\uDCA1 For multiple boxes, use ",
+        /*#__PURE__*/React.createElement("strong", { style: { fontStyle: "normal" } }, "Bulk Status Update"),
+        " in the sidebar."
       ),
 
       /* Scan input */
@@ -2433,7 +2444,7 @@ var BulkScanModal = function BulkScanModal(props) {
 
       /* Scan history */
       scanHistory.length > 0 && /*#__PURE__*/React.createElement("div", { style: { marginTop: 20 } },
-        /*#__PURE__*/React.createElement("div", { className: "mut xs mb8" }, "Recent scans this session"),
+        /*#__PURE__*/React.createElement("div", { className: "mut xs mb8" }, "Quick Scan History"),
         /*#__PURE__*/React.createElement("div", { className: "tbl" },
           /*#__PURE__*/React.createElement("table", null,
             /*#__PURE__*/React.createElement("thead", null,
@@ -24591,7 +24602,7 @@ setOrders(function (prev) {
         _db.init(session.tenantId);
         _db.upsert("orders", updatedOrder.id, updatedOrder).catch(function(err){
           console.error("[bulk-scan] persist failed", err);
-          notify("⚠ Bulk scan update saved locally but failed to sync");
+          notify("⚠ Quick scan update saved locally but failed to sync");
         });
       }
     }
@@ -24951,8 +24962,8 @@ setOrders(function (prev) {
   (roleKey === "office" || roleKey === "hq" || roleKey === "driver") && /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost btn-sm",
     onClick: function onClick() { setShowBulkScan(true); },
-    title: "Bulk Scan"
-  }, "\uD83D\uDD0D Bulk Scan"),
+    title: "Quick Scan — single box update. For multiple boxes use Bulk Status Update in the sidebar."
+  }, "\uD83D\uDD0D Quick Scan"),
   (roleKey === "office" || roleKey === "hq") && page !== "all_orders" && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary btn-sm",
     onClick: function onClick() {
