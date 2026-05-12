@@ -1021,6 +1021,29 @@ var TRACKER_STATUS_LABELS = STATUS_MODEL.tracker.labels;
 var TRACKER_STATUS_STEPS = STATUS_MODEL.tracker.steps;
 var PIPELINE_STATUS_COLORS = STATUS_MODEL.pipelineColors;
 
+// Driver-allowed status keys (v9). Drivers in the field can only set these
+// 8 statuses; warehouse/customs/container ops are off-limits for them.
+var DRIVER_STATUS_KEYS = [
+  "box_dropped_off",   // empty box delivered to sender
+  "need_box",          // driver arrived but sender has no box ready
+  "picked_up",         // box collected from sender — CASH TRIGGER
+  "in_warehouse",      // driver delivered box to warehouse intake
+  "out_for_delivery",  // driver leaving warehouse for delivery stop
+  "delivered",         // delivery completed
+  "attempted",         // attempted delivery, no answer
+  "rerouted"           // wrong destination, needs reroute
+];
+
+// Helper: filter STATUS_MODEL.order to a role-scoped subset.
+// HQ/office see everything; drivers see only DRIVER_STATUS_KEYS.
+function getStatusesForRole(role) {
+  var all = STATUS_MODEL.order || [];
+  if (role === "driver") {
+    return all.filter(function(s){ return DRIVER_STATUS_KEYS.indexOf(s.key) !== -1; });
+  }
+  return all;
+}
+
 /* ════════════════════════════════════════════
    DELIVERY ZONES  (Guatemala — configurable per tenant)
 ════════════════════════════════════════════ */
@@ -2044,8 +2067,18 @@ var BulkScanModal = function BulkScanModal(props) {
   var onUpdate  = props.onUpdate;   // function(updatedOrder)
   var onClose   = props.onClose;
   var tenant    = props.tenant || {};
+  var pricing   = props.pricing || {};
+  var roleKey   = props.roleKey || "hq";
   var userName  = props.userName || "";
   var userId    = props.userId   || "";
+
+  // v9: driver-only cash collection flow state. When driver scans a box and
+  // picks 'picked_up' on an unpaid+cash order, this stores the prompt context.
+  // null when no prompt; { order, box, balance } when cash needs collection.
+  var _stCash = useState(null), _stCash2 = _slicedToArray(_stCash, 2),
+      cashPrompt = _stCash2[0], setCashPrompt = _stCash2[1];
+  var _stInvOffer = useState(false), _stInvOffer2 = _slicedToArray(_stInvOffer, 2),
+      invoiceOffer = _stInvOffer2[0], setInvoiceOffer = _stInvOffer2[1];
 
   var _stInput = useState(""), _stInput2 = _slicedToArray(_stInput, 2),
       scanInput = _stInput2[0], setScanInput = _stInput2[1];
@@ -2111,26 +2144,92 @@ var BulkScanModal = function BulkScanModal(props) {
     setTimeout(function(){ setFeedback(null); }, 3500);
   }
 
-  function applyUpdate() {
+  // v9: helper that performs the actual status apply. Called directly by
+  // applyUpdate when no cash collection is needed, or from the cash flow
+  // after collection is recorded. Optionally records a cash payment first.
+  // cashOpts: { collectCash: bool, sendWhatsapp: bool } (optional)
+  function commitUpdate(cashOpts) {
     if (!resolved) return;
+    var workingOrder = resolved.order;
+    // If driver is collecting cash, update the payment first BEFORE the status change.
+    if (cashOpts && cashOpts.collectCash) {
+      var bal = Math.max(0, ((workingOrder.payment && workingOrder.payment.amount) || 0) - ((workingOrder.payment && workingOrder.payment.paid) || 0));
+      workingOrder = Object.assign({}, workingOrder, {
+        payment: Object.assign({}, workingOrder.payment || {}, {
+          paid:   ((workingOrder.payment && workingOrder.payment.paid) || 0) + bal,
+          status: "paid",
+          collectedBy: userName || userId || "driver",
+          collectedAt: new Date().toISOString(),
+          collectedAmount: bal
+        })
+      });
+    }
     var updatedOrder = updateBoxStatus(
-      resolved.order,
+      workingOrder,
       resolved.box ? resolved.box.subId : resolved.order.id,
       { orderStatus: newOrderStatus || undefined, shipmentStatus: newShipmentStatus || undefined },
       { tenantId: tenant.id || "casabe-xpress", userId: userId, userName: userName, source: "bulk_scan" }
     );
     onUpdate(updatedOrder);
     setScanHistory(function(h){
-      return [{ subId: resolved.box ? resolved.box.subId : resolved.order.id, name: resolved.order.consigneeName || resolved.order.name, orderStatus: newOrderStatus, ts: new Date().toLocaleTimeString() }].concat(h).slice(0,20);
+      return [{
+        subId: resolved.box ? resolved.box.subId : resolved.order.id,
+        name: resolved.order.consigneeName || resolved.order.name,
+        orderStatus: newOrderStatus,
+        cashCollected: cashOpts && cashOpts.collectCash ? cashOpts.amount : null,
+        ts: new Date().toLocaleTimeString()
+      }].concat(h).slice(0,20);
     });
-    setFeedback({ type: "ok", msg: "Updated: " + (resolved.box ? resolved.box.subId : resolved.order.id) });
+    var feedbackMsg = "Updated: " + (resolved.box ? resolved.box.subId : resolved.order.id);
+    if (cashOpts && cashOpts.collectCash) feedbackMsg += " · Cash $" + (cashOpts.amount || 0).toFixed(2);
+    setFeedback({ type: "ok", msg: feedbackMsg });
+
+    // v9: optional WhatsApp receipt after cash collection
+    if (cashOpts && cashOpts.collectCash && cashOpts.sendWhatsapp) {
+      var phone = (workingOrder.phone || workingOrder.consigneePhone || "").replace(/\D/g, "");
+      if (phone.length >= 10) {
+        var waPhone = phone.length === 10 ? "1" + phone : phone;
+        fetch(PAID_INVOICE_EDGE_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tenantId: tenant.id || "casabe-xpress",
+            order: updatedOrder,
+            channels: ["whatsapp"],
+            recipientPhone: waPhone,
+            recipientName: workingOrder.name || ""
+          })
+        }).catch(function(e){ console.error("[bulk-scan] receipt send failed", e); });
+      }
+    }
+
     setResolved(null);
     setNewOrderStatus("");
     setNewShipmentStatus("");
+    setCashPrompt(null);
+    setInvoiceOffer(false);
     setTimeout(function(){ setFeedback(null); if(inputRef.current) inputRef.current.focus(); }, 2000);
   }
 
-  var ORDER_STATUSES = STATUS_MODEL.order || [];
+  function applyUpdate() {
+    if (!resolved) return;
+    // v9 cash trigger: driver picking up an unpaid cash order → prompt for cash collection
+    var isDriver = roleKey === "driver";
+    var isPickup = newOrderStatus === "picked_up";
+    var order = resolved.order;
+    var pm = order.payment || {};
+    var balance = Math.max(0, (pm.amount || 0) - (pm.paid || 0));
+    var isCashOrder = (pm.method || "").toLowerCase() === "cash" || !pm.method; // unspecified defaults to cash
+    if (isDriver && isPickup && balance > 0 && isCashOrder) {
+      setCashPrompt({ order: order, box: resolved.box, balance: balance });
+      return; // wait for cash flow; commitUpdate fires on confirm
+    }
+    // Otherwise apply immediately
+    commitUpdate(null);
+  }
+
+  // v9: filter status dropdown by role — driver only sees the 8 statuses they can set
+  var ORDER_STATUSES = getStatusesForRole(roleKey);
   var SHIPMENT_STATUSES = STATUS_MODEL.shipment || [];
 
   var selSt = function(label, val, setVal, opts) {
@@ -2197,12 +2296,90 @@ var BulkScanModal = function BulkScanModal(props) {
           selSt("New Shipment Status", newShipmentStatus, setNewShipmentStatus, SHIPMENT_STATUSES)
         ),
         /*#__PURE__*/React.createElement("div", { className: "row g10" },
-          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: function(){ setResolved(null); setScanInput(""); } }, "\u2190 Cancel"),
-          /*#__PURE__*/React.createElement("button", {
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: function(){ setResolved(null); setScanInput(""); setCashPrompt(null); setInvoiceOffer(false); } }, "\u2190 Cancel"),
+          !cashPrompt && /*#__PURE__*/React.createElement("button", {
             className: "btn btn-primary btn-sm mla",
             disabled: !newOrderStatus && !newShipmentStatus,
             onClick: applyUpdate
           }, "\u2713 Apply Update")
+        ),
+
+        /* v9 Cash collection prompt — appears when driver picks 'picked_up' on
+           an unpaid + cash order. Two-step: confirm cash collected, then
+           optionally send WhatsApp receipt, then status applies. */
+        cashPrompt && !invoiceOffer && /*#__PURE__*/React.createElement("div", {
+          style: {
+            marginTop: 12, padding: "14px 16px",
+            background: "rgba(245,158,11,0.08)",
+            border: "2px solid var(--amber)",
+            borderRadius: 10
+          }
+        },
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: "var(--amber)", marginBottom: 8 } },
+            "\uD83D\uDCB5 Cash Collection Required"),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, marginBottom: 4 } },
+            "Customer: ", /*#__PURE__*/React.createElement("strong", null, cashPrompt.order.consigneeName || cashPrompt.order.name || "—")),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, marginBottom: 4 } },
+            "Phone: ", /*#__PURE__*/React.createElement("span", { style: { fontFamily: "monospace" } }, cashPrompt.order.phone || cashPrompt.order.consigneePhone || "—")),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 22, fontWeight: 800, fontFamily: "'Syne',sans-serif", textAlign: "center", margin: "12px 0", color: "var(--amber)" } },
+            "$", cashPrompt.balance.toFixed(2)),
+          /*#__PURE__*/React.createElement("div", { className: "xs mut", style: { textAlign: "center", marginBottom: 12 } },
+            "Charge total $", ((cashPrompt.order.payment && cashPrompt.order.payment.amount) || 0).toFixed(2),
+            " · Already paid $", ((cashPrompt.order.payment && cashPrompt.order.payment.paid) || 0).toFixed(2)),
+          /*#__PURE__*/React.createElement("div", { className: "row g8" },
+            /*#__PURE__*/React.createElement("button", {
+              className: "btn btn-ghost btn-sm",
+              onClick: function(){
+                // Skip cash — apply status without recording payment
+                commitUpdate(null);
+              }
+            }, "Skip cash"),
+            /*#__PURE__*/React.createElement("button", {
+              className: "btn btn-primary btn-sm mla",
+              style: { background: "var(--green)", color: "#000", fontWeight: 700 },
+              onClick: function(){
+                // Move to invoice-offer step
+                setInvoiceOffer(true);
+              }
+            }, "\u2713 Cash $", cashPrompt.balance.toFixed(2), " Collected")
+          )
+        ),
+
+        /* v9 invoice send offer — appears after driver confirms cash collected */
+        cashPrompt && invoiceOffer && /*#__PURE__*/React.createElement("div", {
+          style: {
+            marginTop: 12, padding: "14px 16px",
+            background: "rgba(0,229,160,0.06)",
+            border: "2px solid var(--green)",
+            borderRadius: 10
+          }
+        },
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, color: "var(--green)", marginBottom: 8 } },
+            "\u2713 Cash $", cashPrompt.balance.toFixed(2), " collected"),
+          /*#__PURE__*/React.createElement("div", { style: { fontSize: 13, marginBottom: 12 } },
+            "Send receipt to ", /*#__PURE__*/React.createElement("strong", null, cashPrompt.order.consigneeName || cashPrompt.order.name), "?"),
+          /*#__PURE__*/React.createElement("div", { className: "row g8" },
+            /*#__PURE__*/React.createElement("button", {
+              className: "btn btn-ghost btn-sm",
+              onClick: function(){
+                // Skip receipt: apply status with cash recorded but no send
+                commitUpdate({ collectCash: true, sendWhatsapp: false, amount: cashPrompt.balance });
+              }
+            }, "Skip receipt"),
+            /*#__PURE__*/React.createElement("button", {
+              className: "btn btn-ghost btn-sm",
+              disabled: true,
+              title: "SMS not configured — Twilio secrets pending",
+              style: { opacity: 0.5, cursor: "not-allowed" }
+            }, "\uD83D\uDCAC SMS (soon)"),
+            /*#__PURE__*/React.createElement("button", {
+              className: "btn btn-primary btn-sm mla",
+              style: { background: "var(--green)", color: "#000", fontWeight: 700 },
+              onClick: function(){
+                commitUpdate({ collectCash: true, sendWhatsapp: true, amount: cashPrompt.balance });
+              }
+            }, "\uD83D\uDCF1 Send WhatsApp")
+          )
         )
       ),
 
@@ -17309,6 +17486,7 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
   var orders = _ref112.orders,
     onStatusChange = _ref112.onStatusChange,
     onBoxStatusChange = _ref112.onBoxStatusChange,
+    roleKey = _ref112.roleKey || "hq",
     _ref112$tenant = _ref112.tenant,
     tenant = _ref112$tenant === void 0 ? null : _ref112$tenant;
   var t = useT();
@@ -17324,7 +17502,7 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
     _useScSt2 = _slicedToArray(_useScSt, 2),
     scannedBoxes = _useScSt2[0],
     setScannedBoxes = _useScSt2[1];
-  var _useState77 = useState("in_warehouse"),
+  var _useState77 = useState(roleKey === "driver" ? "picked_up" : "in_warehouse"),
     _useState78 = _slicedToArray(_useState77, 2),
     targetStatus = _useState78[0],
     setTargetStatus = _useState78[1];
@@ -17475,7 +17653,12 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
       }
     }
   };
-  var warehouse_statuses = ["in_warehouse", "loaded_container", "en_route", "in_customs", "customs_released", "sorting", "out_for_delivery", "delivered"];
+  // v9: status list scoped by role. Drivers see only the 8 statuses they can set.
+  // The variable name is legacy ("warehouse_statuses") but for drivers it's the
+  // driver-allowed set; the dropdown renders whatever this resolves to.
+  var warehouse_statuses = roleKey === "driver"
+    ? DRIVER_STATUS_KEYS
+    : ["in_warehouse", "loaded_container", "en_route", "in_customs", "customs_released", "sorting", "out_for_delivery", "delivered"];
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
   }, /*#__PURE__*/React.createElement("div", {
@@ -21242,13 +21425,22 @@ var ROLES = {
         ls: "Problemas",
         i: "⚠️"
       }]
+    }, {
+      grp: "Tools",
+      items: [{
+        k: "bulk",
+        l: "Bulk Status Update",
+        ls: "Actualización Masiva",
+        i: "⌨️"
+      }]
     }],
     titles: {
       driver_route: "Today's Route",
       pickup_list: "My Pickups",
       dropoff_list: "My Drop-Offs",
       history: "Completed Stops",
-      issues: "Issues"
+      issues: "Issues",
+      bulk: "Bulk Status Update"
     }
   }
 };
@@ -23698,7 +23890,8 @@ setOrders(function (prev) {
       orders: orders,
       onStatusChange: changeStatus,
       onBoxStatusChange: changeBoxStatus,
-      tenant: tenant
+      tenant: tenant,
+      roleKey: roleKey
     });
     if (page === "shipments") return /*#__PURE__*/React.createElement(ShipmentsPage, {
       shipments: shipments,
@@ -24316,6 +24509,8 @@ setOrders(function (prev) {
   showBulkScan && /*#__PURE__*/React.createElement(BulkScanModal, {
     orders: orders,
     tenant: tenant,
+    pricing: pricing,
+    roleKey: roleKey,
     userName: session.displayName || "",
     userId: session.userId || "",
     onClose: function() { setShowBulkScan(false); },
@@ -24689,7 +24884,7 @@ setOrders(function (prev) {
       return setShowNewOrder(true);
     }
   }, t("+ New Order", "+ Nuevo Pedido")),
-  (roleKey === "office" || roleKey === "hq") && /*#__PURE__*/React.createElement("button", {
+  (roleKey === "office" || roleKey === "hq" || roleKey === "driver") && /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost btn-sm",
     onClick: function onClick() { setShowBulkScan(true); },
     title: "Bulk Scan"
