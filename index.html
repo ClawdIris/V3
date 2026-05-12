@@ -9113,9 +9113,40 @@ var CustomerPortal = function CustomerPortal(_ref59) {
   var myOrders = orders.filter(function (o) {
     return o.name === "María García";
   });
-  var tracked = orders.find(function (o) {
-    return o.id === trackId;
-  }) || myOrders[0];
+  // Resolve tracked: match against parent order id OR any child box subId.
+  // Case-insensitive, trimmed. Returns either {order} or {order, box} so the
+  // render can show box-level status when a subId matched. Falls back to
+  // myOrders[0] only when trackId is empty (preserves demo behavior).
+  var tracked = (function() {
+    var q = (trackId || "").trim().toUpperCase();
+    if (!q) return myOrders[0]; // empty input → demo fallback
+    // Try child box subId first (more specific)
+    for (var i = 0; i < orders.length; i++) {
+      var o = orders[i];
+      if (o.boxes && o.boxes.length) {
+        var matchedBox = null;
+        for (var j = 0; j < o.boxes.length; j++) {
+          if ((o.boxes[j].subId || "").toUpperCase() === q) {
+            matchedBox = o.boxes[j];
+            break;
+          }
+        }
+        if (matchedBox) {
+          // Attach matched box info onto a shallow clone so render can prefer
+          // box-level status/destination over parent-level when present.
+          return Object.assign({}, o, {
+            _matchedBox: matchedBox,
+            status: matchedBox.orderStatus || matchedBox.status || o.status,
+            destination: matchedBox.destinationCountry || o.destination
+          });
+        }
+      }
+    }
+    // Then parent order id
+    return orders.find(function (o) {
+      return (o.id || "").toUpperCase() === q;
+    }) || null; // no match → null (render will show empty state)
+  })();
   return /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -9373,10 +9404,39 @@ var CustomerPortal = function CustomerPortal(_ref59) {
     onChange: function onChange(e) {
       return setTrackId(e.target.value);
     },
-    placeholder: "Enter tracking ID (e.g. CC-1091)"
+    onKeyDown: function onKeyDown(e) {
+      // Enter dismisses the keyboard on mobile and confirms the search.
+      // tracked is reactive on trackId so the result is already shown — this
+      // just gives clear UX feedback that input is "submitted."
+      if (e.key === "Enter") { try { e.target.blur(); } catch(err){} }
+    },
+    placeholder: "Enter tracking ID (e.g. TEST-001 or TEST-001-1)"
   }), /*#__PURE__*/React.createElement("button", {
-    className: "btn btn-primary"
-  }, "Track")), tracked && /*#__PURE__*/React.createElement("div", {
+    className: "btn btn-primary",
+    onClick: function onClick(e) {
+      // tracked is already reactive on trackId; this click handler exists
+      // mainly to make the button feel responsive and dismiss the on-screen
+      // keyboard on mobile.
+      try {
+        var input = e.currentTarget.parentElement.querySelector("input");
+        if (input) input.blur();
+      } catch(err){}
+    }
+  }, "Track")),
+  // Not-found state — only shown when user has typed something but nothing matched.
+  // Empty input falls back to myOrders[0] (demo), so this only fires on a real miss.
+  (trackId && trackId.trim() && !tracked) && /*#__PURE__*/React.createElement("div", {
+    className: "alert alert-b",
+    style: { textAlign: "center", padding: "16px 14px", fontSize: 13 }
+  },
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 22, marginBottom: 6 } }, "🔍"),
+    /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, marginBottom: 4 } },
+      t("No shipment found", "No se encontró el envío")),
+    /*#__PURE__*/React.createElement("div", { className: "mut xs" },
+      t("Check the tracking ID and try again. IDs look like CC20260428D072 or CC20260428D072-1.",
+        "Verifica el ID de rastreo. Los IDs lucen como CC20260428D072 o CC20260428D072-1."))
+  ),
+  tracked && /*#__PURE__*/React.createElement("div", {
     className: "g2"
   }, /*#__PURE__*/React.createElement("div", {
     className: "card"
@@ -9384,7 +9444,7 @@ var CustomerPortal = function CustomerPortal(_ref59) {
     className: "card-hd"
   }, /*#__PURE__*/React.createElement("span", {
     className: "card-title"
-  }, tracked.id), /*#__PURE__*/React.createElement(Sbadge, {
+  }, tracked._matchedBox ? tracked._matchedBox.subId : tracked.id), /*#__PURE__*/React.createElement(Sbadge, {
     s: tracked.status
   })), /*#__PURE__*/React.createElement("div", {
     className: "card-bd"
