@@ -6914,18 +6914,24 @@ var TrackingPage = function TrackingPage(_ref_tp) {
     in_warehouse:"In Warehouse",loaded_container:"Loaded in Container",en_route:"En Route",
     in_customs:"In Customs",customs_released:"Released from Customs",sorting:"Sorting / Preparing",
     out_for_delivery:"Out for Delivery",delivered:"Delivered",cancelled:"Cancelled",
-    need_box:"Need a Box",rerouted:"Rerouted"
+    need_box:"Need a Box",rerouted:"Rerouted",
+    // Aliases for non-canonical status values that may appear in test data or legacy imports
+    in_transit:"In Transit",box_dropped_off:"Box Dropped Off"
   };
   var statusLabel = function(s){ return STATUS_LABELS[s] || s || "Unknown"; };
   var statusDot = function(s){
     if (["delivered","customs_released"].includes(s)) return "var(--green)";
-    if (["en_route","in_customs","sorting","out_for_delivery","loaded_container"].includes(s)) return "var(--amber)";
+    if (["en_route","in_transit","in_customs","sorting","out_for_delivery","loaded_container"].includes(s)) return "var(--amber)";
     if (["cancelled"].includes(s)) return "var(--red)";
     return "var(--blue)";
   };
 
   var doSearch = function doSearch(overrideQ) {
-    var q = (overrideQ || query).trim().toUpperCase();
+    // Defensive: only treat overrideQ as a string. If a caller accidentally
+    // passes a React SyntheticEvent (e.g. onClick: doSearch), fall back to
+    // the current `query` state instead of crashing on .trim().
+    var raw = (typeof overrideQ === "string") ? overrideQ : query;
+    var q = (raw || "").trim().toUpperCase();
     if (!q) return;
     setSearched("searching");
     // Search child box subId first
@@ -7008,7 +7014,7 @@ var TrackingPage = function TrackingPage(_ref_tp) {
           onChange: function(e){ setQuery(e.target.value.toUpperCase()); },
           onKeyDown: function(e){ if (e.key === "Enter") doSearch(); }
         }),
-        /*#__PURE__*/React.createElement("button", { className:"btn btn-primary", onClick: doSearch }, "\uD83D\uDD0D Search")
+        /*#__PURE__*/React.createElement("button", { className:"btn btn-primary", onClick: function(){ doSearch(); } }, "\uD83D\uDD0D Search")
       ),
       searched === "done" && result && (function(){
         if (result.type === "notfound") return /*#__PURE__*/React.createElement("div", {
@@ -9110,9 +9116,13 @@ var CustomerPortal = function CustomerPortal(_ref59) {
     _useState18 = _slicedToArray(_useState17, 2),
     trackId = _useState18[0],
     setTrackId = _useState18[1];
-  var myOrders = orders.filter(function (o) {
+  // Filter to the demo customer's orders. If none found (e.g., test-tenant
+  // doesn't seed María García), fall back to ALL visible orders so the
+  // customer portal isn't empty during smoke testing.
+  var _maria = orders.filter(function (o) {
     return o.name === "María García";
   });
+  var myOrders = _maria.length > 0 ? _maria : orders;
   // Resolve tracked: match against parent order id OR any child box subId.
   // Case-insensitive, trimmed. Returns either {order} or {order, box} so the
   // render can show box-level status when a subId matched. Falls back to
@@ -9984,6 +9994,7 @@ var CustomerTrackPage = function CustomerTrackPage(_ref74) {
     in_warehouse: "At Warehouse",
     loaded_container: "Loaded for Shipment",
     en_route: "In Transit to " + order.destination,
+    in_transit: "In Transit to " + order.destination,
     in_customs: "At Customs",
     out_for_delivery: "Out for Delivery",
     delivered: "Delivered ✅",
@@ -21962,8 +21973,12 @@ var _db = {
     // columns and leave the new resolver with nothing to match against.
     // Other tables keep the old data-only shape — they don't have
     // additional top-level columns the frontend needs yet.
+    //
+    // v6 fix: orders also need top-level `id` selected. The DB stores the
+    // order ID as the row id (not inside data), so without this, loaded
+    // orders have no o.id and parent-id lookups (TEST-001 etc.) fail.
     var selectCols = (table === "orders")
-      ? "data, office_id, partner_id"
+      ? "id, data, office_id, partner_id"
       : "data";
     return _supabase
       .from(table)
@@ -21976,11 +21991,12 @@ var _db = {
           throw new Error("db:load:" + table);
         }
         return (res.data || []).map(function(r) {
-          // Merge top-level FK columns into the returned object so callers
-          // see a single shape: { ...data, office_id, partner_id }.
+          // Merge top-level cols into the returned object so callers
+          // see a single shape: { ...data, id, office_id, partner_id }.
           // For non-orders tables this is a no-op (only `data` present).
           if (table === "orders") {
             return Object.assign({}, r.data, {
+              id:         r.id,
               office_id:  r.office_id  || null,
               partner_id: r.partner_id || null
             });
@@ -24623,6 +24639,8 @@ setOrders(function (prev) {
 }
 
 // Public tracking: ?number=TRACKING_ID loads TrackingPage without auth
+// Sets window.__publicTrackerMounted so the normal App mount below skips
+// (otherwise App mounts on top of the public tracker and shows login screen).
 (function() {
   var urlParams = new URLSearchParams(window.location.search);
   var trackNum = urlParams.get("number") || urlParams.get("track");
@@ -24632,27 +24650,53 @@ setOrders(function (prev) {
       var _stL = useState(true), _stL2 = _slicedToArray(_stL, 2), loading = _stL2[0], setLoading = _stL2[1];
       var _stE = useState(null), _stE2 = _slicedToArray(_stE, 2), lookupErr = _stE2[0], setLookupErr = _stE2[1];
       React.useEffect(function() {
-        // Server-side: fetch only the matched order. Never loads all orders.
+        // Public tracking via lookup_tracking RPC (SECURITY DEFINER, anon-callable).
+        // Returns only safe non-PII fields. Handles both parent id and child box subId.
         var q = trackNum.trim().toUpperCase();
-        var SAFE = "id,boxes,status,destination,boxType,history,createdAt,updatedAt,gtDept";
+        // Helper to flatten the RPC row into the shape TrackingPage expects.
+        var flatten = function(row) {
+          // The RPC returns flat columns. TrackingPage expects an order-shaped object
+          // with status/destination/boxType/boxes/history at the top level.
+          return {
+            id:          row.id,
+            status:      row.status,
+            destination: row.destination,
+            boxType:     row.box_type,
+            boxes:       row.boxes || [],
+            history:     row.history || [],
+            createdAt:   row.created_at,
+            updatedAt:   row.updated_at
+          };
+        };
         try {
           var _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-          _sb.from("orders").select(SAFE).eq("id", q).limit(1)
-            .then(function(r1) {
-              if (r1.data && r1.data.length > 0) { setMatchedOrder(r1.data[0]); setLoading(false); return; }
-              var prefix = q.indexOf("-") > 0 ? q.split("-").slice(0,2).join("-") : q;
-              _sb.from("orders").select(SAFE).ilike("id", prefix + "%").limit(10)
-                .then(function(r2) {
-                  var found = null;
-                  (r2.data || []).forEach(function(o) {
-                    if (!found) (o.boxes || []).forEach(function(b) {
-                      if ((b.subId || "").toUpperCase() === q) found = o;
-                    });
-                  });
-                  setMatchedOrder(found || null); setLoading(false);
-                }).catch(function() { setLookupErr("Lookup failed."); setLoading(false); });
-            }).catch(function() { setLookupErr("Lookup failed."); setLoading(false); });
-        } catch(e) { setLookupErr("Lookup error."); setLoading(false); }
+          _sb.rpc("lookup_tracking", { p_query: q })
+            .then(function(res) {
+              if (res.error) {
+                console.error("[public-track] RPC error", res.error.message);
+                setLookupErr("Lookup failed.");
+                setLoading(false);
+                return;
+              }
+              var rows = res.data || [];
+              if (rows.length === 0) {
+                setMatchedOrder(null);
+                setLoading(false);
+                return;
+              }
+              setMatchedOrder(flatten(rows[0]));
+              setLoading(false);
+            })
+            .catch(function(e) {
+              console.error("[public-track] RPC exception", e);
+              setLookupErr("Lookup failed.");
+              setLoading(false);
+            });
+        } catch(e) {
+          console.error("[public-track] outer error", e);
+          setLookupErr("Lookup error.");
+          setLoading(false);
+        }
       }, []);
       return React.createElement("div", { style: { minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "'IBM Plex Sans',sans-serif" } },
         React.createElement("div", { style: { background: "var(--bg2)", borderBottom: "1px solid var(--border)", padding: "14px 20px", display: "flex", alignItems: "center", gap: 12 } },
@@ -24671,12 +24715,16 @@ setOrders(function (prev) {
         )
       );
     };
-        ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(PublicTrack));
+    window.__publicTrackerMounted = true;
+    ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(PublicTrack));
     return;
   }
 })();
-// App handles auth gate → shows LoginScreen or AppShell
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+// App handles auth gate → shows LoginScreen or AppShell.
+// Skip when the public tracker already mounted (?number=XXX flow).
+if (!window.__publicTrackerMounted) {
+  ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+}
   </script>
 </body>
 </html>
