@@ -2189,22 +2189,65 @@ var BulkScanModal = function BulkScanModal(props) {
     if (cashOpts && cashOpts.collectCash) feedbackMsg += " · Cash $" + (cashOpts.amount || 0).toFixed(2);
     setFeedback({ type: "ok", msg: feedbackMsg });
 
-    // v9: optional WhatsApp receipt after cash collection
+    // v9.4: optional WhatsApp receipt after cash collection.
+    // Request shape must match the Edge Function contract:
+    //   required: orderId, channels, phone
+    //   optional: messageBody, triggeredBy, source, targetRole, targetPhone, senderName
+    // Previous (v9.3) shape used recipientPhone+order, which the Edge Function
+    // rejected with HTTP 400 "Missing required fields: orderId, channels, phone".
     if (cashOpts && cashOpts.collectCash && cashOpts.sendWhatsapp) {
       var phone = (workingOrder.phone || workingOrder.consigneePhone || "").replace(/\D/g, "");
       if (phone.length >= 10) {
         var waPhone = phone.length === 10 ? "1" + phone : phone;
+        var senderNameStr = workingOrder.name || workingOrder.consigneeName || "";
+        var coName = (tenant && tenant.name) ? tenant.name : "Casabe Xpress";
+        var receiptMsg =
+          "Hi " + senderNameStr + ", your " + coName + " driver collected $" +
+          cashOpts.amount.toFixed(2) + " cash for order " + updatedOrder.id +
+          ". Payment confirmed. Thank you!";
         fetch(PAID_INVOICE_EDGE_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            tenantId: tenant.id || "casabe-xpress",
-            order: updatedOrder,
-            channels: ["whatsapp"],
-            recipientPhone: waPhone,
-            recipientName: workingOrder.name || ""
+            orderId:        updatedOrder.id,
+            tenantId:       (tenant && tenant.id) || "casabe-xpress",
+            channels:       ["whatsapp"],
+            phone:          waPhone,
+            messageBody:    receiptMsg,
+            triggeredBy:    userName || userId || "driver",
+            source:         "driver_bulk_scan_cash",
+            targetRole:     "sender",
+            targetPhone:    waPhone,
+            senderName:     senderNameStr
           })
-        }).catch(function(e){ console.error("[bulk-scan] receipt send failed", e); });
+        })
+        .then(function(res){
+          if (!res.ok) {
+            return res.text().then(function(t){
+              console.error("[bulk-scan] receipt send HTTP " + res.status + ":", t);
+              setFeedback({ type: "error", msg: "Receipt send failed (HTTP " + res.status + ") — status was applied" });
+              setTimeout(function(){ setFeedback(null); }, 4500);
+            });
+          }
+          return res.json().then(function(j){
+            // Edge Function returns { results: { whatsapp: { ok, error, ... } } }
+            var waRes = (j && j.results && j.results.whatsapp) || null;
+            if (waRes && !waRes.ok) {
+              console.warn("[bulk-scan] whatsapp not delivered:", waRes.error);
+              setFeedback({ type: "error", msg: "Receipt not sent: " + (waRes.error || "unknown") + " — status was applied" });
+              setTimeout(function(){ setFeedback(null); }, 4500);
+            }
+          });
+        })
+        .catch(function(e){
+          console.error("[bulk-scan] receipt send network error", e);
+          setFeedback({ type: "error", msg: "Receipt send failed (network) — status was applied" });
+          setTimeout(function(){ setFeedback(null); }, 4500);
+        });
+      } else {
+        console.warn("[bulk-scan] receipt skipped — no valid phone on order");
+        setFeedback({ type: "error", msg: "No valid phone on order — receipt not sent, status was applied" });
+        setTimeout(function(){ setFeedback(null); }, 4500);
       }
     }
 
@@ -2544,6 +2587,10 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
     var invoiceDate = order.createdAt || new Date().toLocaleDateString("en-US", { month:"long", day:"numeric", year:"numeric" });
     var shipmentId = order.shipmentId || "";
 
+    // v9.5: SMS needs phone too. Previously phone was only sent when
+    // whatsapp was in channels, so SMS-only sends went out with empty phone
+    // and the Edge Function rejected the request.
+    var needsPhone = channels.includes("whatsapp") || channels.includes("sms");
     fetch(PAID_INVOICE_EDGE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2552,10 +2599,10 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
         tenantId:       (tenant && tenant.id) || "casabe-xpress",
         channels:       channels,
         // Legacy field — kept so currently-deployed Edge Function keeps working
-        phone:          channels.includes("whatsapp") ? waPhone : "",
+        phone:          needsPhone ? waPhone : "",
         // New fields for the upcoming Edge Function rewrite
         customerName:   toName,
-        customerPhone:  channels.includes("whatsapp") ? waPhone : "",
+        customerPhone:  needsPhone ? waPhone : "",
         customerEmail:  channels.includes("email") ? email : "",
         invoiceNumber:  order.id,
         amount:         amount,
@@ -2714,6 +2761,16 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
           title: !phoneOk ? "No valid phone on order" : "Send WhatsApp to " + waPhone,
           onClick: function(){ if (phoneOk) toggleChannel("whatsapp"); }
         }, "\uD83D\uDCAC WhatsApp"),
+        // v9.5: SMS is a real channel supported by the Edge Function and was
+        // previously not selectable from this modal. Gated on phoneOk just
+        // like WhatsApp.
+        /*#__PURE__*/React.createElement("button", {
+          type: "button",
+          style: Object.assign({}, chStyle("sms"), !phoneOk ? { opacity: 0.4, cursor: "not-allowed" } : {}),
+          disabled: !phoneOk,
+          title: !phoneOk ? "No valid phone on order" : "Send SMS to +" + waPhone,
+          onClick: function(){ if (phoneOk) toggleChannel("sms"); }
+        }, "\uD83D\uDCF1 SMS"),
         /*#__PURE__*/React.createElement("button", {
           type: "button",
           style: Object.assign({}, chStyle("email"), !emailOk ? { opacity: 0.4, cursor: "not-allowed" } : {}),
@@ -2723,9 +2780,14 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
         }, "\u2709\uFE0F Email")
       ),
       /*#__PURE__*/React.createElement("div", { className: "mut xs mb14" },
-        channels.includes("whatsapp") && phoneOk ? ("WhatsApp \u2192 +" + waPhone) : null,
-        channels.includes("whatsapp") && channels.includes("email") ? " \xB7 " : null,
-        channels.includes("email") && emailOk ? ("Email \u2192 " + email) : null
+        // v9.5: previously this line only narrated WhatsApp/Email; SMS is
+        // now selectable so we include it. Joining with " · " mimics the
+        // existing pattern but is robust to any combination of selections.
+        [
+          channels.includes("whatsapp") && phoneOk ? ("WhatsApp \u2192 +" + waPhone) : null,
+          channels.includes("sms")      && phoneOk ? ("SMS \u2192 +" + waPhone)      : null,
+          channels.includes("email")    && emailOk ? ("Email \u2192 " + email)        : null
+        ].filter(Boolean).join(" \xB7 ")
       ),
 
       // ── Send feedback ─────────────────────────────────────────────────
@@ -2751,7 +2813,7 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
             /*#__PURE__*/React.createElement("strong", null, "\u2713 Send complete"),
             /*#__PURE__*/React.createElement("div", { style: { marginTop: 6, fontSize: 11.5 } },
               rows.map(function(r, idx){
-                var label = r.channel === "whatsapp" ? "WhatsApp" : (r.channel === "email" ? "Email" : (r.channel || "Channel"));
+                var label = r.channel === "whatsapp" ? "WhatsApp" : (r.channel === "email" ? "Email" : (r.channel === "sms" ? "SMS" : (r.channel || "Channel")));
                 return /*#__PURE__*/React.createElement("div", { key: idx },
                   r.ok ? "\u2705 " : "\u26A0\uFE0F ",
                   /*#__PURE__*/React.createElement("strong", null, label, ": "),
