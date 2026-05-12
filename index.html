@@ -6688,245 +6688,167 @@ var InvoiceModal = function InvoiceModal(_ref48) {
   }, /*#__PURE__*/React.createElement("div", {
     className: "modal fu",
     style: {
-      maxWidth: 700
+      maxWidth: 720,
+      width: "100%",
+      maxHeight: "calc(100vh - 40px)",
+      display: "flex",
+      flexDirection: "column",
+      padding: 14,
+      overflow: "hidden"
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "modal-title"
+    className: "modal-title",
+    style: { marginBottom: 8, fontSize: 14, flexShrink: 0 }
   }, "\uD83E\uDDFE ", order.id), /*#__PURE__*/React.createElement("div", {
     style: {
+      flex: "1 1 auto",
+      minHeight: 0,
+      overflowY: "auto",
       background: "#fff",
       border: "1.5px solid #ddd",
       borderRadius: 8,
-      padding: "12px 14px",
+      padding: "10px 12px",
       color: "#000",
       fontFamily: "'IBM Plex Sans',Arial,sans-serif",
-      fontSize: 11,
-      marginBottom: 8
+      fontSize: 11
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      borderBottom: "2px solid #000",
-      paddingBottom: 6,
-      marginBottom: 8
-    }
-  }, /*#__PURE__*/React.createElement("div", null, logoUrl ? /*#__PURE__*/React.createElement("img", {
-    src: logoUrl,
-    style: {
-      height: 22,
-      maxWidth: 130,
-      objectFit: "contain",
-      marginBottom: 2
-    },
-    alt: coName
-  }) : /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'Syne',sans-serif",
-      fontWeight: 900,
-      fontSize: 15,
-      color: "#E07B00"
-    }
-  }, coName), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 7,
-      fontWeight: 600,
-      textTransform: "uppercase",
-      letterSpacing: 2,
-      color: "#777",
-      marginTop: 1
-    }
-  }, tagline)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      textAlign: "right",
-      fontSize: 9.5,
-      color: "#444",
-      lineHeight: 1.5
-    }
-  }, /*#__PURE__*/React.createElement("div", null, "Date: ", /*#__PURE__*/React.createElement("strong", {
-    style: {
-      color: "#000"
-    }
-  }, invoiceDate)), /*#__PURE__*/React.createElement("div", null, "Office: ", /*#__PURE__*/React.createElement("strong", {
-    style: {
-      color: "#000"
-    }
-  }, order.office || "—")))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      border: "1.5px solid #000",
-      borderRadius: 4,
-      textAlign: "center",
-      padding: "4px 10px 3px",
-      marginBottom: 7
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'IBM Plex Mono',monospace",
-      fontSize: 15,
-      fontWeight: 800,
-      letterSpacing: 2,
-      color: "#000",
-      lineHeight: 1
-    }
-  }, order.id), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: 6.5,
-      fontWeight: 700,
-      textTransform: "uppercase",
-      letterSpacing: 2,
-      color: "#aaa",
-      marginTop: 2
-    }
-  }, "Tracking / Invoice Number")), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: 6,
-      marginBottom: 7
-    }
-  }, [{
-    lbl: "FROM (Sender)",
-    name: fromName,
-    lines: [fromAddr, fromPhone ? "Phone: ".concat(fromPhone) : null].filter(Boolean),
-    hl: false
-  }, {
-    lbl: "TO (Recipient)",
-    name: toName,
-    lines: [toAddr1, toCity && "".concat(toCity).concat(toCountry && toCountry !== toCity ? ", ".concat(toCountry) : ""), toPhone ? "Phone: ".concat(toPhone) : null].filter(Boolean),
-    hl: true
-  }].map(function (party, i) {
-    return /*#__PURE__*/React.createElement("div", {
-      key: i,
-      style: {
-        flex: 1,
-        border: "1px solid ".concat(party.hl ? "#b3d4ff" : "#e5e5e5"),
-        borderRadius: 4,
-        padding: "6px 9px",
-        background: party.hl ? "#f0f7ff" : "#fafafa"
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 7,
-        fontWeight: 700,
-        textTransform: "uppercase",
-        letterSpacing: 2,
-        color: party.hl ? "#0055aa" : "#aaa",
-        marginBottom: 2
-      }
-    }, party.lbl), /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontWeight: 700,
-        fontSize: 11.5
-      }
-    }, party.name), party.lines.map(function (l, j) {
-      return /*#__PURE__*/React.createElement("div", {
-        key: j,
-        style: {
-          fontSize: 9.5,
-          marginTop: 1,
-          color: party.hl && j === party.lines.length - 1 ? "#0066cc" : "#555",
-          textDecoration: party.hl && j === party.lines.length - 1 ? "underline" : "none"
-        }
-      }, l);
-    }));
-  })), /*#__PURE__*/React.createElement("div", { style: { marginBottom: 7, marginTop: 0 } },
-    (invBoxRows || [{ index: 1, trackingNumber: order.id, boxType: order.boxType || "", price: boxBase, contents: itemDesc, declaredValue: parseFloat(order.declaredValue || 0), amount: boxBase }]).map(function (r) {
-      return /*#__PURE__*/React.createElement("div", { key: r.index, style: { border: "1px solid #e0e0e0", borderRadius: 6, padding: "6px 10px", marginBottom: 5, background: "#fafafa" } },
-        /*#__PURE__*/React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, borderBottom: "1px solid #eee", paddingBottom: 4 } },
-          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "monospace", fontSize: 10, color: "#0055aa", fontWeight: 700 } }, "Tracking: ", r.trackingNumber),
-          /*#__PURE__*/React.createElement("div", { style: { fontWeight: 800, fontSize: 13, color: "#000" } }, "$", r.amount.toFixed(2))
-        ),
-        /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "2px 12px", fontSize: 10 } },
-          /*#__PURE__*/React.createElement("div", null,
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: 7.5, textTransform: "uppercase", letterSpacing: 1, color: "#999", marginBottom: 0 } }, "Box Type"),
-            /*#__PURE__*/React.createElement("div", { style: { fontWeight: 600 } }, r.boxType || "\u2014")
-          ),
-          /*#__PURE__*/React.createElement("div", null,
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: 7.5, textTransform: "uppercase", letterSpacing: 1, color: "#999", marginBottom: 0 } }, "Price"),
-            /*#__PURE__*/React.createElement("div", null, "$", r.price.toFixed(2))
-          ),
-          /*#__PURE__*/React.createElement("div", null,
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: 7.5, textTransform: "uppercase", letterSpacing: 1, color: "#999", marginBottom: 0 } }, "Declared Value"),
-            /*#__PURE__*/React.createElement("div", null, r.declaredValue ? "$" + r.declaredValue.toFixed(2) : "\u2014")
-          ),
-          /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1 / -1", marginTop: 2 } },
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: 7.5, textTransform: "uppercase", letterSpacing: 1, color: "#999", marginBottom: 0 } }, "Contents"),
-            /*#__PURE__*/React.createElement("div", { style: { color: "#444" } }, r.contents || "\u2014")
-          ),
-          r.senderName && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1 / -1", marginTop: 2 } },
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: 7.5, textTransform: "uppercase", letterSpacing: 1, color: "#999", marginBottom: 0 } }, "Sender"),
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: 9.5 } }, r.senderName, r.senderPhone ? " \u00B7 " + r.senderPhone : "", r.senderAddress ? " \u2014 " + r.senderAddress : "")
-          ),
-          (r.recipientName || r.recipientAddress) && /*#__PURE__*/React.createElement("div", { style: { gridColumn: "1 / -1", marginTop: 2 } },
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: 7.5, textTransform: "uppercase", letterSpacing: 1, color: "#999", marginBottom: 0 } }, "Recipient"),
-            /*#__PURE__*/React.createElement("div", { style: { fontSize: 9.5 } }, r.recipientName || "", r.recipientPhone ? " \u00B7 " + r.recipientPhone : "", [r.recipientAddress, r.recipientCity].filter(Boolean).length ? " \u2014 " + [r.recipientAddress, r.recipientCity].filter(Boolean).join(", ") : "")
-          )
-        )
-      );
-    }),
-    order.insurance && /*#__PURE__*/React.createElement("div", { style: { border: "1px solid #f5e0a0", borderRadius: 6, padding: "5px 10px", marginBottom: 5, background: "#fffbf0", display: "flex", justifyContent: "space-between", alignItems: "center" } },
-      /*#__PURE__*/React.createElement("div", null,
-        /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, fontSize: 10 } }, "Insurance Coverage"),
-        /*#__PURE__*/React.createElement("div", { style: { fontSize: 9, color: "#888" } }, "Declared: $", parseFloat(order.declaredValue || 0).toFixed(2), " \u00D7 ", insRate, "%")
-      ),
-      /*#__PURE__*/React.createElement("div", { style: { fontWeight: 800, fontSize: 13 } }, "$", insFee.toFixed(2))
-    )
-  ), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginLeft: "auto",
-      width: 220,
-      border: "1.5px solid #000",
-      marginBottom: 8
-    }
-  }, (function(){
-    var _gtotal = invBoxRows ? invBoxRows.reduce(function(s,r){return s+r.amount;},0) : boxBase;
-    var _paid = ((_order$payment4 = order.payment) === null || _order$payment4 === void 0 ? void 0 : _order$payment4.paid) || 0;
-    var _paid5 = ((_order$payment5 = order.payment) === null || _order$payment5 === void 0 ? void 0 : _order$payment5.paid) || 0;
-    return [
-      ["Subtotal", "$".concat(_gtotal.toFixed(2)), false],
-      order.insurance ? ["Insurance (".concat(insRate, "%)"), "$".concat(insFee.toFixed(2)), false] : null,
-      ["TOTAL", "$".concat((_gtotal + insFee).toFixed(2)), true],
-      ["Paid", "$".concat(_paid5.toFixed(2)), false],
-      ["Balance", "$".concat(Math.max(0, _gtotal + insFee - _paid5).toFixed(2)), false]
-    ].filter(Boolean);
-  })().map(function (_ref49, i) {
-    var _ref50 = _slicedToArray(_ref49, 3),
-      k = _ref50[0],
-      v = _ref50[1],
-      bold = _ref50[2];
-    return /*#__PURE__*/React.createElement("div", {
-      key: i,
+  },
+    /* ─── Compact header row: logo + co-name | invoice meta ─── */
+    /*#__PURE__*/React.createElement("div", {
       style: {
         display: "flex",
         justifyContent: "space-between",
-        padding: "2px 8px",
-        background: bold ? "#000" : "transparent",
-        color: bold ? "#fff" : "#000",
-        fontWeight: bold ? 700 : 400,
-        fontSize: bold ? 11 : 10,
-        borderTop: i > 0 ? "1px solid #ddd" : "none"
+        alignItems: "center",
+        borderBottom: "1.5px solid #000",
+        paddingBottom: 6,
+        marginBottom: 8
       }
-    }, /*#__PURE__*/React.createElement("span", null, k), /*#__PURE__*/React.createElement("span", null, v));
-  })), /*#__PURE__*/React.createElement("div", {
-    style: {
-      borderTop: "1.5px solid #000",
-      paddingTop: 5,
-      textAlign: "center"
-    }
-  }, /*#__PURE__*/React.createElement(Code128, {
-    value: order.id,
-    width: 420,
-    height: 40
-  }), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: "'IBM Plex Mono',monospace",
-      fontSize: 8.5,
-      letterSpacing: 2,
-      color: "#555",
-      marginTop: 2
-    }
-  }, order.id))), /*#__PURE__*/React.createElement("div", {
-    className: "modal-footer"
+    },
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 } },
+        logoUrl
+          ? /*#__PURE__*/React.createElement("img", { src: logoUrl, style: { height: 20, maxWidth: 90, objectFit: "contain" }, alt: coName })
+          : /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 900, fontSize: 14, color: "#E07B00", whiteSpace: "nowrap" } }, coName),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 7.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: 1.5, color: "#777", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, tagline)
+      ),
+      /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", fontSize: 9.5, color: "#444", lineHeight: 1.4, whiteSpace: "nowrap" } },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("span", { style: { fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, color: "#000", fontSize: 10 } }, "#", order.id)
+        ),
+        /*#__PURE__*/React.createElement("div", null, invoiceDate, " \u00B7 ", order.office || "—")
+      )
+    ),
+    /* ─── One-line FROM → TO row ─── */
+    /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 8,
+        marginBottom: 8,
+        fontSize: 10,
+        lineHeight: 1.35
+      }
+    },
+      /*#__PURE__*/React.createElement("div", { style: { flex: 1, padding: "5px 8px", background: "#fafafa", border: "1px solid #e5e5e5", borderRadius: 4, minWidth: 0 } },
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 7, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "#aaa", marginBottom: 1 } }, "From"),
+        /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, color: "#000", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, fromName),
+        /*#__PURE__*/React.createElement("div", { style: { color: "#555", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } },
+          [fromAddr, fromPhone].filter(Boolean).join(" \u00B7 ")
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { style: { flex: 1, padding: "5px 8px", background: "#f0f7ff", border: "1px solid #b3d4ff", borderRadius: 4, minWidth: 0 } },
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 7, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1.5, color: "#0055aa", marginBottom: 1 } }, "To"),
+        /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, color: "#000", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, toName),
+        /*#__PURE__*/React.createElement("div", { style: { color: "#555", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } },
+          [toAddr1, toCity ? (toCity + (toCountry && toCountry !== toCity ? ", " + toCountry : "")) : null, toPhone].filter(Boolean).join(" \u00B7 ")
+        )
+      )
+    ),
+    /* ─── Compact box table ─── */
+    /*#__PURE__*/React.createElement("table", {
+      style: { width: "100%", borderCollapse: "collapse", fontSize: 10.5, marginBottom: 6, tableLayout: "fixed" }
+    },
+      /*#__PURE__*/React.createElement("thead", null,
+        /*#__PURE__*/React.createElement("tr", { style: { background: "#000", color: "#fff" } },
+          /*#__PURE__*/React.createElement("th", { style: { padding: "4px 6px", textAlign: "left",  fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, width: "26%" } }, "Tracking"),
+          /*#__PURE__*/React.createElement("th", { style: { padding: "4px 6px", textAlign: "left",  fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, width: "14%" } }, "Type"),
+          /*#__PURE__*/React.createElement("th", { style: { padding: "4px 6px", textAlign: "right", fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, width: "12%" } }, "Price"),
+          /*#__PURE__*/React.createElement("th", { style: { padding: "4px 6px", textAlign: "right", fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, width: "14%" } }, "Decl. Val"),
+          /*#__PURE__*/React.createElement("th", { style: { padding: "4px 6px", textAlign: "left",  fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, width: "34%" } }, "Contents")
+        )
+      ),
+      /*#__PURE__*/React.createElement("tbody", null,
+        (invBoxRows || [{ index: 1, trackingNumber: order.id, boxType: order.boxType || "", price: boxBase, contents: itemDesc, declaredValue: parseFloat(order.declaredValue || 0), amount: boxBase }]).map(function (r) {
+          return /*#__PURE__*/React.createElement("tr", { key: r.index, style: { borderBottom: "1px solid #e5e5e5" } },
+            /*#__PURE__*/React.createElement("td", { style: { padding: "5px 6px", fontFamily: "'IBM Plex Mono',monospace", fontSize: 9.5, color: "#0055aa", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, r.trackingNumber),
+            /*#__PURE__*/React.createElement("td", { style: { padding: "5px 6px", fontWeight: 600 } }, r.boxType || "\u2014"),
+            /*#__PURE__*/React.createElement("td", { style: { padding: "5px 6px", textAlign: "right", fontWeight: 700 } }, "$", r.price.toFixed(2)),
+            /*#__PURE__*/React.createElement("td", { style: { padding: "5px 6px", textAlign: "right", color: r.declaredValue ? "#000" : "#bbb" } }, r.declaredValue ? "$" + r.declaredValue.toFixed(2) : "\u2014"),
+            /*#__PURE__*/React.createElement("td", { style: { padding: "5px 6px", color: "#444", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: r.contents }, r.contents || "\u2014")
+          );
+        }),
+        order.insurance && /*#__PURE__*/React.createElement("tr", { style: { background: "#fffbf0" } },
+          /*#__PURE__*/React.createElement("td", { colSpan: 4, style: { padding: "4px 6px", fontSize: 9.5 } },
+            /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700 } }, "Insurance Coverage"),
+            /*#__PURE__*/React.createElement("span", { style: { color: "#888", marginLeft: 6 } }, "Declared $", parseFloat(order.declaredValue || 0).toFixed(2), " \u00D7 ", insRate, "%")
+          ),
+          /*#__PURE__*/React.createElement("td", { style: { padding: "4px 6px", textAlign: "right", fontWeight: 800 } }, "$", insFee.toFixed(2))
+        )
+      )
+    ),
+    /* ─── Bottom row: totals (left) + barcode (right) ─── */
+    /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "flex-end",
+        gap: 12,
+        marginTop: 4,
+        paddingTop: 6,
+        borderTop: "1.5px solid #000"
+      }
+    },
+      /*#__PURE__*/React.createElement("div", {
+        style: { flex: "0 0 220px", border: "1.5px solid #000" }
+      }, (function(){
+        var _gtotal = invBoxRows ? invBoxRows.reduce(function(s,r){return s+r.amount;},0) : boxBase;
+        var _paid = ((order.payment) && order.payment.paid) || 0;
+        return [
+          ["Subtotal", "$".concat(_gtotal.toFixed(2)), false],
+          order.insurance ? ["Insurance (".concat(insRate, "%)"), "$".concat(insFee.toFixed(2)), false] : null,
+          ["TOTAL", "$".concat((_gtotal + insFee).toFixed(2)), true],
+          ["Paid", "$".concat(_paid.toFixed(2)), false],
+          ["Balance", "$".concat(Math.max(0, _gtotal + insFee - _paid).toFixed(2)), false]
+        ].filter(Boolean);
+      })().map(function (_ref49, i) {
+        var _ref50 = _slicedToArray(_ref49, 3),
+          k = _ref50[0], v = _ref50[1], bold = _ref50[2];
+        return /*#__PURE__*/React.createElement("div", {
+          key: i,
+          style: {
+            display: "flex", justifyContent: "space-between",
+            padding: "2px 7px",
+            background: bold ? "#000" : "transparent",
+            color: bold ? "#fff" : "#000",
+            fontWeight: bold ? 700 : 400,
+            fontSize: bold ? 11 : 10,
+            borderTop: i > 0 ? "1px solid #ddd" : "none"
+          }
+        }, /*#__PURE__*/React.createElement("span", null, k), /*#__PURE__*/React.createElement("span", null, v));
+      })),
+      /*#__PURE__*/React.createElement("div", {
+        style: { flex: 1, textAlign: "center", minWidth: 0 }
+      },
+        /*#__PURE__*/React.createElement(Code128, {
+          value: order.id,
+          width: 360,
+          height: 32
+        }),
+        /*#__PURE__*/React.createElement("div", {
+          style: { fontFamily: "'IBM Plex Mono',monospace", fontSize: 8.5, letterSpacing: 1.5, color: "#555", marginTop: 2 }
+        }, order.id)
+      )
+    )
+  ), /*#__PURE__*/React.createElement("div", {
+    className: "modal-footer",
+    style: { flexShrink: 0, marginTop: 10 }
   }, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost",
     onClick: onClose
