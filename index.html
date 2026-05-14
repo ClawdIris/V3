@@ -3697,15 +3697,43 @@ var OrderForm = function OrderForm(_ref4) {
   }, t("Assigned Driver", "Conductor Asignado")), /*#__PURE__*/React.createElement("select", {
     className: "fi",
     value: f.assignedDriver,
+    /*
+     * Prereq #1 driver UUID dual-write:
+     *
+     *   assignedDriver         (text)  → display label, search, legacy filters
+     *   assignedDriverUserId   (uuid)  → authoritative identity for RLS
+     *
+     * The two fields are written in lockstep by the onChange handler below.
+     * Display reads stay on assignedDriver and need no changes. Migration 09's
+     * can_access_order() compares against assignedDriverUserId — a driver
+     * without a userId is intentionally not authorizable.
+     *
+     * If members.display_name changes later, existing orders' frozen
+     * assignedDriver value goes stale. Intentional: identity is the UUID;
+     * display name is a label allowed to drift.
+     */
     onChange: function onChange(e) {
-      return set("assignedDriver", e.target.value);
+      // Prereq #1: dual-write driver identity. The <option value> is the
+      // display name (preserves search/legacy filter compatibility); we
+      // resolve the matching userId from the driver list and write both.
+      var name = e.target.value;
+      var list = driversList || DRIVERS_LIST;
+      var match = (list || []).find(function (d) {
+        return (typeof d === "string" ? d : d && d.name) === name;
+      });
+      var userId = match && typeof match === "object" ? (match.userId || "") : "";
+      set("assignedDriver", name);
+      set("assignedDriverUserId", userId);
     }
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
   }, "\u2014 Unassigned \u2014"), (driversList || DRIVERS_LIST).map(function (d) {
+    // Tolerate both shapes: string (legacy) and {name, userId} (prereq #1).
+    var name = typeof d === "string" ? d : (d && d.name) || "";
     return /*#__PURE__*/React.createElement("option", {
-      key: d
-    }, d);
+      key: name,
+      value: name
+    }, name);
   }))), /*#__PURE__*/React.createElement("div", {
     className: "fg"
   }, /*#__PURE__*/React.createElement("label", {
@@ -15030,7 +15058,8 @@ var DEST_ZONES = {
 };
 var RoutesPage = function RoutesPage(_ref101) {
   var orders = _ref101.orders,
-    onStatusChange = _ref101.onStatusChange;
+    onStatusChange = _ref101.onStatusChange,
+    driversList = _ref101.driversList;
   var t = useT();
   var _useState57 = useState("routes"),
     _useState58 = _slicedToArray(_useState57, 2),
@@ -15061,7 +15090,19 @@ var RoutesPage = function RoutesPage(_ref101) {
     setTimeout(function () {
       unassigned.forEach(function (o) {
         var zone = DEST_ZONES[o.destination];
-        if (zone) onStatusChange(o.id, o.status, zone.driver);
+        if (!zone) return;
+        // Prereq #1: dual-write driver identity even in auto-assign. Resolve
+        // zone.driver (display name baked into DEST_ZONES) against the live
+        // driver list to find a matching UUID. If no match exists (e.g.
+        // DEST_ZONES references a demo name not in tenant.drivers), userId
+        // resolves to empty string — Migration 09 will not authorize the
+        // assignment, which is correct: that driver has no identity to
+        // authenticate against.
+        var match = (driversList || DRIVERS_LIST).find(function (d) {
+          return (typeof d === "string" ? d : d && d.name) === zone.driver;
+        });
+        var userId = match && typeof match === "object" ? (match.userId || "") : "";
+        onStatusChange(o.id, o.status, zone.driver, undefined, userId);
       });
       setAutoAssigning(false);
     }, 800);
@@ -15256,17 +15297,25 @@ var RoutesPage = function RoutesPage(_ref101) {
         },
         value: o.assignedDriver || "",
         onChange: function onChange(e) {
-          var updated = _objectSpread(_objectSpread({}, o), {}, {
-            assignedDriver: e.target.value
+          // Prereq #1: dual-write driver identity in routes-page quick assign.
+          // Falls back to legacy DRIVERS_LIST shape (plain strings) so the
+          // page still works when no structured driversList prop is passed.
+          var name = e.target.value;
+          var list = driversList || DRIVERS_LIST;
+          var match = (list || []).find(function (d) {
+            return (typeof d === "string" ? d : d && d.name) === name;
           });
-          onStatusChange(o.id, o.status, e.target.value);
+          var userId = match && typeof match === "object" ? (match.userId || "") : "";
+          onStatusChange(o.id, o.status, name, undefined, userId);
         }
       }, /*#__PURE__*/React.createElement("option", {
         value: ""
-      }, "\u2014 Assign Driver \u2014"), DRIVERS_LIST.map(function (d) {
+      }, "\u2014 Assign Driver \u2014"), (driversList || DRIVERS_LIST).map(function (d) {
+        var name = typeof d === "string" ? d : (d && d.name) || "";
         return /*#__PURE__*/React.createElement("option", {
-          key: d
-        }, d);
+          key: name,
+          value: name
+        }, name);
       })), o.pickupWindow && /*#__PURE__*/React.createElement("span", {
         className: "tag"
       }, o.pickupWindow))));
@@ -23293,14 +23342,22 @@ function AppShell(_ref130) {
   var _stBulkScan = useState(false), _stBulkScan2 = _slicedToArray(_stBulkScan, 2),
       showBulkScan = _stBulkScan2[0], setShowBulkScan = _stBulkScan2[1];
 
-  // Derive live lists from tenant config once onboarding is complete
+  // Derive live lists from tenant config once onboarding is complete.
+  // Prereq #1 (driver UUID dual-write): driver entries now optionally carry
+  // user_id alongside their display name. If a tenant.drivers entry has a
+  // user_id field, it ends up here as {name, userId}. Entries without a
+  // user_id appear as {name, userId: ""} — the OrderForm still lets office
+  // staff select them, but Migration 09 RLS won't recognize a UUID-less
+  // assignment as an authenticatable driver identity. The fallback list
+  // DEFAULT_DRIVERS preserves the legacy demo data shape.
   var tenantDrivers = React.useMemo(function () {
     var fromTenant = ((tenant === null || tenant === void 0 ? void 0 : tenant.drivers) || []).filter(function (d) {
       return d.name;
     }).map(function (d) {
-      return d.name;
+      return { name: d.name, userId: d.user_id || "" };
     });
-    return fromTenant.length > 0 ? fromTenant : DEFAULT_DRIVERS;
+    if (fromTenant.length > 0) return fromTenant;
+    return DEFAULT_DRIVERS.map(function (name) { return { name: name, userId: "" }; });
   }, [tenant]);
   var tenantOffices = React.useMemo(function () {
     return getOfficeOptions(tenant);
@@ -23668,7 +23725,7 @@ setOrders(function (prev) {
     setSelectedOrder(null);
     notify("\u26A0\uFE0F Order " + order.id + " voided and hidden from active views");
   };
-  var changeStatus = useCallback(function (id, newStatus, newDriver, reason) {
+  var changeStatus = useCallback(function (id, newStatus, newDriver, reason, newDriverUserId) {
     var _STATUS_CFG$newStatus;
     // ── BACKWARD STATUS GATE ──────────────────────────────────
     var cur = orders.find(function (o) {
@@ -23682,7 +23739,8 @@ setOrders(function (prev) {
           id: id,
           fromStatus: cur.status,
           toStatus: newStatus,
-          driver: newDriver
+          driver: newDriver,
+          driverUserId: newDriverUserId
         });
         return;
       }
@@ -23706,7 +23764,11 @@ setOrders(function (prev) {
           status: newStatus,
           boxes: syncedBoxes.length > 0 ? syncedBoxes : o.boxes
         }, newDriver !== undefined ? {
-          assignedDriver: newDriver
+          assignedDriver: newDriver,
+          // Prereq #1: dual-write driver identity. UUID is authoritative for
+          // RLS, display name is for UI. Falsy newDriverUserId (e.g. "") is
+          // intentional for "Unassigned" — clears both fields together.
+          assignedDriverUserId: newDriverUserId !== undefined ? newDriverUserId : ""
         } : {}), depositCredit ? {
           depositCredited: true,
           payment: _objectSpread(_objectSpread({}, o.payment), {}, {
@@ -24151,7 +24213,8 @@ setOrders(function (prev) {
     });
     if (page === "routes") return /*#__PURE__*/React.createElement(RoutesPage, {
       orders: orders,
-      onStatusChange: changeStatus
+      onStatusChange: changeStatus,
+      driversList: tenantDrivers
     });
     if (page === "batches") return /*#__PURE__*/React.createElement("div", {
       className: "fu"
@@ -24678,7 +24741,8 @@ setOrders(function (prev) {
   }), backwardGate && /*#__PURE__*/React.createElement(BackwardGateModal, {
     gate: backwardGate,
     onConfirm: function onConfirm(reason) {
-      changeStatus(backwardGate.id, backwardGate.toStatus, backwardGate.driver, reason);
+      // Prereq #1: forward driverUserId so reversal preserves dual-write.
+      changeStatus(backwardGate.id, backwardGate.toStatus, backwardGate.driver, reason, backwardGate.driverUserId);
       setBackwardGate(null);
     },
     onCancel: function onCancel() {
@@ -24687,7 +24751,8 @@ setOrders(function (prev) {
   }), backwardGate && /*#__PURE__*/React.createElement(BackwardGateModal, {
     gate: backwardGate,
     onConfirm: function onConfirm(reason) {
-      changeStatus(backwardGate.id, backwardGate.toStatus, backwardGate.driver, reason);
+      // Prereq #1: forward driverUserId so reversal preserves dual-write.
+      changeStatus(backwardGate.id, backwardGate.toStatus, backwardGate.driver, reason, backwardGate.driverUserId);
       setBackwardGate(null);
     },
     onCancel: function onCancel() {
