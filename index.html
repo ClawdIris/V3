@@ -16063,6 +16063,39 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
     return null;
   }
 
+  // v9.9 item 3: SMS env-state indicator. Pure derivation from existing
+  // smsStatus state — no new API calls, no edge function changes. Surfaces
+  // whether Twilio env vars appear configured, derived from the result of
+  // the last Test Connection call. provider="stub" is the edge function's
+  // signal that Twilio secrets are absent and the message was not sent.
+  function smsEnvIndicator(result) {
+    if (!result) {
+      return /*#__PURE__*/React.createElement("div", {
+        className: "mut xs",
+        style: { marginTop: 8, fontStyle: "italic" }
+      }, "Not yet checked \u2014 click Test Connection to verify env vars.");
+    }
+    if (result.provider === "stub") {
+      return /*#__PURE__*/React.createElement("div", {
+        className: "xs",
+        style: { marginTop: 8, color: "var(--red)" }
+      }, "\u26A0 Twilio env vars not configured. Required: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER.");
+    }
+    if (result.provider === "twilio" && result.ok) {
+      return /*#__PURE__*/React.createElement("div", {
+        className: "xs",
+        style: { marginTop: 8, color: "var(--green)" }
+      }, "\u2713 Twilio env vars present \u2014 last test passed.");
+    }
+    if (result.provider === "twilio" && !result.ok) {
+      return /*#__PURE__*/React.createElement("div", {
+        className: "xs",
+        style: { marginTop: 8, color: "var(--amber)" }
+      }, "\u2713 Twilio env vars present, but last send failed.");
+    }
+    return null;
+  }
+
   var filteredLog = logFilter === "all" ? sendLog
     : sendLog.filter(function(r){ return r.status === logFilter; });
 
@@ -16106,6 +16139,7 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
               statusBadge(smsStatus)
             ),
             /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "Required secrets: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER"),
+            smsEnvIndicator(smsStatus),
             statusNote(smsStatus)
           )
         )
@@ -22663,7 +22697,9 @@ var _db = {
 };
 var LoginScreen = function LoginScreen(_ref126) {
   var onLogin = _ref126.onLogin;
-  var onTestLogin = _ref126.onTestLogin;
+  // v9.8: replaced onTestLogin (fake session) with testLoginEnabled (boolean).
+  // Test buttons now go through real Supabase Auth via handleTestLoginAs below.
+  var testLoginEnabled = _ref126.testLoginEnabled;
   var _useState103 = useState("login"),
     _useState104 = _slicedToArray(_useState103, 2),
     mode = _useState104[0],
@@ -22789,6 +22825,69 @@ var LoginScreen = function LoginScreen(_ref126) {
       return _ref127.apply(this, arguments);
     };
   }();
+  // ── v9.8: Real-auth test-login helper ──────────────────────────────────
+  // Mirrors handleLogin's flow but takes credentials directly as parameters
+  // (handleLogin reads them from React state, which is async and unsuitable
+  // for programmatic button-driven login). Uses the same signInWithPassword
+  // + members-resolution path as the production login form. Role/tenant come
+  // from the real members row — no fake session injection.
+  var handleTestLoginAs = function handleTestLoginAs(testEmail, testPassword) {
+    setLoading(true);
+    setError("");
+    setMsg("");
+    _supabase.auth.signInWithPassword({ email: testEmail, password: testPassword })
+      .then(function(authRes) {
+        if (authRes.error) {
+          setLoading(false);
+          setError("Test login failed: " + (authRes.error.message || "auth error"));
+          return;
+        }
+        return _supabase
+          .from("members")
+          .select("tenant_id, role, display_name")
+          .eq("user_id", authRes.data.user.id)
+          .eq("active", true)
+          .then(function(mRes) {
+            setLoading(false);
+            if (mRes.error) {
+              _supabase.auth.signOut();
+              setError("Could not load test account membership.");
+              return;
+            }
+            var rows = mRes.data || [];
+            if (rows.length === 0) {
+              _supabase.auth.signOut();
+              setError("Test user has no members row. Check prereq #2/#3 setup.");
+              return;
+            }
+            if (rows.length > 1) {
+              _supabase.auth.signOut();
+              setError("Test user has multiple memberships (unexpected).");
+              return;
+            }
+            var membership = rows[0];
+            var TEST_ROLE_MAP = { owner: "hq", admin: "hq", hq: "hq", dispatcher: "office", office: "office", driver: "driver", finance: "office", readonly: "office" };
+            var dbRole      = membership.role;
+            var roleKey     = TEST_ROLE_MAP[dbRole] || "office";
+            var displayName = membership.display_name || authRes.data.user.email;
+            var tenantId    = membership.tenant_id;
+            _db.init(tenantId);
+            onLogin({
+              userId:      authRes.data.user.id,
+              email:       authRes.data.user.email,
+              roleKey:     roleKey,
+              displayName: displayName,
+              dbRole:      dbRole,
+              tenantId:    tenantId
+            });
+          });
+      })
+      .catch(function(err) {
+        setLoading(false);
+        setError("Test login connection error.");
+        console.error("[auth] test-login error:", err);
+      });
+  };
   var handleSignUp = /*#__PURE__*/function () {
     var _ref128 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee6() {
       var data, _t2;
@@ -23099,8 +23198,11 @@ var LoginScreen = function LoginScreen(_ref126) {
       setMsg("");
     }
   }, "\u2190 Back to sign in")))),
-  /* Debug: test-login button (shown only when ?debug=1) */
-  onTestLogin && /*#__PURE__*/React.createElement("div", {
+  /* v9.8: Debug test-login buttons (shown only when ?debug=1).
+     Each button calls real Supabase Auth via handleTestLoginAs.
+     Credentials are test-tier only — public bundle exposure is expected
+     and acceptable for test-tenant smoke testing. */
+  testLoginEnabled && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center",
       marginTop: 14,
@@ -23108,29 +23210,66 @@ var LoginScreen = function LoginScreen(_ref126) {
       borderTop: "1px dashed #333"
     }
   },
-    /*#__PURE__*/React.createElement("button", {
-      type: "button",
-      onClick: onTestLogin,
+    /*#__PURE__*/React.createElement("div", {
       style: {
-        background: "linear-gradient(90deg, #d97706, #f59e0b)",
-        color: "#000",
-        border: "none",
-        padding: "8px 16px",
-        borderRadius: 6,
-        fontWeight: 600,
-        fontSize: 12,
-        cursor: "pointer",
-        fontFamily: "'Syne',sans-serif"
+        fontSize: 10,
+        color: "#888",
+        marginBottom: 8,
+        fontFamily: "'IBM Plex Mono', monospace",
+        letterSpacing: "0.5px"
       }
-    }, "\uD83D\uDD2C Test Login (Smoke Testing)"),
+    }, "\uD83D\uDD2C SMOKE TEST LOGIN \xB7 test-tenant"),
+    /*#__PURE__*/React.createElement("div", {
+      style: { display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }
+    },
+      /*#__PURE__*/React.createElement("button", {
+        type: "button",
+        disabled: loading,
+        onClick: function(){ handleTestLoginAs("test-hq@casabekonnect.test", "casabe-smoke-2026"); },
+        style: {
+          background: "linear-gradient(90deg, #d97706, #f59e0b)",
+          color: "#000", border: "none", padding: "6px 12px",
+          borderRadius: 6, fontWeight: 700, fontSize: 11,
+          cursor: loading ? "not-allowed" : "pointer",
+          opacity: loading ? 0.5 : 1,
+          fontFamily: "'Syne',sans-serif"
+        }
+      }, "Test HQ"),
+      /*#__PURE__*/React.createElement("button", {
+        type: "button",
+        disabled: loading,
+        onClick: function(){ handleTestLoginAs("test-office@casabekonnect.test", "casabe-smoke-2026"); },
+        style: {
+          background: "linear-gradient(90deg, #d97706, #f59e0b)",
+          color: "#000", border: "none", padding: "6px 12px",
+          borderRadius: 6, fontWeight: 700, fontSize: 11,
+          cursor: loading ? "not-allowed" : "pointer",
+          opacity: loading ? 0.5 : 1,
+          fontFamily: "'Syne',sans-serif"
+        }
+      }, "Test Office"),
+      /*#__PURE__*/React.createElement("button", {
+        type: "button",
+        disabled: loading,
+        onClick: function(){ handleTestLoginAs("test-driver@casabekonnect.test", "casabe-smoke-2026"); },
+        style: {
+          background: "linear-gradient(90deg, #d97706, #f59e0b)",
+          color: "#000", border: "none", padding: "6px 12px",
+          borderRadius: 6, fontWeight: 700, fontSize: 11,
+          cursor: loading ? "not-allowed" : "pointer",
+          opacity: loading ? 0.5 : 1,
+          fontFamily: "'Syne',sans-serif"
+        }
+      }, "Test Driver")
+    ),
     /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 10,
         color: "#666",
-        marginTop: 6,
+        marginTop: 8,
         fontFamily: "'IBM Plex Mono', monospace"
       }
-    }, "Tenant: test-tenant \xB7 ~3 test orders")
+    }, "Real Supabase Auth \xB7 test-tenant only")
   ), /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center",
@@ -23186,22 +23325,14 @@ function App() {
 
   var handleLogin = function handleLogin(s) { setSession(s); };
   
-  // Debug mode: ?debug=1 enables test-login button for smoke testing
+  // Debug mode: ?debug=1 enables Test HQ / Test Office / Test Driver buttons
+  // on the LoginScreen. v9.8 removed the fake-session handleTestLogin —
+  // test buttons now use real Supabase Auth (signInWithPassword) and the
+  // session resolves through the same members-query path as production login.
   var isDebugMode = (function(){
     try { return new URLSearchParams(window.location.search).get('debug') === '1'; }
     catch(e){ return false; }
   })();
-  var handleTestLogin = function handleTestLogin() {
-    _db.init('test-tenant');
-    setSession({
-      userId:      '00000000-0000-0000-0000-000000000001',
-      email:       'test@example.com',
-      roleKey:     'hq',
-      displayName: 'Test User (Smoke Testing)',
-      dbRole:      'admin',
-      tenantId:    'test-tenant'
-    });
-  };
   var handleSignOut = function handleSignOut() {
     _supabase.auth.signOut();
     setSession(false);
@@ -23215,7 +23346,7 @@ function App() {
 
   if (!session) return /*#__PURE__*/React.createElement(LoginScreen, {
     onLogin: handleLogin,
-    onTestLogin: isDebugMode ? handleTestLogin : null
+    testLoginEnabled: isDebugMode
   });
   return /*#__PURE__*/React.createElement(AppShell, {
     session: session,
@@ -23757,6 +23888,13 @@ setOrders(function (prev) {
     var updatedOrders = orders.map(function(o) {
       if (o.id !== id) return o;
       var depositCredit = newStatus === "in_warehouse" && o.boxDeposit && !o.depositCredited;
+      // v9.9: suppress duplicate status-history entry when status is unchanged.
+      // Driver-only assignments (Routes-page dropdown) call changeStatus with
+      // newStatus === o.status. The history list is a status timeline, so it
+      // shouldn't gain a row when only the driver changes. Backward-gate
+      // reversals always have `reason` set and pass through normally even if
+      // statuses happen to match a previous state.
+      var statusUnchanged = newStatus === o.status && !reason;
       var syncedBoxes = (o.boxes || []).map(function(b) {
         return Object.assign({}, b, {
           orderStatus: newStatus,
@@ -23768,13 +23906,15 @@ setOrders(function (prev) {
       updatedOrder = Object.assign({}, o, {
         status: newStatus,
         boxes: syncedBoxes.length > 0 ? syncedBoxes : o.boxes,
-        history: [].concat(o.history || [], [{
-          status: newStatus,
-          ts: now(),
-          note: reason || "",
-          by: roleKey || "system",
-          backward: reason ? true : undefined
-        }])
+        history: statusUnchanged
+          ? (o.history || [])
+          : [].concat(o.history || [], [{
+              status: newStatus,
+              ts: now(),
+              note: reason || "",
+              by: roleKey || "system",
+              backward: reason ? true : undefined
+            }])
       },
         newDriver !== undefined ? {
           assignedDriver: newDriver,
