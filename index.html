@@ -23745,59 +23745,60 @@ setOrders(function (prev) {
         return;
       }
     }
-    var _csUpdated = null;
-    setOrders(function (prev) {
-      return prev.map(function (o) {
-        if (o.id !== id) return o;
-        // ── IDEMPOTENT deposit credit (RISK #8) ──────────────────
-        var depositCredit = newStatus === "in_warehouse" && o.boxDeposit && !o.depositCredited;
-        // Sync all child boxes to the new parent status
-        var syncedBoxes = (o.boxes || []).map(function(b) {
-          return Object.assign({}, b, {
-            orderStatus: newStatus,
-            status: newStatus,
-            statusUpdatedAt: now(),
-            statusUpdatedBy: roleKey || "system"
-          });
-        });
-        var updated = _objectSpread(_objectSpread(_objectSpread(_objectSpread({}, o), {}, {
+    // v9.7.2: refactor away the `_csUpdated` outer-scope capture pattern.
+    // setOrders is async, so checking _csUpdated synchronously after
+    // setOrders returns races with the updater. Routes-page driver changes
+    // hit this race and the upsert was silently skipped.
+    //
+    // New shape: build updatedOrders by mapping over the latest `orders`
+    // snapshot in scope, capture updatedOrder synchronously inside the map,
+    // then call setOrders(updatedOrders) and _db.upsert(updatedOrder).
+    var updatedOrder = null;
+    var updatedOrders = orders.map(function(o) {
+      if (o.id !== id) return o;
+      var depositCredit = newStatus === "in_warehouse" && o.boxDeposit && !o.depositCredited;
+      var syncedBoxes = (o.boxes || []).map(function(b) {
+        return Object.assign({}, b, {
+          orderStatus: newStatus,
           status: newStatus,
-          boxes: syncedBoxes.length > 0 ? syncedBoxes : o.boxes
-        }, newDriver !== undefined ? {
+          statusUpdatedAt: now(),
+          statusUpdatedBy: roleKey || "system"
+        });
+      });
+      updatedOrder = Object.assign({}, o, {
+        status: newStatus,
+        boxes: syncedBoxes.length > 0 ? syncedBoxes : o.boxes,
+        history: [].concat(o.history || [], [{
+          status: newStatus,
+          ts: now(),
+          note: reason || "",
+          by: roleKey || "system",
+          backward: reason ? true : undefined
+        }])
+      },
+        newDriver !== undefined ? {
           assignedDriver: newDriver,
-          // Prereq #1: dual-write driver identity. UUID is authoritative for
-          // RLS, display name is for UI. Falsy newDriverUserId (e.g. "") is
-          // intentional for "Unassigned" — clears both fields together.
+          // Prereq #1: dual-write driver identity.
           assignedDriverUserId: newDriverUserId !== undefined ? newDriverUserId : ""
-        } : {}), depositCredit ? {
+        } : {},
+        depositCredit ? {
           depositCredited: true,
-          payment: _objectSpread(_objectSpread({}, o.payment), {}, {
+          payment: Object.assign({}, o.payment, {
             paid: (o.payment.paid || 0) + 10
           })
-        } : {}), {}, {
-          // ── AUDIT TRAIL entry ─────────────────────────────────
-          history: [].concat(_toConsumableArray(o.history || []), [{
-            status: newStatus,
-            ts: now(),
-            note: reason || "",
-            by: roleKey || "system",
-            backward: reason ? true : undefined
-          }])
-        });
-        // Capture the fully-built object so the DB write is never stale
-        _csUpdated = updated;
-        return updated;
-      });
+        } : {}
+      );
+      return updatedOrder;
     });
-    // Persist AFTER state update using the fully-built, post-mutation object
-    if (_csUpdated && session && session.tenantId) {
+    if (!updatedOrder) return;
+    setOrders(updatedOrders);
+    if (session && session.tenantId) {
       _db.init(session.tenantId);
-      _db.upsert("orders", id, _csUpdated);
+      _db.upsert("orders", id, updatedOrder);
     }
     // ── Sender-only WhatsApp/SMS status notifications ─────────────────────────
     (function() {
-      if (!_csUpdated) return;
-      var notifyOrder = _csUpdated;
+      var notifyOrder = updatedOrder;
       var notifyBoxes = (notifyOrder.boxes && notifyOrder.boxes.length > 0)
         ? notifyOrder.boxes.filter(function(b){ return b.orderStatus === newStatus || b.status === newStatus; })
         : [];
