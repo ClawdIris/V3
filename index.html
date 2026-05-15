@@ -15908,10 +15908,24 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
   var _stQbLoading = useState(false), _stQbLoading2 = _slicedToArray(_stQbLoading, 2),
       qbLoading = _stQbLoading2[0], setQbLoading = _stQbLoading2[1];
 
+  // v9.10: supaFetch now uses the authenticated session's access token
+  // instead of the anon key for Authorization. PostgREST still requires
+  // the apikey header (Supabase project key), so that stays. The
+  // Authorization header carries the user's JWT, which RLS policies key
+  // on via auth.uid(). Falls back to anon key if no active session
+  // (preserves prior behavior for any pre-login code path).
   function supaFetch(path, opts) {
-    return fetch(SUPABASE_REST_URL + path, Object.assign({
-      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json" }
-    }, opts || {}));
+    return _supabase.auth.getSession().then(function(s) {
+      var token = (s && s.data && s.data.session && s.data.session.access_token)
+                  || SUPABASE_ANON_KEY;
+      return fetch(SUPABASE_REST_URL + path, Object.assign({
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": "Bearer " + token,
+          "Content-Type": "application/json"
+        }
+      }, opts || {}));
+    });
   }
 
   // Load send_log on mount
@@ -16413,10 +16427,21 @@ var QuickBooksPage = function QuickBooksPage(props) {
   var _stAction = useState(null), _stAction2 = _slicedToArray(_stAction, 2),
       actionMsg = _stAction2[0], setActionMsg = _stAction2[1];
 
+  // v9.10: see comment on the matching supaFetch in IntegrationStatusPage.
+  // Session-auth (real JWT in Authorization, anon key in apikey) so RLS
+  // policies can gate based on auth.uid().
   function supaFetch(path, opts) {
-    return fetch(SUPABASE_REST_URL + path, Object.assign({
-      headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY, "Content-Type": "application/json" }
-    }, opts || {}));
+    return _supabase.auth.getSession().then(function(s) {
+      var token = (s && s.data && s.data.session && s.data.session.access_token)
+                  || SUPABASE_ANON_KEY;
+      return fetch(SUPABASE_REST_URL + path, Object.assign({
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": "Bearer " + token,
+          "Content-Type": "application/json"
+        }
+      }, opts || {}));
+    });
   }
 
   function loadStatus() {
