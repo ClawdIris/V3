@@ -31,3 +31,6 @@ npm-debug.log*
 .tmp/
 temp/
 cache/
+.bolt-mission.md
+.forge-handoff.md
+BOLT.md
