@@ -7024,7 +7024,14 @@ var InvoiceModal = function InvoiceModal(_ref48) {
   }, /*#__PURE__*/React.createElement("div", {
     className: "modal-title",
     style: { marginBottom: 8, fontSize: 14, flexShrink: 0 }
-  }, "\uD83E\uDDFE ", order.id), /*#__PURE__*/React.createElement("div", {
+  }, "\uD83E\uDDFE ", order.id),
+  // v9.12: keep the full print invoice mounted but hidden. The compact modal
+  // preview below does not carry .invoice-printout, but the print handler clones
+  // that full print DOM into an iframe.
+  /*#__PURE__*/React.createElement("div", {
+    style: { display: "none" },
+    "aria-hidden": "true"
+  }, invoice), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: "1 1 auto",
       minHeight: 0,
