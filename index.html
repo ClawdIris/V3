@@ -7024,14 +7024,7 @@ var InvoiceModal = function InvoiceModal(_ref48) {
   }, /*#__PURE__*/React.createElement("div", {
     className: "modal-title",
     style: { marginBottom: 8, fontSize: 14, flexShrink: 0 }
-  }, "\uD83E\uDDFE ", order.id),
-  // v9.12: keep the full print invoice mounted but hidden. The compact modal
-  // preview below does not carry .invoice-printout, but the print handler clones
-  // that full print DOM into an iframe.
-  /*#__PURE__*/React.createElement("div", {
-    style: { display: "none" },
-    "aria-hidden": "true"
-  }, invoice), /*#__PURE__*/React.createElement("div", {
+  }, "\uD83E\uDDFE ", order.id), /*#__PURE__*/React.createElement("div", {
     style: {
       flex: "1 1 auto",
       minHeight: 0,
@@ -7187,7 +7180,10 @@ var InvoiceModal = function InvoiceModal(_ref48) {
   }, "Close"), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary",
     onClick: function onClick() {
-      var el = document.querySelector(".invoice-printout");
+      // v9.12: the full printout is rendered as a sibling behind the modal overlay.
+      // Scope the lookup to the app root first so we clone the active invoice print DOM.
+      var printRoot = document.getElementById("root") || document;
+      var el = printRoot.querySelector(".invoice-printout");
       if (!el) { alert("Invoice not ready. Please try again."); return; }
       var html = el.outerHTML;
       var INV_CSS = "*{box-sizing:border-box;margin:0;padding:0}body{font-family:\"IBM Plex Sans\",Arial,sans-serif;background:#fff;color:#000;font-size:10pt;padding:0.35in 0.45in}.invoice-printout{display:flex!important;flex-direction:column}.inv-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:0.1in;border-bottom:2pt solid #000;margin-bottom:0.12in;flex-shrink:0}.inv-co-name{font-family:\"Syne\",Arial,sans-serif;font-size:18pt;font-weight:900;letter-spacing:0.04em;color:#000;line-height:1}.inv-co-tag{font-size:7.5pt;font-weight:600;text-transform:uppercase;letter-spacing:0.12em;color:#555;margin-top:3pt}.inv-meta{text-align:right;font-size:9pt;color:#333;line-height:1.65}.inv-meta strong{color:#000;font-size:10pt}.inv-tracking-row{border:1.5pt solid #000;border-radius:3pt;text-align:center;padding:0.08in 0.1in 0.06in;margin-bottom:0.1in;flex-shrink:0}.inv-tracking-num{font-family:\"IBM Plex Mono\",monospace;font-size:22pt;font-weight:800;letter-spacing:0.05em;color:#000;line-height:1}.inv-tracking-lbl{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#888;margin-top:2pt}.inv-parties{margin-bottom:0.1in;flex-shrink:0;display:flex;gap:0.1in}.inv-party{flex:1;padding:0.06in 0.1in;border:1pt solid #ddd;border-radius:3pt}.inv-party-lbl{font-size:7pt;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#888;margin-bottom:3pt}.inv-party-name{font-size:10.5pt;font-weight:700;color:#000}.inv-party-line{font-size:8.5pt;color:#444;line-height:1.45}.inv-table{width:100%;border-collapse:collapse;margin-bottom:0.1in;flex-shrink:0}.inv-table th{background:#000;color:#fff;padding:5pt 8pt;text-align:left;font-size:8pt;font-weight:700;text-transform:uppercase;letter-spacing:0.06em}.inv-table td{padding:6pt 8pt;font-size:9pt;border-bottom:1pt solid #e5e5e5;vertical-align:top}.inv-table tr:last-child td{border-bottom:none}.inv-totals{width:2.3in;margin-left:auto;border:1.5pt solid #000;margin-bottom:0.1in;flex-shrink:0}.inv-totals td{padding:4pt 8pt;font-size:9.5pt}.inv-totals .inv-grand{background:#000;color:#fff;font-weight:700;font-size:11pt}.inv-terms{flex:1;font-size:7pt;color:#444;line-height:1.5;overflow:hidden;margin-bottom:0.08in}.inv-terms-title{font-weight:700;font-size:7.5pt;color:#000;margin-bottom:2pt;text-transform:uppercase;letter-spacing:0.06em}.inv-bottom{flex-shrink:0;border-top:1.5pt solid #000;padding-top:0.08in}.inv-footer{font-size:7.5pt;color:#555;display:flex;justify-content:space-between;margin-bottom:0.08in}.inv-barcode-wrap{text-align:center}.inv-barcode-id{font-family:\"IBM Plex Mono\",monospace;font-size:8pt;letter-spacing:0.15em;color:#333;margin-top:3pt}svg{display:block;margin:0 auto}@page{size:letter;margin:0}body{padding:0.35in 0.45in}@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}}";
