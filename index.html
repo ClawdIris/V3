@@ -1241,11 +1241,14 @@ var PAY_STATUS = {
   paid: "Paid",
   refunded: "Refunded"
 };
+// v9.11: "Card" label clarified to "Card (recorded manually)" so operators
+// don't conflate manual recording with an automated Stripe charge. The
+// underlying enum key stays "card"; only the display label changes.
 var PAY_METHOD = {
   cash: "Cash",
   zelle: "Zelle",
   venmo: "Venmo",
-  card: "Card",
+  card: "Card (recorded manually)",
   pending: "Pending"
 };
 var _idCounter = 1092;
@@ -2849,8 +2852,13 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
         }, "Cancel \u2014 Revert to Pending"),
         /*#__PURE__*/React.createElement("button", {
           type: "button", className: "btn btn-primary btn-sm mla",
+          // v9.11: SMS phone guard. Previously the button was enabled when
+          // the user picked SMS-only with an invalid/empty phone, which sent
+          // an empty phone field and failed downstream. Mirror the whatsapp
+          // guard now that phoneOk is the same validator either way.
           disabled: channels.length === 0
             || (channels.includes("whatsapp") && !phoneOk)
+            || (channels.includes("sms") && !phoneOk)
             || (channels.includes("email") && !emailOk)
             || sendState === "sending" || sendState === "done",
           onClick: doSend
@@ -16069,9 +16077,39 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
     return /*#__PURE__*/React.createElement("span", { className: "badge br" }, "\u2715 Error");
   }
 
+  // v9.11: statusNote — friendlier handling for the two most common WhatsApp
+  // errors. Meta's #131030 (recipient not on allow-list) becomes an amber
+  // hint with a deep link to WABA settings; invalid/expired tokens become
+  // an amber actionable message. Everything else falls through to the
+  // existing red verbatim renderer.
   function statusNote(result) {
     if (!result) return null;
-    if (result.error) return /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 4, color: "var(--red)", wordBreak: "break-word" } }, result.error);
+    if (result.error) {
+      var err = result.error;
+      if (/\b131030\b/.test(err)) {
+        return /*#__PURE__*/React.createElement("div", {
+          className: "mut xs",
+          style: { marginTop: 4, color: "var(--amber)", wordBreak: "break-word" }
+        },
+          "WhatsApp app is in Development mode. Add this recipient to your Meta allow-list, or move the app to Live mode. ",
+          /*#__PURE__*/React.createElement("a", {
+            href: "https://business.facebook.com/wa/manage/phone-numbers/",
+            target: "_blank",
+            rel: "noreferrer",
+            style: { color: "var(--amber)", textDecoration: "underline" }
+          }, "Open WABA settings")
+        );
+      }
+      if (/Invalid OAuth access token|Authentication Error|Cannot parse access token/i.test(err)) {
+        return /*#__PURE__*/React.createElement("div", {
+          className: "mut xs",
+          style: { marginTop: 4, color: "var(--amber)", wordBreak: "break-word" }
+        },
+          "WhatsApp access token is invalid or expired. IT needs to refresh it in Supabase \u2192 Edge Functions \u2192 Secrets, then re-run whatsapp-diag."
+        );
+      }
+      return /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 4, color: "var(--red)", wordBreak: "break-word" } }, err);
+    }
     if (result.messageId) return /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 4, color: "var(--green)" } },
       result.method === "document" ? "\uD83D\uDCCE PDF sent \u2014 ID: " : "\u2713 Text sent \u2014 ID: ", result.messageId);
     return null;
@@ -20146,7 +20184,13 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
           fontWeight: 700,
           fontSize: 14
         }
-      }, "Stripe / Card POS"), /*#__PURE__*/React.createElement("label", {
+      }, "Stripe / Card POS"), /*#__PURE__*/React.createElement("span", {
+        // v9.11: Coming Soon badge. Stripe integration not yet wired —
+        // settings persist but no charge flow exists. Removed when the
+        // integration ships.
+        className: "badge ba",
+        style: { marginLeft: 8, fontSize: 11 }
+      }, "Coming Soon"), /*#__PURE__*/React.createElement("label", {
         style: {
           marginLeft: "auto",
           display: "flex",
@@ -20155,7 +20199,11 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
           cursor: "pointer"
         }
       }, /*#__PURE__*/React.createElement("input", {
+        // v9.11: toggle disabled until Stripe integration ships. Existing
+        // `checked` value still reflects state; just can't be flipped from
+        // the UI. Verified no tenant currently has stripe.enabled=true.
         type: "checkbox",
+        disabled: true,
         checked: ((_data$paymentMethods10 = data.paymentMethods) === null || _data$paymentMethods10 === void 0 || (_data$paymentMethods10 = _data$paymentMethods10.stripe) === null || _data$paymentMethods10 === void 0 ? void 0 : _data$paymentMethods10.enabled) || false,
         onChange: function onChange(e) {
           return setPM("stripe", "enabled", e.target.checked);
@@ -20181,7 +20229,7 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
         style: {
           marginTop: 3
         }
-      }, "Found in your Stripe Dashboard \u2192 Developers \u2192 API Keys. This connects your card reader.")), /*#__PURE__*/React.createElement("div", {
+      }, "Stripe integration not yet active. Configure keys here in advance; charges will not flow until the integration ships.")), /*#__PURE__*/React.createElement("div", {
         className: "alert alert-a",
         style: {
           fontSize: 11.5
