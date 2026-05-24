@@ -361,7 +361,7 @@ var calculateOfficeCommission = function calculateOfficeCommission(officeConfig,
   return 0;
 };
 
-// ── v9.13: Commission normalization ─────────────────────────────────────────
+// ── v9.13.1: Commission normalization (shared — offices AND partners) ────────
 // Operators think in whole percents ("18"); the commission engine multiplies
 // by a fraction (0.18). A raw 18 used as a multiplier is an 1800% commission.
 // Rule: a value >= 1 is interpreted as a whole percent and divided by 100;
@@ -374,15 +374,15 @@ var normalizeCommissionPercentage = function normalizeCommissionPercentage(raw) 
   return Math.round(n * 10000) / 10000;
 };
 
-// ── v9.13: Commission model guard ───────────────────────────────────────────
+// ── v9.13.1: Commission model guard (shared — offices AND partners) ──────────
 // Returns { ok:true, model } with a cleaned model, or { ok:false, error }
 // with an operator-facing message. Run BEFORE persisting any commission edit.
 // percentage models: fraction must be in [0,1] after normalization.
 // per_box models: every rate must be a finite number >= 0.
 // Basis sanity: a percentage >= 1 (i.e. >=100%) would make commission meet or
 // exceed the basis on every order — rejected outright.
-var validateCommissionModel = function validateCommissionModel(model, officeName) {
-  var who = officeName ? ("\"" + officeName + "\": ") : "";
+var validateCommissionModel = function validateCommissionModel(model, entityName) {
+  var who = entityName ? ("\"" + entityName + "\": ") : "";
   if (!model || !model.type) {
     return { ok: false, error: who + "missing commission type." };
   }
@@ -417,10 +417,14 @@ var validateCommissionModel = function validateCommissionModel(model, officeName
     });
     return { ok: true, model: { type: "per_box", percentage: 0, rates: cleanRates } };
   }
+  // Pass through non-commissionable model types (e.g. "owned" HQ offices).
+  if (model.type === "owned" || model.type === "none") {
+    return { ok: true, model: model };
+  }
   return { ok: false, error: who + "unknown commission type \"" + model.type + "\"." };
 };
 
-// ── v9.13: Commission basis guard ───────────────────────────────────────────
+// ── v9.13.1: Commission basis guard (shared — offices AND partners) ──────────
 // Last-line defense at calculation time: a commission can never exceed the
 // commission basis (box subtotal). If a malformed config slips through, clamp
 // to the basis and surface the anomaly via console for the operator/dev.
@@ -3151,7 +3155,9 @@ var OrderForm = function OrderForm(_ref4) {
     var _boxSubtotal = getBoxSubtotal(_draftForSubtotal, tenant);
     var _insuranceAmt = calculateInsuranceFee(_draftForSubtotal, tenant);
     var _commAmtRaw = calculateOfficeCommission(_offCfg, _boxSubtotal, boxes);
-    // v9.13: basis guard — commission can never exceed the box subtotal.
+    // v9.13.1: basis guard — commission can never exceed the box subtotal.
+    // Shared guard; applies regardless of whether the source is an office or
+    // a partner (v9.14 partner path reuses this same stamping code).
     var _commGuard = guardCommissionAmount(_commAmtRaw, _boxSubtotal);
     var _commAmt = _commGuard.amount;
     var _netToOffice = Math.round((_boxSubtotal - _commAmt + _insuranceAmt) * 100) / 100;
@@ -17128,7 +17134,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     _useState74 = _slicedToArray(_useState73, 2),
     saved = _useState74[0],
     setSaved = _useState74[1];
-  // v9.13: operator-visible commission validation error (null = no error)
+  // v9.13.1: operator-visible commission validation error (null = no error)
   var _useStateCommErr = useState(null),
     _useStateCommErr2 = _slicedToArray(_useStateCommErr, 2),
     commErr = _useStateCommErr2[0],
@@ -17162,7 +17168,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     setEditOffices(function(offices) {
       return offices.map(function(o, i) {
         if (i !== idx) return o;
-        // v9.13: normalize at the editor boundary. "18" -> 0.18, "0.18" -> 0.18.
+        // v9.13.1: normalize at the editor boundary. "18" -> 0.18, "0.18" -> 0.18.
         var model = Object.assign({}, o.commissionModel || {}, { percentage: normalizeCommissionPercentage(val) });
         return Object.assign({}, o, { commissionModel: model });
       });
@@ -17244,9 +17250,13 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     setTimeout(function () { return setSaved(false); }, 2000);
   };
   var handleSaveOffices = function handleSaveOffices() {
-    // v9.13: validate every commission model BEFORE persisting. On any
-    // failure, surface an operator-visible error and abort the whole save —
-    // no partial writes, no bad math reaching the DB.
+    // v9.13.1: validate every commission model BEFORE persisting. On any
+    // failure, surface an operator-visible error and abort — no bad math saved.
+    // NOTE: this editor persists to the tenant_settings "main" blob (v9.12
+    // behavior, unchanged). It does NOT write public.offices — the
+    // public.offices save path was removed after the data model review showed
+    // commission-bearing entities are PARTNERS, not offices. Partner commission
+    // editing is handled by the separate v9.14 partner path.
     var validated = [];
     for (var _vi = 0; _vi < editOffices.length; _vi++) {
       var _vo = editOffices[_vi];
@@ -17259,113 +17269,70 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
       validated.push(Object.assign({}, _vo, { commissionModel: _vres.model }));
     }
     setCommErr(null);
-    // v9.13: audit logging is DEFERRED — defined here, invoked only after all
-    // public.offices writes succeed. Emitting audit entries before the writes
-    // land would record commission changes that never fully persisted.
-    var _writeAuditEntries = function _writeAuditEntries() {
-      var prevOffices = getOfficeList(tenant);
-      var changedAt = new Date().toISOString();
-      var changedBy = (tenant && tenant.name) || "admin";
-      validated.forEach(function(newOff) {
-        var prev = prevOffices.find(function(p){ return p.id === newOff.id || p.name === newOff.name; });
-        if (!prev) return; // new office, no delta
-        var prevModel = prev.commissionModel || {};
-        var newModel = newOff.commissionModel || {};
-        // Log type change
-        if (prevModel.type !== newModel.type) {
-          _db.saveOfficeAuditEntry({
-            officeId: newOff.id, officeName: newOff.name,
-            field: "commissionModel.type",
-            fromValue: prevModel.type || "none",
-            toValue: newModel.type,
-            changedBy: changedBy, changedAt: changedAt
-          }).catch(function(e){ console.warn("[audit log]", e); });
-        }
-        // Log percentage change
-        if (newModel.type === "percentage" && prevModel.percentage !== newModel.percentage) {
-          _db.saveOfficeAuditEntry({
-            officeId: newOff.id, officeName: newOff.name,
-            field: "commissionModel.percentage",
-            fromValue: Math.round((prevModel.percentage || 0) * 100) + "%",
-            toValue: Math.round((newModel.percentage || 0) * 100) + "%",
-            changedBy: changedBy, changedAt: changedAt
-          }).catch(function(e){ console.warn("[audit log]", e); });
-        }
-        // Log per-box rate changes
-        if (newModel.type === "per_box") {
-          var prevRates = prevModel.rates || {};
-          var newRates = newModel.rates || {};
-          Object.keys(newRates).forEach(function(boxKey) {
-            if (prevRates[boxKey] !== newRates[boxKey]) {
-              _db.saveOfficeAuditEntry({
-                officeId: newOff.id, officeName: newOff.name,
-                field: "commissionModel.rates." + boxKey,
-                fromValue: prevRates[boxKey] !== undefined ? "$" + prevRates[boxKey] : "none",
-                toValue: "$" + newRates[boxKey],
-                changedBy: changedBy, changedAt: changedAt
-              }).catch(function(e){ console.warn("[audit log]", e); });
-            }
-          });
-        }
-        // Log notes change
-        if ((prev.notes || "") !== (newOff.notes || "")) {
-          _db.saveOfficeAuditEntry({
-            officeId: newOff.id, officeName: newOff.name,
-            field: "notes",
-            fromValue: prev.notes || "",
-            toValue: newOff.notes || "",
-            changedBy: changedBy, changedAt: changedAt
-          }).catch(function(e){ console.warn("[audit log]", e); });
-        }
-      });
-    };
-    // v9.13: source-of-truth fix, write-first ordering.
-    // public.offices is the table the order-stamping resolver reads (via
-    // tenant.__dbOffices). It MUST be written before any audit entries,
-    // tenant_settings state, or in-memory cache is touched. If a write fails,
-    // none of those side effects run — the editor, cache, and table never
-    // silently disagree.
-    var _officeWrites = validated.map(function(vo) {
-      return _db.saveOffice(vo).catch(function(e) {
-        console.error("[saveOffice]", vo.id, e);
-        return { __failed: vo.name || vo.id };
-      });
-    });
-    Promise.all(_officeWrites).then(function(results) {
-      var failed = results.filter(function(r){ return r && r.__failed; })
-                          .map(function(r){ return r.__failed; });
-      if (failed.length) {
-        // Table write failed — do NOT write audit entries, do NOT mutate
-        // tenant state, do NOT show ✓. Per-office writes mean some rows may
-        // already have persisted, so the copy must not promise otherwise.
-        setCommErr("Commission save did not complete. Some office rows may " +
-          "have been updated; reload and retry, or check Supabase.");
-        setSaved(false);
-        return;
+    // Audit: compare editOffices against current tenant.offices, log any commission changes
+    var prevOffices = getOfficeList(tenant);
+    var changedAt = new Date().toISOString();
+    var changedBy = (tenant && tenant.name) || "admin";
+    editOffices.forEach(function(newOff) {
+      var prev = prevOffices.find(function(p){ return p.id === newOff.id || p.name === newOff.name; });
+      if (!prev) return; // new office, no delta
+      var prevModel = prev.commissionModel || {};
+      var newModel = newOff.commissionModel || {};
+      // Log type change
+      if (prevModel.type !== newModel.type) {
+        _db.saveOfficeAuditEntry({
+          officeId: newOff.id, officeName: newOff.name,
+          field: "commissionModel.type",
+          fromValue: prevModel.type || "none",
+          toValue: newModel.type,
+          changedBy: changedBy, changedAt: changedAt
+        }).catch(function(e){ console.warn("[audit log]", e); });
       }
-      // All public.offices writes succeeded — now it is safe to write audit
-      // entries, update the legacy tenant_settings "main" blob, and refresh
-      // the in-memory relational cache.
-      _writeAuditEntries();
-      if (onUpdateTenant) {
-        onUpdateTenant({ offices: validated });
+      // Log percentage change
+      if (newModel.type === "percentage" && prevModel.percentage !== newModel.percentage) {
+        _db.saveOfficeAuditEntry({
+          officeId: newOff.id, officeName: newOff.name,
+          field: "commissionModel.percentage",
+          fromValue: Math.round((prevModel.percentage || 0) * 100) + "%",
+          toValue: Math.round((newModel.percentage || 0) * 100) + "%",
+          changedBy: changedBy, changedAt: changedAt
+        }).catch(function(e){ console.warn("[audit log]", e); });
       }
-      if (tenant) {
-        var _dbOff = (tenant.__dbOffices || []).slice();
-        validated.forEach(function(vo) {
-          var hit = _dbOff.findIndex(function(d){ return d.id === vo.id; });
-          var relRow = { id: vo.id, name: vo.name, commission_model: vo.commissionModel,
-                         commissionModel: vo.commissionModel, is_active: vo.active !== false,
-                         notes: vo.notes || "" };
-          if (hit >= 0) _dbOff[hit] = Object.assign({}, _dbOff[hit], relRow);
-          else _dbOff.push(relRow);
+      // Log per-box rate changes
+      if (newModel.type === "per_box") {
+        var prevRates = prevModel.rates || {};
+        var newRates = newModel.rates || {};
+        Object.keys(newRates).forEach(function(boxKey) {
+          if (prevRates[boxKey] !== newRates[boxKey]) {
+            _db.saveOfficeAuditEntry({
+              officeId: newOff.id, officeName: newOff.name,
+              field: "commissionModel.rates." + boxKey,
+              fromValue: prevRates[boxKey] !== undefined ? "$" + prevRates[boxKey] : "none",
+              toValue: "$" + newRates[boxKey],
+              changedBy: changedBy, changedAt: changedAt
+            }).catch(function(e){ console.warn("[audit log]", e); });
+          }
         });
-        tenant.__dbOffices = _dbOff;
       }
-      setCommErr(null);
-      setSaved(true);
-      setTimeout(function(){ return setSaved(false); }, 2000);
+      // Log notes change
+      if ((prev.notes || "") !== (newOff.notes || "")) {
+        _db.saveOfficeAuditEntry({
+          officeId: newOff.id, officeName: newOff.name,
+          field: "notes",
+          fromValue: prev.notes || "",
+          toValue: newOff.notes || "",
+          changedBy: changedBy, changedAt: changedAt
+        }).catch(function(e){ console.warn("[audit log]", e); });
+      }
     });
+    // v9.13.1: persist to the tenant_settings "main" blob only (v9.12
+    // behavior). `validated` carries the cleaned/normalized models.
+    if (onUpdateTenant) {
+      onUpdateTenant({ offices: validated });
+    }
+    setCommErr(null);
+    setSaved(true);
+    setTimeout(function(){ return setSaved(false); }, 2000);
   };
   var handleSaveBoxTypes = function handleSaveBoxTypes() {
     if (onUpdateBoxConfig) onUpdateBoxConfig(editBoxCfg);
@@ -22759,38 +22726,6 @@ var _db = {
       .then(function(res) {
         if (res.error) { console.error("[db] loadPartners error", res.error.message); return []; }
         return res.data || [];
-      });
-  },
-
-  // ── v9.13: Save an office to public.offices ────────────────────────────────
-  // Source-of-truth fix. Order stamping resolves commission via
-  // resolveOrderSource -> tenant.__dbOffices, which is loaded from
-  // public.offices. The commission editor previously only wrote the
-  // tenant_settings "main" blob, so editor changes never reached the table
-  // the stamper reads. This writes commission_model (snake_case JSONB) so the
-  // relational read path and the editor stay in sync.
-  saveOffice: function(office) {
-    if (!office || !office.id) {
-      return Promise.reject(new Error("saveOffice: office.id required"));
-    }
-    var model = office.commissionModel || office.commission_model || {};
-    var row = {
-      id: office.id,
-      tenant_id: _db._tenantId,
-      name: office.name || "",
-      commission_model: model,
-      is_active: office.active !== false,
-      notes: office.notes || ""
-    };
-    return _supabase
-      .from("offices")
-      .upsert([row], { onConflict: "id,tenant_id" })
-      .then(function(res) {
-        if (res.error) {
-          console.error("[db] saveOffice error", office.id, res.error.message);
-          throw new Error("db:saveOffice:" + office.id);
-        }
-        return row;
       });
   },
 
