@@ -396,8 +396,12 @@ var validateCommissionModel = function validateCommissionModel(model, entityName
       return { ok: false, error: who + "commission rate of " + Math.round(pct * 100) +
         "% would equal or exceed the order amount. Enter a rate below 100%." };
     }
-    var cleaned = { type: "percentage", percentage: Math.round(pct * 10000) / 10000,
-                    rates: model.rates || {} };
+    // Preserve any extra fields (e.g. scope) — only type/percentage are cleaned.
+    var cleaned = Object.assign({}, model, {
+      type: "percentage",
+      percentage: Math.round(pct * 10000) / 10000,
+      rates: model.rates || {}
+    });
     return { ok: true, model: cleaned };
   }
   if (model.type === "per_box") {
@@ -415,7 +419,10 @@ var validateCommissionModel = function validateCommissionModel(model, entityName
     Object.keys(rates).forEach(function(k) {
       cleanRates[k] = Math.round((parseFloat(rates[k]) || 0) * 100) / 100;
     });
-    return { ok: true, model: { type: "per_box", percentage: 0, rates: cleanRates } };
+    // Preserve extra fields (e.g. scope); only type/rates are cleaned.
+    return { ok: true, model: Object.assign({}, model, {
+      type: "per_box", percentage: 0, rates: cleanRates
+    }) };
   }
   // Pass through non-commissionable model types (e.g. "owned" HQ offices).
   if (model.type === "owned" || model.type === "none") {
@@ -17139,6 +17146,110 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     _useStateCommErr2 = _slicedToArray(_useStateCommErr, 2),
     commErr = _useStateCommErr2[0],
     setCommErr = _useStateCommErr2[1];
+  // v9.14: partner commission editor state. Partners are the commission-
+  // bearing entities; sourced from tenant.__dbPartners (public.partners rows).
+  var _useStatePartners = useState(function() {
+    var src = (tenant && tenant.__dbPartners) || [];
+    return JSON.parse(JSON.stringify(src)).map(function(p) {
+      // Coerce commission_model to an object: legacy rows stored it as a string.
+      var cm = p.commission_model;
+      if (typeof cm === "string") { try { cm = JSON.parse(cm); } catch (e) { cm = {}; } }
+      return Object.assign({}, p, { commissionModel: cm || {} });
+    });
+  }),
+    _useStatePartners2 = _slicedToArray(_useStatePartners, 2),
+    editPartners = _useStatePartners2[0],
+    setEditPartners = _useStatePartners2[1];
+  var _useStatePartnerErr = useState(null),
+    _useStatePartnerErr2 = _slicedToArray(_useStatePartnerErr, 2),
+    partnerErr = _useStatePartnerErr2[0],
+    setPartnerErr = _useStatePartnerErr2[1];
+  var _useStatePartnerSaved = useState(false),
+    _useStatePartnerSaved2 = _slicedToArray(_useStatePartnerSaved, 2),
+    partnerSaved = _useStatePartnerSaved2[0],
+    setPartnerSaved = _useStatePartnerSaved2[1];
+  // Partner editor mutators
+  var updatePartnerType = function updatePartnerType(idx, newType) {
+    setEditPartners(function(ps) {
+      return ps.map(function(p, i) {
+        if (i !== idx) return p;
+        var m = Object.assign({}, p.commissionModel || {}, { type: newType });
+        if (newType === "percentage" && m.percentage == null) m.percentage = 0;
+        if (newType === "per_box" && !m.rates) m.rates = {};
+        return Object.assign({}, p, { commissionModel: m });
+      });
+    });
+  };
+  var updatePartnerPercentage = function updatePartnerPercentage(idx, val) {
+    setEditPartners(function(ps) {
+      return ps.map(function(p, i) {
+        if (i !== idx) return p;
+        // v9.14: normalize at the editor boundary. "18" -> 0.18, "0.18" -> 0.18.
+        var m = Object.assign({}, p.commissionModel || {}, { percentage: normalizeCommissionPercentage(val) });
+        return Object.assign({}, p, { commissionModel: m });
+      });
+    });
+  };
+  var updatePartnerBoxRate = function updatePartnerBoxRate(idx, boxKey, val) {
+    setEditPartners(function(ps) {
+      return ps.map(function(p, i) {
+        if (i !== idx) return p;
+        var m = Object.assign({}, p.commissionModel || {});
+        m.rates = Object.assign({}, m.rates || {}, _defineProperty({}, boxKey, parseFloat(val) || 0));
+        return Object.assign({}, p, { commissionModel: m });
+      });
+    });
+  };
+  var handleSavePartners = function handleSavePartners() {
+    // v9.14: validate every partner model BEFORE persisting. Write-first
+    // ordering — public.partners is written first; only on full success do
+    // we refresh tenant.__dbPartners and show the green check.
+    var validated = [];
+    for (var _pi = 0; _pi < editPartners.length; _pi++) {
+      var _pp = editPartners[_pi];
+      var _pres = validateCommissionModel(_pp.commissionModel, _pp.name);
+      if (!_pres.ok) {
+        setPartnerErr(_pres.error);
+        setPartnerSaved(false);
+        return;
+      }
+      validated.push(Object.assign({}, _pp, { commissionModel: _pres.model }));
+    }
+    setPartnerErr(null);
+    var _writes = validated.map(function(vp) {
+      return _db.savePartner(vp).catch(function(e) {
+        console.error("[savePartner]", vp.id, e);
+        return { __failed: vp.name || vp.id };
+      });
+    });
+    Promise.all(_writes).then(function(results) {
+      var failed = results.filter(function(r){ return r && r.__failed; })
+                          .map(function(r){ return r.__failed; });
+      if (failed.length) {
+        setPartnerErr("Partner commission save did not complete. Some partner " +
+          "rows may have been updated; reload and retry, or check Supabase.");
+        setPartnerSaved(false);
+        return;
+      }
+      // All public.partners writes succeeded — refresh the in-memory cache so
+      // newly stamped orders pick up the change without an app reload.
+      if (tenant) {
+        var _dbP = (tenant.__dbPartners || []).slice();
+        validated.forEach(function(vp) {
+          var hit = _dbP.findIndex(function(d){ return d.id === vp.id; });
+          var relRow = { id: vp.id, tenant_id: vp.tenant_id, slug: vp.slug,
+                         name: vp.name, commission_model: vp.commissionModel,
+                         is_active: vp.is_active !== false, notes: vp.notes || null };
+          if (hit >= 0) _dbP[hit] = Object.assign({}, _dbP[hit], relRow);
+          else _dbP.push(relRow);
+        });
+        tenant.__dbPartners = _dbP;
+      }
+      setPartnerErr(null);
+      setPartnerSaved(true);
+      setTimeout(function(){ return setPartnerSaved(false); }, 2000);
+    });
+  };
   var updatePrice = function updatePrice(dest, field, val) {
     setEditPricing(function (p) {
       return _objectSpread(_objectSpread({}, p), {}, _defineProperty({}, dest, _objectSpread(_objectSpread({}, p[dest]), {}, _defineProperty({}, field, parseFloat(val) || 0))));
@@ -17360,6 +17471,11 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
       return setTab("commissions");
     }
   }, t("🤝 Office Commissions", "🤝 Comisiones de Oficinas")), /*#__PURE__*/React.createElement("div", {
+    className: "tab ".concat(tab === "partnercommissions" ? "on" : ""),
+    onClick: function onClick() {
+      return setTab("partnercommissions");
+    }
+  }, t("🧳 Partner Commissions", "🧳 Comisiones de Socios")), /*#__PURE__*/React.createElement("div", {
     className: "tab ".concat(tab === "whatsapp" ? "on" : ""),
     onClick: function onClick() {
       return setTab("whatsapp");
@@ -17546,6 +17662,82 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
             onChange: function(e) { updateOfficeNotes(idx, e.target.value); }
           })
         )
+      )
+    );
+  })
+),
+  tab === "partnercommissions" && /*#__PURE__*/React.createElement("div", null,
+  /*#__PURE__*/React.createElement("div", { className: "alert alert-a mb12" },
+    "\uD83E\uDDF3 Partner commission rates. ",
+    /*#__PURE__*/React.createElement("strong", null, "Partners"),
+    " (travel agencies, referral offices) earn a commission on orders they bring in. ",
+    /*#__PURE__*/React.createElement("strong", null, "Percentage"),
+    " deducts a % of the box subtotal; ",
+    /*#__PURE__*/React.createElement("strong", null, "Per-box"),
+    " deducts a flat amount per box. Enter 18 for 18% — it is stored as 0.18 automatically."
+  ),
+  /*#__PURE__*/React.createElement("div", { className: "row g10 mb12" },
+    partnerSaved && /*#__PURE__*/React.createElement("span", { className: "badge bg" }, "\u2713 Saved"),
+    /*#__PURE__*/React.createElement("button", { className: "btn btn-primary btn-sm", onClick: handleSavePartners }, "Save All Partner Commissions"),
+    /*#__PURE__*/React.createElement("span", { className: "mut xs mla" }, editPartners.length, " partners")
+  ),
+  partnerErr && /*#__PURE__*/React.createElement("div", { className: "alert alert-r mb12" },
+    /*#__PURE__*/React.createElement("strong", null, "\u26A0 Partner commission not saved: "), partnerErr
+  ),
+  editPartners.length === 0 && /*#__PURE__*/React.createElement("div", { className: "mut" },
+    "No partners found for this tenant."
+  ),
+  editPartners.map(function(partner, idx) {
+    var model = partner.commissionModel || { type: "percentage", percentage: 0 };
+    var isPerBox = model.type === "per_box";
+    var isOwned = model.type === "owned" || model.type === "none";
+    var activeBoxTypes = (Array.isArray(editBoxCfg) ? editBoxCfg : BOX_CONFIG)
+      .filter(function(b){ return b.active && !b.legacy && b.key !== "Unknown"; });
+    return /*#__PURE__*/React.createElement("div", { key: partner.id || idx, className: "card mb12" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { className: "card-title" },
+            partner.name,
+            partner.is_active === false && /*#__PURE__*/React.createElement("span", { className: "badge mut", style: { marginLeft: "8px" } }, "inactive")
+          ),
+          /*#__PURE__*/React.createElement("div", { className: "card-sub" }, "Slug: ", partner.slug || "\u2014")
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "row g10 mb8" },
+        /*#__PURE__*/React.createElement("label", { className: "xs mut" }, "Commission type"),
+        /*#__PURE__*/React.createElement("select", {
+          className: "input input-sm",
+          value: model.type || "percentage",
+          onChange: function(e) { updatePartnerType(idx, e.target.value); }
+        },
+          /*#__PURE__*/React.createElement("option", { value: "percentage" }, "Percentage"),
+          /*#__PURE__*/React.createElement("option", { value: "per_box" }, "Per box")
+        )
+      ),
+      !isPerBox && !isOwned && /*#__PURE__*/React.createElement("div", { className: "row g10 mb8" },
+        /*#__PURE__*/React.createElement("label", { className: "xs mut" }, "Commission %"),
+        /*#__PURE__*/React.createElement("input", {
+          className: "input input-sm",
+          type: "number", min: "0", max: "99", step: "0.5",
+          value: Math.round((model.percentage || 0) * 100 * 10) / 10,
+          onChange: function(e) { updatePartnerPercentage(idx, e.target.value); }
+        }),
+        /*#__PURE__*/React.createElement("span", { className: "xs mut" },
+          "Stored as ", (model.percentage || 0).toFixed(4))
+      ),
+      isPerBox && /*#__PURE__*/React.createElement("div", { className: "mb8" },
+        /*#__PURE__*/React.createElement("label", { className: "xs mut" }, "Per-box rates ($)"),
+        activeBoxTypes.map(function(bt) {
+          return /*#__PURE__*/React.createElement("div", { key: bt.key, className: "row g10 mb4" },
+            /*#__PURE__*/React.createElement("span", { className: "xs", style: { minWidth: "90px" } }, bt.key),
+            /*#__PURE__*/React.createElement("input", {
+              className: "input input-sm",
+              type: "number", min: "0", step: "0.5",
+              value: (model.rates && model.rates[bt.key]) || 0,
+              onChange: function(e) { updatePartnerBoxRate(idx, bt.key, e.target.value); }
+            })
+          );
+        })
       )
     );
   })
@@ -22726,6 +22918,47 @@ var _db = {
       .then(function(res) {
         if (res.error) { console.error("[db] loadPartners error", res.error.message); return []; }
         return res.data || [];
+      });
+  },
+
+  // ── v9.14: Save a partner to public.partners ───────────────────────────────
+  // Partners are the commission-bearing entities (Atlantic Travel, RB Travel,
+  // Effecty). Order stamping resolves partner commission via resolveOrderSource
+  // -> tenant.__dbPartners, loaded from public.partners. This is the write
+  // path that keeps the commission editor and the stamper in sync.
+  // commission_model is coerced to a real JSON object: some legacy rows
+  // (Effecty, RB Travel Legacy) stored it as a JSON *string* — passing a
+  // string here would re-persist that bug, so we parse it first.
+  savePartner: function(partner) {
+    if (!partner || !partner.id) {
+      return Promise.reject(new Error("savePartner: partner.id required"));
+    }
+    var rawModel = partner.commissionModel || partner.commission_model || {};
+    if (typeof rawModel === "string") {
+      try { rawModel = JSON.parse(rawModel); }
+      catch (e) { rawModel = {}; }
+    }
+    var row = {
+      id: partner.id,
+      tenant_id: _db._tenantId,
+      slug: partner.slug,                       // NOT NULL — must be preserved
+      name: partner.name || "",                 // NOT NULL
+      commission_model: rawModel,               // JSONB object, never a string
+      is_active: partner.is_active !== false,
+      notes: partner.notes || null
+    };
+    if (!row.slug) {
+      return Promise.reject(new Error("savePartner: slug required for " + row.name));
+    }
+    return _supabase
+      .from("partners")
+      .upsert([row], { onConflict: "id" })       // partners PK is id alone
+      .then(function(res) {
+        if (res.error) {
+          console.error("[db] savePartner error", partner.id, res.error.message);
+          throw new Error("db:savePartner:" + partner.id);
+        }
+        return row;
       });
   },
 
