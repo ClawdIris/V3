@@ -3235,7 +3235,23 @@ var OrderForm = function OrderForm(_ref4) {
     } else { onSave(order); }
   };
   // Internal-only commission preview — computed at render time, never shown on invoice
-  var _commPreviewOffice = getOfficeById(tenant, f.officeId || f.office);
+  // v9.15 Fix 2: resolve the commission source via resolveOrderSource — the same
+  // partner-aware resolver the submit/stamp path uses (see _phaseB_resolved).
+  // The old getOfficeById(tenant, f.officeId) path ignored f.partner_id entirely,
+  // so partner-routed orders previewed the wrong (office/default) commission.
+  // resolveOrderSource reads tenant.__dbPartners by partner_id, with legacy fallback.
+  var _commPreviewSrc = (typeof resolveOrderSource === "function")
+    ? resolveOrderSource(
+        { office_id: f.office_id || null,
+          partner_id: f.partner_id || null,
+          officeNameSnapshot: f.officeNameSnapshot,
+          officeId: f.officeId,
+          office: f.office },
+        (tenant && tenant.__dbOffices)  || [],
+        (tenant && tenant.__dbPartners) || [],
+        tenant)
+    : null;
+  var _commPreviewOffice = _commPreviewSrc || getOfficeById(tenant, f.officeId || f.office);
   var _commPreviewVal = _commPreviewOffice ? calculateOfficeCommission(_commPreviewOffice, getBoxSubtotal(f, tenant), f.boxes || []) : null;
   return /*#__PURE__*/React.createElement(React.Fragment, null,
     paidSendPending && pendingPaidOrder && /*#__PURE__*/React.createElement(PaidInvoiceSendModal, {
@@ -3963,7 +3979,9 @@ var OrderForm = function OrderForm(_ref4) {
     className: "alert alert-b mb12",
     style: { fontSize: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }
   },
-    /*#__PURE__*/React.createElement("span", null, "\uD83C\uDFE2 Office Commission \u2014 ", _commPreviewOffice.name),
+    /*#__PURE__*/React.createElement("span", null,
+      (_commPreviewOffice.kind === "partner" ? "\uD83E\uDDF3 Partner Commission \u2014 " : "\uD83C\uDFE2 Office Commission \u2014 "),
+      _commPreviewOffice.name),
     /*#__PURE__*/React.createElement("strong", { style: { fontFamily: "monospace", fontSize: 13 } },
       "$", _commPreviewVal.toFixed(2), " \u00A0(net: $", (getBoxSubtotal(f, tenant) - _commPreviewVal).toFixed(2), ")"
     )
@@ -17233,6 +17251,11 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
       }
       // All public.partners writes succeeded — refresh the in-memory cache so
       // newly stamped orders pick up the change without an app reload.
+      // v9.15: route the refreshed __dbPartners through onUpdateTenant so it
+      // goes through setTenant — a plain `tenant.__dbPartners = ...` mutation
+      // does not trigger a re-render, leaving a mounted OrderForm with stale
+      // partner commissions. (boot-load's loadPartners() remains the source of
+      // truth and overwrites __dbPartners on next load.)
       if (tenant) {
         var _dbP = (tenant.__dbPartners || []).slice();
         validated.forEach(function(vp) {
@@ -17244,6 +17267,9 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
           else _dbP.push(relRow);
         });
         tenant.__dbPartners = _dbP;
+        if (typeof onUpdateTenant === "function") {
+          onUpdateTenant({ __dbPartners: _dbP });
+        }
       }
       setPartnerErr(null);
       setPartnerSaved(true);
@@ -24042,6 +24068,12 @@ function AppShell(_ref130) {
         // without threading them through every call site.
         dbTenant.__dbOffices  = dbOffices  || [];
         dbTenant.__dbPartners = dbPartners || [];
+        // v9.15 Fix 1: the tenant_settings "main" blob carries a stale seed
+        // `id` (e.g. "casabe-express") baked in at onboarding. Force the
+        // tenant identity to the authenticated session's tenant so the app
+        // never runs mislabeled. _db._tenantId === session.tenantId (set by
+        // _db.init above); both are the verified-correct tenant id.
+        dbTenant.id = session.tenantId || _db._tenantId || dbTenant.id;
         setTenant(dbTenant);
       }
       if (dbPricing)              setPricing(mergePricingWithBoxKeys(dbPricing, dbBoxConfig && Array.isArray(dbBoxConfig) ? dbBoxConfig : null));
