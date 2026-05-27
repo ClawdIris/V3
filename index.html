@@ -23937,6 +23937,8 @@ function AppShell(_ref130) {
     setShowOnboarding = _useState162[1];
   var _stBulkScan = useState(false), _stBulkScan2 = _slicedToArray(_stBulkScan, 2),
       showBulkScan = _stBulkScan2[0], setShowBulkScan = _stBulkScan2[1];
+  var _useState164 = useState("pickup"), _useState165 = _slicedToArray(_useState164, 2),
+      activeHQTab = _useState165[0], setActiveHQTab = _useState165[1];
 
   // Derive live lists from tenant config once onboarding is complete.
   // Prereq #1 (driver UUID dual-write): driver entries now optionally carry
@@ -24510,7 +24512,11 @@ setOrders(function (prev) {
     // Only HQ users can switch roles; others are locked to their assigned role
     if (session.roleKey !== "hq" && r !== session.roleKey) return;
     setRoleKey(r);
-    setPage(r === "hq" ? "overview" : r === "office" ? "ow_dash" : "driver_route");
+    // Validate page for new role and reset if invalid
+    var newPage = r === "hq" ? "overview" : r === "office" ? "ow_dash" : "driver_route";
+    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import"] : ["driver_route", "driver_proof"];
+    var shouldResetPage = !validPages.includes(page);
+    setPage(shouldResetPage ? newPage : page);
   };
   var claimsBadge = claims.filter(function (c) {
     return ["open", "reviewing"].includes(c.status);
@@ -25112,7 +25118,21 @@ setOrders(function (prev) {
       className: "g3 mb12"
     }, [{l: "Pickup Ready", v: orders.filter(function(o){ return o.status === "ready_pickup"; }).length, i: "🚚", c: "sc-a"}, {l: "In Transit", v: orders.filter(function(o){ return o.status === "in_transit"; }).length, i: "📦", c: "sc-b"}, {l: "Completed Today", v: orders.filter(function(o){ return o.status === "completed" && o.created_date === new Date().toISOString().split('T')[0]; }).length, i: "✅", c: "sc-g"}].map(function(s, i) {
       return /*#__PURE__*/React.createElement("div", {key: i, className: "sc " + s.c}, /*#__PURE__*/React.createElement("div", {className: "sc-ico"}, s.i), /*#__PURE__*/React.createElement("div", {className: "sc-lbl"}, s.l), /*#__PURE__*/React.createElement("div", {className: "sc-val"}, s.v));
-    })), /*#__PURE__*/React.createElement("div", {className: "card"}, /*#__PURE__*/React.createElement("div", {className: "card-hd"}, /*#__PURE__*/React.createElement("h3", null, "Recent Activity")), /*#__PURE__*/React.createElement("div", {className: "card-bd"}, "Activity log for all offices and drivers will appear here.")));
+    })), /*#__PURE__*/React.createElement("div", {className: "tabs"}, [{k: "pickup", l: "🚚 Pickup Ready"}, {k: "transit", l: "📦 In Transit"}, {k: "completed", l: "✅ Completed"}].map(function(t) {
+      return /*#__PURE__*/React.createElement("div", {key: t.k, className: "tab " + (activeHQTab === t.k ? "on" : ""), onClick: function(){ setActiveHQTab(t.k); }}, t.l);
+    })), /*#__PURE__*/React.createElement("div", {className: "card"}, /*#__PURE__*/React.createElement("div", {className: "card-hd"}, /*#__PURE__*/React.createElement("h3", null, activeHQTab === "pickup" ? "Pickup Ready Orders" : activeHQTab === "transit" ? "In Transit Orders" : "Completed Orders")), /*#__PURE__*/React.createElement("div", {className: "card-bd"}, orders.filter(function(o) {
+      if (activeHQTab === "pickup") return o.status === "ready_pickup";
+      if (activeHQTab === "transit") return o.status === "in_transit";
+      if (activeHQTab === "completed") return o.status === "completed" && o.created_date === new Date().toISOString().split('T')[0];
+      return false;
+    }).length > 0 ? /*#__PURE__*/React.createElement("div", null, orders.filter(function(o) {
+      if (activeHQTab === "pickup") return o.status === "ready_pickup";
+      if (activeHQTab === "transit") return o.status === "in_transit";
+      if (activeHQTab === "completed") return o.status === "completed" && o.created_date === new Date().toISOString().split('T')[0];
+      return false;
+    }).map(function(o) {
+      return /*#__PURE__*/React.createElement("div", {key: o.id, style: {paddingBottom: 12, borderBottom: "1px solid var(--border)"}}, /*#__PURE__*/React.createElement("div", {style: {display: "flex", justifyContent: "space-between", alignItems: "flex-start"}}, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {style: {color: "var(--text)", fontSize: 13.5, fontWeight: 500}}, o.name), /*#__PURE__*/React.createElement("span", {className: "tamb"}, o.id), /*#__PURE__*/React.createElement("span", {className: "tag"}, o.boxType)), /*#__PURE__*/React.createElement("div", {style: {textAlign: "right"}}, /*#__PURE__*/React.createElement("span", {style: {fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, color: o.payment.status === "unpaid" ? "var(--red)" : "var(--green)", fontSize: 12}}, "$", (o.payment.amount || 0).toFixed(2)), /*#__PURE__*/React.createElement("div", {className: "xs mut"}, o.office))));
+    })) : /*#__PURE__*/React.createElement("div", {style: {color: "var(--text-muted)"}}, "No orders in this category.")))));
   if (showCustomer) return /*#__PURE__*/React.createElement(LangContext.Provider, {
     value: lang
   }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("style", null, CSS), /*#__PURE__*/React.createElement("div", {
