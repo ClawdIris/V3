@@ -302,8 +302,9 @@ const helperTests = [
     check: () => schemaContent.includes('CREATE OR REPLACE FUNCTION get_user_role()')
   },
   {
-    name: 'get_user_role() returns user role from user_profiles',
-    check: () => schemaContent.includes('SELECT role INTO user_role FROM user_profiles')
+    name: 'get_user_role() returns user role from members',
+    check: () => schemaContent.includes('FROM members') &&
+                 schemaContent.includes('COALESCE(app_role, role)')
   },
   {
     name: 'get_user_office_ids() function defined',
@@ -312,7 +313,8 @@ const helperTests = [
   {
     name: 'get_user_office_ids() returns office IDs array',
     check: () => schemaContent.includes('RETURN ARRAY(') &&
-                 schemaContent.includes('SELECT office_id FROM user_profiles')
+                 schemaContent.includes('SELECT office_id FROM members') &&
+                 schemaContent.includes('tenant_id = current_tenant_id()')
   }
 ];
 

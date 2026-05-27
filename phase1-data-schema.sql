@@ -40,12 +40,17 @@ COMMENT ON COLUMN orders.pickup_location IS
 -- Relationships:
 --   - order_id FK → orders(id)
 --   - office_id FK → offices(id)
---   - driver_id FK → user_profiles(user_id)
+--   - driver_id FK → auth.users(id)
+--
+-- Live schema note:
+--   orders.id and tenant_id are TEXT in production (e.g. TEST-003,
+--   casabe-xpress). Do not change these to UUID.
 
 CREATE TABLE IF NOT EXISTS box_orders (
   -- Identifiers
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id              UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  tenant_id             TEXT NOT NULL DEFAULT current_tenant_id(),
+  order_id              TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   box_number            INTEGER NOT NULL,  -- Sequence within order (1-based)
 
   -- Office & Driver Assignment
@@ -80,7 +85,7 @@ CREATE TABLE IF NOT EXISTS box_orders (
 
   -- Audit
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  created_by            UUID NOT NULL,  -- User who created box entry
+  created_by            UUID DEFAULT auth.uid(),  -- User who created box entry
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_by            UUID,  -- User who last modified
 
@@ -95,6 +100,7 @@ CREATE TABLE IF NOT EXISTS box_orders (
 
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_box_orders_order_id ON box_orders(order_id);
+CREATE INDEX IF NOT EXISTS idx_box_orders_tenant_id ON box_orders(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_box_orders_office_id ON box_orders(office_id);
 CREATE INDEX IF NOT EXISTS idx_box_orders_driver_id ON box_orders(driver_id);
 CREATE INDEX IF NOT EXISTS idx_box_orders_status ON box_orders(status);
@@ -135,8 +141,8 @@ CREATE TABLE IF NOT EXISTS activity_log (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
   -- Context
-  tenant_id             UUID NOT NULL,  -- Multi-tenant isolation
-  order_id              UUID,  -- Related order (if any)
+  tenant_id             TEXT NOT NULL DEFAULT current_tenant_id(),  -- Multi-tenant isolation
+  order_id              TEXT,  -- Related order (if any)
   box_id                UUID REFERENCES box_orders(id) ON DELETE SET NULL,  -- Related box (if any)
   user_id               UUID REFERENCES auth.users(id) ON DELETE SET NULL,  -- User who triggered action
 
@@ -218,7 +224,8 @@ COMMENT ON COLUMN activity_log.request_id IS
 --   Driver            → View assigned boxes/orders only
 --   Anonymous (guest) → No access (blocked by default)
 --
--- Role determination: user_profiles.role field (or can extend via permissions table)
+-- Role determination: public.members app_role/role fields and existing
+-- helper functions is_hq(), is_member(text), current_tenant_id().
 --
 
 -- Enable RLS on new tables
@@ -226,33 +233,37 @@ ALTER TABLE box_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
 
 -- ─────────────────────────────────────────────────────────
--- HELPER FUNCTION: Get current user role
+-- HELPER FUNCTION: Get user's office IDs (for filtering)
+-- ─────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION get_user_office_ids()
+RETURNS UUID[] AS $$
+BEGIN
+  -- Returns array of office IDs user has access to via public.members.
+  RETURN ARRAY(
+    SELECT office_id FROM members
+    WHERE user_id = auth.uid()
+      AND active = true
+      AND tenant_id = current_tenant_id()
+      AND office_id IS NOT NULL
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ─────────────────────────────────────────────────────────
+-- HELPER FUNCTION: Get current app role from members
 -- ─────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION get_user_role()
 RETURNS TEXT AS $$
 DECLARE
   user_role TEXT;
 BEGIN
-  SELECT role INTO user_role FROM user_profiles
+  SELECT COALESCE(app_role, role) INTO user_role
+  FROM members
   WHERE user_id = auth.uid()
+    AND active = true
+  ORDER BY created_at
   LIMIT 1;
   RETURN COALESCE(user_role, 'anonymous');
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- ─────────────────────────────────────────────────────────
--- HELPER FUNCTION: Get user's office IDs (for filtering)
--- ─────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION get_user_office_ids()
-RETURNS UUID[] AS $$
-BEGIN
-  -- Returns array of office IDs user has access to
-  -- For 'office' role, their assigned office_id
-  -- For 'admin', empty array (means filter not applied)
-  RETURN ARRAY(
-    SELECT office_id FROM user_profiles
-    WHERE user_id = auth.uid() AND office_id IS NOT NULL
-  );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
@@ -265,14 +276,16 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE POLICY "hq_can_view_all_boxes" ON box_orders
   FOR SELECT
   USING (
-    get_user_role() = 'admin'
+    tenant_id = current_tenant_id()
+    AND (is_hq() OR get_user_role() IN ('hq', 'admin', 'owner'))
   );
 
 -- Office managers can view boxes in their office
 CREATE POLICY "office_can_view_own_office_boxes" ON box_orders
   FOR SELECT
   USING (
-    get_user_role() = 'office'
+    tenant_id = current_tenant_id()
+    AND get_user_role() IN ('office', 'manager', 'dispatcher')
     AND office_id = ANY(get_user_office_ids())
   );
 
@@ -280,7 +293,8 @@ CREATE POLICY "office_can_view_own_office_boxes" ON box_orders
 CREATE POLICY "driver_can_view_assigned_boxes" ON box_orders
   FOR SELECT
   USING (
-    get_user_role() = 'driver'
+    tenant_id = current_tenant_id()
+    AND get_user_role() = 'driver'
     AND driver_id = auth.uid()
   );
 
@@ -288,7 +302,8 @@ CREATE POLICY "driver_can_view_assigned_boxes" ON box_orders
 CREATE POLICY "office_can_create_boxes" ON box_orders
   FOR INSERT
   WITH CHECK (
-    get_user_role() = 'office'
+    tenant_id = current_tenant_id()
+    AND get_user_role() IN ('office', 'manager', 'dispatcher')
     AND office_id = ANY(get_user_office_ids())
   );
 
@@ -296,18 +311,21 @@ CREATE POLICY "office_can_create_boxes" ON box_orders
 CREATE POLICY "hq_can_create_boxes" ON box_orders
   FOR INSERT
   WITH CHECK (
-    get_user_role() = 'admin'
+    tenant_id = current_tenant_id()
+    AND (is_hq() OR get_user_role() IN ('hq', 'admin', 'owner'))
   );
 
 -- Office managers can update boxes in their office
 CREATE POLICY "office_can_update_own_boxes" ON box_orders
   FOR UPDATE
   USING (
-    get_user_role() = 'office'
+    tenant_id = current_tenant_id()
+    AND get_user_role() IN ('office', 'manager', 'dispatcher')
     AND office_id = ANY(get_user_office_ids())
   )
   WITH CHECK (
-    get_user_role() = 'office'
+    tenant_id = current_tenant_id()
+    AND get_user_role() IN ('office', 'manager', 'dispatcher')
     AND office_id = ANY(get_user_office_ids())
   );
 
@@ -315,19 +333,27 @@ CREATE POLICY "office_can_update_own_boxes" ON box_orders
 CREATE POLICY "driver_can_update_assigned_boxes" ON box_orders
   FOR UPDATE
   USING (
-    get_user_role() = 'driver'
+    tenant_id = current_tenant_id()
+    AND get_user_role() = 'driver'
     AND driver_id = auth.uid()
   )
   WITH CHECK (
-    get_user_role() = 'driver'
+    tenant_id = current_tenant_id()
+    AND get_user_role() = 'driver'
     AND driver_id = auth.uid()
   );
 
 -- HQ can update any box
 CREATE POLICY "hq_can_update_all_boxes" ON box_orders
   FOR UPDATE
-  USING (get_user_role() = 'admin')
-  WITH CHECK (get_user_role() = 'admin');
+  USING (
+    tenant_id = current_tenant_id()
+    AND (is_hq() OR get_user_role() IN ('hq', 'admin', 'owner'))
+  )
+  WITH CHECK (
+    tenant_id = current_tenant_id()
+    AND (is_hq() OR get_user_role() IN ('hq', 'admin', 'owner'))
+  );
 
 -- Deny DELETE for all roles (keep audit trail)
 CREATE POLICY "deny_box_delete" ON box_orders
@@ -343,14 +369,16 @@ CREATE POLICY "deny_box_delete" ON box_orders
 CREATE POLICY "hq_can_view_all_activities" ON activity_log
   FOR SELECT
   USING (
-    get_user_role() = 'admin'
+    tenant_id = current_tenant_id()
+    AND (is_hq() OR get_user_role() IN ('hq', 'admin', 'owner'))
   );
 
 -- Office managers can view activities for their office
 CREATE POLICY "office_can_view_office_activities" ON activity_log
   FOR SELECT
   USING (
-    get_user_role() = 'office'
+    tenant_id = current_tenant_id()
+    AND get_user_role() IN ('office', 'manager', 'dispatcher')
     -- View activities related to orders/boxes in their office
     AND (
       -- Activities on boxes assigned to their office
@@ -372,7 +400,8 @@ CREATE POLICY "office_can_view_office_activities" ON activity_log
 CREATE POLICY "driver_can_view_assigned_activities" ON activity_log
   FOR SELECT
   USING (
-    get_user_role() = 'driver'
+    tenant_id = current_tenant_id()
+    AND get_user_role() = 'driver'
     AND (
       -- Activities on boxes assigned to them
       (resource_type = 'box' AND box_id IN (
@@ -387,7 +416,10 @@ CREATE POLICY "driver_can_view_assigned_activities" ON activity_log
 -- All authenticated users can create activity logs
 CREATE POLICY "authenticated_can_insert_activities" ON activity_log
   FOR INSERT
-  WITH CHECK (auth.uid() IS NOT NULL);
+  WITH CHECK (
+    auth.uid() IS NOT NULL
+    AND tenant_id = current_tenant_id()
+  );
 
 -- Prevent updates to activity log (immutable)
 CREATE POLICY "deny_activity_update" ON activity_log
