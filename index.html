@@ -25098,6 +25098,15 @@ setOrders(function (prev) {
       }, "\uD83D\uDCAC WhatsApp")));
     })));
   };
+    if (page === "hq_ops") return /*#__PURE__*/React.createElement("div", {
+      className: "fu"
+    }, /*#__PURE__*/React.createElement("h2", {
+      style: { marginBottom: 20 }
+    }, "HQ Operations"), /*#__PURE__*/React.createElement("div", {
+      className: "g3 mb12"
+    }, [{l: "Pickup Ready", v: orders.filter(function(o){ return o.status === "ready_pickup"; }).length, i: "🚚", c: "sc-a"}, {l: "In Transit", v: orders.filter(function(o){ return o.status === "in_transit"; }).length, i: "📦", c: "sc-b"}, {l: "Completed Today", v: orders.filter(function(o){ return o.status === "completed" && o.created_date === new Date().toISOString().split('T')[0]; }).length, i: "✅", c: "sc-g"}].map(function(s, i) {
+      return /*#__PURE__*/React.createElement("div", {key: i, className: "sc " + s.c}, /*#__PURE__*/React.createElement("div", {className: "sc-ico"}, s.i), /*#__PURE__*/React.createElement("div", {className: "sc-lbl"}, s.l), /*#__PURE__*/React.createElement("div", {className: "sc-val"}, s.v));
+    })), /*#__PURE__*/React.createElement("div", {className: "card"}, /*#__PURE__*/React.createElement("div", {className: "card-hd"}, /*#__PURE__*/React.createElement("h3", null, "Recent Activity")), /*#__PURE__*/React.createElement("div", {className: "card-bd"}, "Activity log for all offices and drivers will appear here.")));
   if (showCustomer) return /*#__PURE__*/React.createElement(LangContext.Provider, {
     value: lang
   }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("style", null, CSS), /*#__PURE__*/React.createElement("div", {
