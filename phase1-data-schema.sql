@@ -240,36 +240,42 @@ ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
 -- HELPER FUNCTION: Get user's office IDs (for filtering)
 -- ─────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION get_user_office_ids()
-RETURNS UUID[] AS $$
+RETURNS UUID[] 
+SECURITY DEFINER
+SET search_path = ''
+LANGUAGE plpgsql AS $$
 BEGIN
   -- Returns array of office IDs user has access to via public.members.
   RETURN ARRAY(
-    SELECT office_id FROM members
+    SELECT office_id FROM public.members
     WHERE user_id = auth.uid()
       AND active = true
       AND tenant_id = current_tenant_id()
       AND office_id IS NOT NULL
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- ─────────────────────────────────────────────────────────
 -- HELPER FUNCTION: Get current app role from members
 -- ─────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION get_user_role()
-RETURNS TEXT AS $$
+RETURNS TEXT
+SECURITY DEFINER
+SET search_path = ''
+LANGUAGE plpgsql AS $$
 DECLARE
   user_role TEXT;
 BEGIN
   SELECT COALESCE(app_role, role) INTO user_role
-  FROM members
+  FROM public.members
   WHERE user_id = auth.uid()
     AND active = true
   ORDER BY created_at
   LIMIT 1;
   RETURN COALESCE(user_role, 'anonymous');
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 
 -- ════════════════════════════════════════════════════════════════════
