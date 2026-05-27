@@ -24536,6 +24536,7 @@ setOrders(function (prev) {
       shipments: shipments,
       tenant: tenant
     });
+    if (page === "hq_ops") return renderHQOpsPage();
     if (page === "customers") return /*#__PURE__*/React.createElement(CustomerProfilePage, {
       orders: orders,
       onImportCustomers: function onImportCustomers(imported) {
@@ -25110,29 +25111,129 @@ setOrders(function (prev) {
       }, "\uD83D\uDCAC WhatsApp")));
     })));
   };
-    if (page === "hq_ops") return /*#__PURE__*/React.createElement("div", {
-      className: "fu"
-    }, /*#__PURE__*/React.createElement("h2", {
-      style: { marginBottom: 20 }
-    }, "HQ Operations"), /*#__PURE__*/React.createElement("div", {
-      className: "g3 mb12"
-    }, [{l: "Pickup Ready", v: orders.filter(function(o){ return o.status === "ready_pickup"; }).length, i: "🚚", c: "sc-a"}, {l: "In Transit", v: orders.filter(function(o){ return o.status === "in_transit"; }).length, i: "📦", c: "sc-b"}, {l: "Completed Today", v: orders.filter(function(o){ return o.status === "completed" && o.created_date === new Date().toISOString().split('T')[0]; }).length, i: "✅", c: "sc-g"}].map(function(s, i) {
-      return /*#__PURE__*/React.createElement("div", {key: i, className: "sc " + s.c}, /*#__PURE__*/React.createElement("div", {className: "sc-ico"}, s.i), /*#__PURE__*/React.createElement("div", {className: "sc-lbl"}, s.l), /*#__PURE__*/React.createElement("div", {className: "sc-val"}, s.v));
-    })), /*#__PURE__*/React.createElement("div", {className: "tabs"}, [{k: "pickup", l: "🚚 Pickup Ready"}, {k: "transit", l: "📦 In Transit"}, {k: "completed", l: "✅ Completed"}].map(function(t) {
-      return /*#__PURE__*/React.createElement("div", {key: t.k, className: "tab " + (activeHQTab === t.k ? "on" : ""), onClick: function(){ setActiveHQTab(t.k); }}, t.l);
-    })), /*#__PURE__*/React.createElement("div", {className: "card"}, /*#__PURE__*/React.createElement("div", {className: "card-hd"}, /*#__PURE__*/React.createElement("h3", null, activeHQTab === "pickup" ? "Pickup Ready Orders" : activeHQTab === "transit" ? "In Transit Orders" : "Completed Orders")), /*#__PURE__*/React.createElement("div", {className: "card-bd"}, orders.filter(function(o) {
-      if (activeHQTab === "pickup") return o.status === "ready_pickup";
-      if (activeHQTab === "transit") return o.status === "in_transit";
-      if (activeHQTab === "completed") return o.status === "completed" && o.created_date === new Date().toISOString().split('T')[0];
-      return false;
-    }).length > 0 ? /*#__PURE__*/React.createElement("div", null, orders.filter(function(o) {
-      if (activeHQTab === "pickup") return o.status === "ready_pickup";
-      if (activeHQTab === "transit") return o.status === "in_transit";
-      if (activeHQTab === "completed") return o.status === "completed" && o.created_date === new Date().toISOString().split('T')[0];
-      return false;
-    }).map(function(o) {
-      return /*#__PURE__*/React.createElement("div", {key: o.id, style: {paddingBottom: 12, borderBottom: "1px solid var(--border)"}}, /*#__PURE__*/React.createElement("div", {style: {display: "flex", justifyContent: "space-between", alignItems: "flex-start"}}, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {style: {color: "var(--text)", fontSize: 13.5, fontWeight: 500}}, o.name), /*#__PURE__*/React.createElement("span", {className: "tamb"}, o.id), /*#__PURE__*/React.createElement("span", {className: "tag"}, o.boxType)), /*#__PURE__*/React.createElement("div", {style: {textAlign: "right"}}, /*#__PURE__*/React.createElement("span", {style: {fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, color: o.payment.status === "unpaid" ? "var(--red)" : "var(--green)", fontSize: 12}}, "$", (o.payment.amount || 0).toFixed(2)), /*#__PURE__*/React.createElement("div", {className: "xs mut"}, o.office))));
-    })) : /*#__PURE__*/React.createElement("div", {style: {color: "var(--text-muted)"}}, "No orders in this category.")))));
+  var renderHQOpsPage = function renderHQOpsPage() {
+      var _today = new Date().toISOString().split("T")[0];
+      var _hqFilteredOrders = orders.filter(function (o) {
+        if (activeHQTab === "pickup") return o.status === "ready_pickup";
+        if (activeHQTab === "transit") return o.status === "in_transit";
+        if (activeHQTab === "completed") return o.status === "completed" && o.created_date === _today;
+        return false;
+      });
+      return /*#__PURE__*/React.createElement("div", {
+        className: "fu"
+      }, /*#__PURE__*/React.createElement("h2", {
+        style: {
+          marginBottom: 20
+        }
+      }, "HQ Operations"), /*#__PURE__*/React.createElement("div", {
+        className: "g3 mb12"
+      }, [{
+        l: "Pickup Ready",
+        v: orders.filter(function (o) {
+          return o.status === "ready_pickup";
+        }).length,
+        i: "🚚",
+        c: "sc-a"
+      }, {
+        l: "In Transit",
+        v: orders.filter(function (o) {
+          return o.status === "in_transit";
+        }).length,
+        i: "📦",
+        c: "sc-b"
+      }, {
+        l: "Completed Today",
+        v: orders.filter(function (o) {
+          return o.status === "completed" && o.created_date === _today;
+        }).length,
+        i: "✅",
+        c: "sc-g"
+      }].map(function (s, i) {
+        return /*#__PURE__*/React.createElement("div", {
+          key: i,
+          className: "sc " + s.c
+        }, /*#__PURE__*/React.createElement("div", {
+          className: "sc-ico"
+        }, s.i), /*#__PURE__*/React.createElement("div", {
+          className: "sc-lbl"
+        }, s.l), /*#__PURE__*/React.createElement("div", {
+          className: "sc-val"
+        }, s.v));
+      })), /*#__PURE__*/React.createElement("div", {
+        className: "tabs"
+      }, [{
+        k: "pickup",
+        l: "🚚 Pickup Ready"
+      }, {
+        k: "transit",
+        l: "📦 In Transit"
+      }, {
+        k: "completed",
+        l: "✅ Completed"
+      }].map(function (tab) {
+        return /*#__PURE__*/React.createElement("div", {
+          key: tab.k,
+          className: "tab " + (activeHQTab === tab.k ? "on" : ""),
+          onClick: function onClick() {
+            return setActiveHQTab(tab.k);
+          }
+        }, tab.l);
+      })), /*#__PURE__*/React.createElement("div", {
+        className: "card"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "card-hd"
+      }, /*#__PURE__*/React.createElement("h3", null, activeHQTab === "pickup" ? "Pickup Ready Orders" : activeHQTab === "transit" ? "In Transit Orders" : "Completed Orders")), /*#__PURE__*/React.createElement("div", {
+        className: "card-bd"
+      }, _hqFilteredOrders.length ? /*#__PURE__*/React.createElement("div", null, _hqFilteredOrders.map(function (o) {
+        var _payment = o.payment || {};
+        return /*#__PURE__*/React.createElement("div", {
+          key: o.id,
+          style: {
+            paddingBottom: 12,
+            borderBottom: "1px solid var(--border)"
+          }
+        }, /*#__PURE__*/React.createElement("div", {
+          style: {
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start"
+          }
+        }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+          style: {
+            color: "var(--text)",
+            fontSize: 13.5,
+            fontWeight: 500
+          }
+        }, o.name), /*#__PURE__*/React.createElement("span", {
+          className: "tamb"
+        }, o.id), /*#__PURE__*/React.createElement("span", {
+          className: "tag"
+        }, o.boxType)), /*#__PURE__*/React.createElement("div", {
+          style: {
+            textAlign: "right"
+          }
+        }, /*#__PURE__*/React.createElement("span", {
+          style: {
+            fontFamily: "'IBM Plex Mono',monospace",
+            fontWeight: 700,
+            color: _payment.status === "unpaid" ? "var(--red)" : "var(--green)",
+            fontSize: 12
+          }
+        }, "$", (_payment.amount || 0).toFixed(2)), /*#__PURE__*/React.createElement("div", {
+          className: "xs mut"
+        }, o.office))));
+      })) : /*#__PURE__*/React.createElement("div", {
+        style: {
+          color: "var(--text-muted)"
+        }
+      }, "No orders in this category."))), /*#__PURE__*/React.createElement("div", {
+        className: "card mt12"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "card-hd"
+      }, /*#__PURE__*/React.createElement("h3", null, "Recent Activity")), /*#__PURE__*/React.createElement("div", {
+        className: "card-bd xs mut"
+      }, "Recent activity from activity_log across all offices and drivers.")));
+    };
   if (showCustomer) return /*#__PURE__*/React.createElement(LangContext.Provider, {
     value: lang
   }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("style", null, CSS), /*#__PURE__*/React.createElement("div", {

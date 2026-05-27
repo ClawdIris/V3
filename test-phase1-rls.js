@@ -303,7 +303,8 @@ const helperTests = [
   },
   {
     name: 'get_user_role() returns user role from members',
-    check: () => schemaContent.includes('FROM members') &&
+    check: () => schemaContent.includes('FROM public.members') &&
+                 schemaContent.includes("SET search_path = ''") &&
                  schemaContent.includes('COALESCE(app_role, role)')
   },
   {
@@ -313,7 +314,8 @@ const helperTests = [
   {
     name: 'get_user_office_ids() returns office IDs array',
     check: () => schemaContent.includes('RETURN ARRAY(') &&
-                 schemaContent.includes('SELECT office_id FROM members') &&
+                 schemaContent.includes('SELECT office_id FROM public.members') &&
+                 schemaContent.includes("SET search_path = ''") &&
                  schemaContent.includes('tenant_id = current_tenant_id()')
   }
 ];
