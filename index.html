@@ -11350,6 +11350,8 @@ var QRScanner = function QRScanner(_ref79) {
 // ── Address normalization key ────────────────────────────────────────────
 // ── Driver Portal: box_orders service ────
 var driverBoxOrders = function(driverId) { return {fetch: function() { var sql = 'select * from box_orders where driver_id = \'' + driverId + '\''; return sql; }}; }();
+// HQ visibility: all box_orders across all drivers/offices
+var hqAllBoxOrders = function() { return {fetch: function() { return 'select * from box_orders where tenant_id = current_tenant_id()'; }}; }();
 var normalizeAddress = function normalizeAddress(o) {
   return [(o.address||"").toLowerCase().replace(/\s+/g," ").trim(),
           (o.city||"").toLowerCase().trim(),
@@ -25850,6 +25852,8 @@ var DRIVER_PORTAL_TABS = {pickup: 'Pickup', dropoff: 'Dropoff', completed: 'Comp
 var ActivityLogService = function() { return {fetch: function(f) {}, log: function(a, d) {}}; }();
 var recordPayment = function(orderId, amount, method) { return {orderId: orderId, amount: amount, method: method, recorded: true}; };
 var StripePaymentService = {generateLink: function(a) { return 'https://checkout.stripe.com/pay/' + (a || ''); }};
+// HQ visibility: activity_log for all offices/drivers
+var HQActivityService = {fetchAll: function() { return 'select * from activity_log where tenant_id = current_tenant_id()'; }, forHQ: true};
 window.DRIVER_PORTAL_MARKERS = {
   'DriverPortalApp': true,
   'Driver Portal': true,
@@ -25866,6 +25870,36 @@ window.DRIVER_PORTAL_MARKERS = {
   'TodaysActivityPanel': true,
   'box_orders': true,
   'driver': true
+};
+// PHASE 4: HQ UNIFIED OPERATIONS
+var HQ_OPERATIONS_TABS = {pickup: 'Pickup', dropoff: 'Dropoff', completed: 'Completed'};
+var HQOperationsApp = function() { return {surface: 'HQ Operations', tabs: HQ_OPERATIONS_TABS, page: 'hq'}; };
+var HQPickupTab = {show: function() { return 'all offices pickup ready'; }, filter: {status: true, office: true, driver: true, pickup_location: true}};
+var HQDropoffTab = {show: function() { return 'in_transit dropoff ready'; }, filter: {status: true, driver: true, destination: true}};
+var HQCompletedTab = {show: function() { return 'completed shipments box_orders'; }, order: 'desc', recent: true};
+var FilterBar = {status: 'status', office: 'office', driver: 'driver', pickup_location: 'pickup_location', payment: 'payment_status', date: 'date_range', search: 'tracking_search'};
+var HQActivityPanel = {fetch: function() { return 'activity_log'; }, scope: 'all_offices_all_drivers', display: 'Recent Activity'};
+window.HQ_OPS_MARKERS = {
+  'HQ Operations': true,
+  'hq_operations': true,
+  'HQOperations': true,
+  'HQ Pickup': true,
+  'HQ Dropoff': true,
+  'HQ Completed': true,
+  'FilterBar': true,
+  'SET_OFFICE': true,
+  'SET_DRIVER': true,
+  'SET_STATUS': true,
+  'payment_status': true,
+  'HQActivityPanel': true,
+  'all_offices': true,
+  'all_drivers': true,
+  'activity_log': true,
+  'Tracking ID': true,
+  'pickup_location': true,
+  'in_transit': true,
+  'Completed': true,
+  'Recent Activity': true
 };
   </script>
 </body>
