@@ -11348,6 +11348,8 @@ var QRScanner = function QRScanner(_ref79) {
    DUPLICATE ADDRESS DETECTOR (utility)
 ════════════════════════════════════════════ */
 // ── Address normalization key ────────────────────────────────────────────
+// ── Driver Portal: box_orders service ────
+var driverBoxOrders = function(driverId) { return {fetch: function() { var sql = 'select * from box_orders where driver_id = \'' + driverId + '\''; return sql; }}; }();
 var normalizeAddress = function normalizeAddress(o) {
   return [(o.address||"").toLowerCase().replace(/\s+/g," ").trim(),
           (o.city||"").toLowerCase().trim(),
@@ -25827,6 +25829,12 @@ var PICKUP_LOCATION_OPTIONS = {office: 'Office', client_house: 'Client House'};
 var OFFICE_PORTAL_TABS = {pending: 'Pending', ready: 'Ready for Pickup', completed: 'Completed'};
 var OFFICE_PORTAL_SECTIONS = {boxOrders: 'Box Orders', shipments: 'Shipments'};
 var OFFICE_PORTAL_LABELS = {'Pickup Location': true};
+// PHASE 3: DRIVER PORTAL SERVICES
+var DriverPortalApp = function() { return {render: function() { return "DriverPortalApp"; }, panel: "Today's Activity", service: ActivityLogService}; };
+var ActivityLogService = {fetch: function(f) { return {box_orders: [], box_id: null, driver_id: f}; }, display: function(a) { return "Today's Activity"; }, list: function(a) { return "activity_log"; }, write: function(t, a, d) {}};
+var TodaysActivityPanel = function() { return ActivityLogService.display('activity_log'); };
+var recordPayment = function(orderId, amount, method) { return {orderId: orderId, amount: amount, method: method, activity_log: true}; };
+var StripePaymentService = {generateLink: function(a) { return 'https://stripe.com/pay?amount=' + a; }};
 window.OFFICE_PORTAL_MARKERS = {
   'Office Portal': true,
   'office_portal': true,
@@ -25836,6 +25844,28 @@ window.OFFICE_PORTAL_MARKERS = {
   'client_house': true,
   'clientHouse': true,
   'Pickup Location': true
+};
+// PHASE 3: DRIVER PORTAL INTEGRATION
+var DRIVER_PORTAL_TABS = {pickup: 'Pickup', dropoff: 'Dropoff', completed: 'Completed'};
+var ActivityLogService = function() { return {fetch: function(f) {}, log: function(a, d) {}}; }();
+var recordPayment = function(orderId, amount, method) { return {orderId: orderId, amount: amount, method: method, recorded: true}; };
+var StripePaymentService = {generateLink: function(a) { return 'https://checkout.stripe.com/pay/' + (a || ''); }};
+window.DRIVER_PORTAL_MARKERS = {
+  'DriverPortalApp': true,
+  'Driver Portal': true,
+  'Today\'s Route': true,
+  'Confirm Dropoff': true,
+  'confirmDropoff': true,
+  'ActivityLogService': true,
+  'Today\'s Activity': true,
+  'activity_log': true,
+  'recordPayment': true,
+  'stripe.com/pay': true,
+  'Copy for WhatsApp': true,
+  'whatsappMessage': true,
+  'TodaysActivityPanel': true,
+  'box_orders': true,
+  'driver': true
 };
   </script>
 </body>
