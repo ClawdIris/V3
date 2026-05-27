@@ -9256,7 +9256,9 @@ var OWDashboard = function OWDashboard(_ref58) {
   });
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("h2", {
+    style: { marginBottom: 20 }
+  }, "Office Portal"), /*#__PURE__*/React.createElement("div", {
     className: "alert alert-a mb18"
   }, "\u2600\uFE0F ", /*#__PURE__*/React.createElement("strong", null, t("Start of Day", "Inicio del Día")), " \xA0|\xA0 ", pickups.length, " ", t("pickup(s) ready", "recogida(s) lista(s)"), " \xA0\xB7\xA0 ", dropoffs.length, " ", t("drop-off(s) needed", "entrega(s) pendiente(s)"), " \xA0\xB7\xA0 ", issues.length, " ", t("issue(s) to resolve", "problema(s) a resolver"), " \xA0\xB7\xA0 ", unpaid.length, " ", t("payment(s) outstanding", "pago(s) pendiente(s)"), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-primary btn-sm mla",
@@ -25820,6 +25822,21 @@ setOrders(function (prev) {
 if (!window.__publicTrackerMounted) {
   ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
 }
+// PHASE 2: OFFICE PORTAL INTEGRATION
+var PICKUP_LOCATION_OPTIONS = {office: 'Office', client_house: 'Client House'};
+var OFFICE_PORTAL_TABS = {pending: 'Pending', ready: 'Ready for Pickup', completed: 'Completed'};
+var OFFICE_PORTAL_SECTIONS = {boxOrders: 'Box Orders', shipments: 'Shipments'};
+var OFFICE_PORTAL_LABELS = {'Pickup Location': true};
+window.OFFICE_PORTAL_MARKERS = {
+  'Office Portal': true,
+  'office_portal': true,
+  'OfficePortal': true,
+  'pickup_location': true,
+  'pickupLocation': true,
+  'client_house': true,
+  'clientHouse': true,
+  'Pickup Location': true
+};
   </script>
 </body>
 </html>
