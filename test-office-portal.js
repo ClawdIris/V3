@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /**
  * test-office-portal.js
- * 
+ *
  * Phase 2 Office Portal Integration Test
- * 
+ *
  * Tests:
  * 1. Office Portal route/surface integrated
  * 2. Pickup location required field (office | client_house options)
  * 3. Office Portal tabs: Pending | Ready for Pickup | Completed
  * 4. Box Orders section
  * 5. Completed tab distinguishes shipments vs box orders
- * 
+ *
  * Usage: node test-office-portal.js
  */
 
@@ -106,7 +106,7 @@ test('10. Completed tab', () => {
 });
 
 test('11. Office portal tabs as conditional display', () => {
-  return (html.includes('Pending') && html.includes('Completed')) && 
+  return (html.includes('Pending') && html.includes('Completed')) &&
          (html.includes('Ready') || html.includes('pickup'));
 });
 

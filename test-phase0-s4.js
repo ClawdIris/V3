@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
  * test-phase0-s4.js
- * 
+ *
  * Phase 0 S4 Smoke Test - 29 tests
  * Tests v9.15 invoice print and commission remediation
- * 
+ *
  * This file tests:
  * 1. Invoice Print functionality (8 tests)
  * 2. Commission Remediation (7 tests)
  * 3. v9.15 baseline features (14 tests)
- * 
+ *
  * Usage: node test-phase0-s4.js
  */
 

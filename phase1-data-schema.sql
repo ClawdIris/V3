@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════
 -- PHASE 1: DATA FOUNDATIONS - Casabe Konnect R4
 -- ═══════════════════════════════════════════════════════════════════
--- 
+--
 -- This script adds essential data schema for Phase 1:
 -- 1. Add pickup_location field to orders table
 -- 2. Create box_orders table (normalized box data)
@@ -24,7 +24,7 @@ ADD COLUMN IF NOT EXISTS pickup_location TEXT
 
 CREATE INDEX IF NOT EXISTS idx_orders_pickup_location ON orders(pickup_location);
 
-COMMENT ON COLUMN orders.pickup_location IS 
+COMMENT ON COLUMN orders.pickup_location IS
   'Pickup location type: office (standard office pickup) or client_house (pickup at customer location)';
 
 
@@ -47,46 +47,46 @@ CREATE TABLE IF NOT EXISTS box_orders (
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   order_id              UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   box_number            INTEGER NOT NULL,  -- Sequence within order (1-based)
-  
+
   -- Office & Driver Assignment
   office_id             UUID,  -- Nullable: unassigned until routed
   driver_id             UUID,  -- Nullable: unassigned until picked up
-  
+
   -- Box Specification
   box_type              TEXT NOT NULL DEFAULT 'standard',
     -- Options: 'small', 'medium', 'large', 'oversized', 'custom'
   dimensions            JSONB,  -- { "length": 12, "width": 8, "height": 6, "unit": "in" }
   weight_lbs            DECIMAL(8, 2),  -- Nullable: weight optional at creation
-  
+
   -- Status & Lifecycle
   status                TEXT NOT NULL DEFAULT 'created',
     -- Workflow: created → assigned → picked_up → in_transit → delivered → completed
     -- Or: created → assigned → scanned → held → ... → delivered
   status_updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   status_updated_by     UUID,  -- User who last changed status
-  
+
   -- Tracking
   label_printed_at      TIMESTAMPTZ,
   label_printed_by      UUID,
   barcode               TEXT UNIQUE,  -- Unique barcode for scanning
   scanned_at            TIMESTAMPTZ,
   scanned_by            UUID,
-  
+
   -- Delivery
   delivered_at          TIMESTAMPTZ,
   delivered_by          UUID,
   signature_url         TEXT,  -- URL to signature image (if required)
   delivery_notes        TEXT,
-  
+
   -- Audit
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_by            UUID NOT NULL,  -- User who created box entry
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_by            UUID,  -- User who last modified
-  
+
   -- Metadata
   metadata              JSONB DEFAULT '{}'::jsonb,  -- Additional box-specific data
-  
+
   CONSTRAINT box_number_per_order UNIQUE (order_id, box_number),
   CONSTRAINT valid_status CHECK (
     status IN ('created', 'assigned', 'picked_up', 'in_transit', 'scanned', 'held', 'delivered', 'completed', 'failed', 'returned')
@@ -107,14 +107,14 @@ CREATE INDEX IF NOT EXISTS idx_box_orders_driver_status ON box_orders(driver_id,
 CREATE INDEX IF NOT EXISTS idx_box_orders_office_status ON box_orders(office_id, status);
 
 -- Full-text search on barcode & delivery notes (if using search)
--- CREATE INDEX IF NOT EXISTS idx_box_orders_search ON box_orders 
+-- CREATE INDEX IF NOT EXISTS idx_box_orders_search ON box_orders
 --   USING GIN(to_tsvector('english', barcode || ' ' || COALESCE(delivery_notes, '')));
 
-COMMENT ON TABLE box_orders IS 
+COMMENT ON TABLE box_orders IS
   'Normalized box-level data. Separates box operations from order-level operations.';
-COMMENT ON COLUMN box_orders.status IS 
+COMMENT ON COLUMN box_orders.status IS
   'Box lifecycle status: created, assigned, picked_up, in_transit, scanned, held, delivered, completed, failed, returned';
-COMMENT ON COLUMN box_orders.metadata IS 
+COMMENT ON COLUMN box_orders.metadata IS
   'JSON object for box-specific extensible data (e.g., {"fragile": true, "requires_signature": false})';
 
 
@@ -127,40 +127,40 @@ COMMENT ON COLUMN box_orders.metadata IS
 --   - Rebuild state from activity log (event sourcing capable)
 --   - Role-based visibility (HQ sees all, Office sees own, Driver sees assigned)
 --
--- Activity Types: order_created, order_updated, box_created, box_scanned, 
+-- Activity Types: order_created, order_updated, box_created, box_scanned,
 --                 status_changed, invoice_sent, payment_received, etc.
 
 CREATE TABLE IF NOT EXISTS activity_log (
   -- Identifiers
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  
+
   -- Context
   tenant_id             UUID NOT NULL,  -- Multi-tenant isolation
   order_id              UUID,  -- Related order (if any)
   box_id                UUID REFERENCES box_orders(id) ON DELETE SET NULL,  -- Related box (if any)
   user_id               UUID REFERENCES auth.users(id) ON DELETE SET NULL,  -- User who triggered action
-  
+
   -- Activity Details
   activity_type         TEXT NOT NULL,  -- 'order_created', 'box_scanned', 'status_changed', etc.
   action                TEXT NOT NULL,  -- 'create', 'update', 'delete', 'scan', 'assign'
   resource_type         TEXT NOT NULL,  -- 'order', 'box', 'invoice', 'payment'
-  
+
   -- Description for UI display
   description           TEXT NOT NULL,  -- Human-readable summary
-  
+
   -- Change Data
   old_data              JSONB,  -- Previous state (for updates)
   new_data              JSONB,  -- Current state (for updates) or full data (for creates)
-  
+
   -- Context/Metadata
   ip_address            INET,
   user_agent            TEXT,
   request_id            UUID,  -- Trace ID for correlating related activities
   metadata              JSONB DEFAULT '{}'::jsonb,  -- Additional context
-  
+
   -- Timestamps
   created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  
+
   -- Indexes optimize queries
   CONSTRAINT valid_activity CHECK (
     activity_type IN (
@@ -196,22 +196,22 @@ CREATE INDEX IF NOT EXISTS idx_activity_log_request_id ON activity_log(request_i
 -- CREATE TABLE activity_log_2024_05 PARTITION OF activity_log
 --   FOR VALUES FROM ('2024-05-01') TO ('2024-06-01');
 
-COMMENT ON TABLE activity_log IS 
+COMMENT ON TABLE activity_log IS
   'Immutable append-only activity ledger. Enables audit trails, compliance reporting, and event sourcing.';
-COMMENT ON COLUMN activity_log.activity_type IS 
+COMMENT ON COLUMN activity_log.activity_type IS
   'Type of activity: order_created, order_updated, box_scanned, status_changed, invoice_sent, etc.';
-COMMENT ON COLUMN activity_log.old_data IS 
+COMMENT ON COLUMN activity_log.old_data IS
   'JSON snapshot of state before change (NULL for creates, SET for updates)';
-COMMENT ON COLUMN activity_log.new_data IS 
+COMMENT ON COLUMN activity_log.new_data IS
   'JSON snapshot of state after change (or full data for creates)';
-COMMENT ON COLUMN activity_log.request_id IS 
+COMMENT ON COLUMN activity_log.request_id IS
   'Unique request ID for correlating related activities in a single operation';
 
 
 -- ═════════════════════════════════════════════════════════════════════
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ═════════════════════════════════════════════════════════════════════
--- 
+--
 -- Four roles with different data access:
 --   HQ (admin)        → View all data (no filters)
 --   Office (manager)  → View own office + assigned boxes/orders
@@ -420,19 +420,19 @@ GRANT ALL ON activity_log TO service_role;
 -- ═════════════════════════════════════════════════════════════════════
 -- VERIFICATION & TESTING NOTES
 -- ═════════════════════════════════════════════════════════════════════
--- 
+--
 -- After running this script, verify with:
 --
 -- 1. Column added to orders:
---    SELECT column_name FROM information_schema.columns 
+--    SELECT column_name FROM information_schema.columns
 --    WHERE table_name = 'orders' AND column_name = 'pickup_location';
 --
 -- 2. New tables exist:
---    SELECT tablename FROM pg_tables 
+--    SELECT tablename FROM pg_tables
 --    WHERE tablename IN ('box_orders', 'activity_log');
 --
 -- 3. RLS is enabled:
---    SELECT tablename, rowsecurity FROM pg_tables 
+--    SELECT tablename, rowsecurity FROM pg_tables
 --    WHERE tablename IN ('box_orders', 'activity_log');
 --
 -- 4. Test HQ role (should see all):
