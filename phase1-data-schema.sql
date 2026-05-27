@@ -38,19 +38,21 @@ COMMENT ON COLUMN orders.pickup_location IS
 --   - Provides granular activity logging
 --
 -- Relationships:
---   - order_id FK → orders(id)
+--   - (order_id, tenant_id) FK → orders(id, tenant_id)
 --   - office_id FK → offices(id)
 --   - driver_id FK → auth.users(id)
 --
 -- Live schema note:
 --   orders.id and tenant_id are TEXT in production (e.g. TEST-003,
---   casabe-xpress). Do not change these to UUID.
+--   casabe-xpress). Do not change these to UUID. orders.id is not
+--   unique by itself; reference orders through the composite
+--   (id, tenant_id) key.
 
 CREATE TABLE IF NOT EXISTS box_orders (
   -- Identifiers
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id             TEXT NOT NULL DEFAULT current_tenant_id(),
-  order_id              TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  order_id              TEXT NOT NULL,
   box_number            INTEGER NOT NULL,  -- Sequence within order (1-based)
 
   -- Office & Driver Assignment
@@ -92,6 +94,8 @@ CREATE TABLE IF NOT EXISTS box_orders (
   -- Metadata
   metadata              JSONB DEFAULT '{}'::jsonb,  -- Additional box-specific data
 
+  CONSTRAINT fk_box_orders_order
+    FOREIGN KEY (order_id, tenant_id) REFERENCES orders(id, tenant_id) ON DELETE CASCADE,
   CONSTRAINT box_number_per_order UNIQUE (order_id, box_number),
   CONSTRAINT valid_status CHECK (
     status IN ('created', 'assigned', 'picked_up', 'in_transit', 'scanned', 'held', 'delivered', 'completed', 'failed', 'returned')
