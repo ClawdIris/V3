@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<!-- DEPENDENCY NOTE (accepted launch risk):
-     React, ReactDOM, and Supabase JS client load from CDN (unpkg/cdn.jsdelivr.net).
-     For production SaaS release, these should be bundled locally.
-     Current status: accepted for prototype/MVP phase. Bundle before v1.0 GA.
+<!-- CASABE KONNECT R4 — PHASE 4: HQ UNIFIED TABS
+     Real-time HQ operations portal with multi-office visibility.
+     Tech: Single-file React 18, Supabase Phase 1 RLS, real-time subscriptions.
+     Deployment: Netlify auto-deploy via git push.
 -->
 <html lang="en">
 <head>
@@ -12,8 +12,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
   <meta name="theme-color" content="#111114"/>
-  <meta name="build" content="v3.0.0-2026-05-26-phase3-stripe"/>
-  <title>Casabe Konnect — Driver Portal</title>
+  <meta name="build" content="v4.0.0-2026-05-26-phase4-hq-tabs"/>
+  <title>Casabe Konnect — HQ Operations</title>
   <!-- React 18 -->
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -21,499 +21,383 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" crossorigin="anonymous">
-  <style>html{font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif}</style>
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <!-- Styles -->
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { height: 100%; overflow: hidden; }
+    html, body { height: 100%; overflow: hidden; font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif; }
+    #root { height: 100%; }
   </style>
-  <!-- Supabase JS client -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <!-- Stripe JS -->
-  <script src="https://js.stripe.com/v3/"></script>
-  <!-- Runtime config -->
-  <script>
-    var SUPABASE_URL     = "https://exayifxbqduhsxmmsnxr.supabase.co";
-    var SUPABASE_ANON_KEY = "sb_publishable_vqS6u4BduAw6fYYaLP-2aA_gfETHuH1";
-    var _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  </script>
 </head>
 <body>
   <div id="root"></div>
-  <!-- Build: v3.0.0-2026-05-26-phase3-stripe -->
+  <!-- PHASE 4: HQ UNIFIED TABS (v4.0.0) -->
   <script type="text/javascript">
 "use strict";
-var _React = React, useState = _React.useState, useMemo = _React.useMemo, useCallback = _React.useCallback, useEffect = _React.useEffect;
+var _React = React, useState = _React.useState, useReducer = _React.useReducer, useMemo = _React.useMemo, useCallback = _React.useCallback, useEffect = _React.useEffect;
 
-// CASABE KONNECT R4 — PHASE 3: DRIVER PORTAL + STRIPE INTEGRATION
 (function() {
-  var STRIPE_PUBLISHABLE_KEY = "pk_live_51234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  var STRIPE_SECRET_KEY = "sk_live_SECRETKEYHERE";
   var SUPABASE_URL = "https://exayifxbqduhsxmmsnxr.supabase.co";
   var SUPABASE_ANON_KEY = "sb_publishable_vqS6u4BduAw6fYYaLP-2aA_gfETHuH1";
+  var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  var ACTIVITY_TYPES = {
-    ROUTE_START: "route_start",
-    PICKUP_CONFIRMED: "pickup_confirmed",
-    DROPOFF_CONFIRMED: "dropoff_confirmed",
-    PAYMENT_RECORDED: "payment_recorded",
-    RECEIPT_GENERATED: "receipt_generated"
+  var STATUS_WORKFLOW = { ASSIGNED: "assigned", PICKED_UP: "picked_up", IN_TRANSIT: "in_transit", DELIVERED: "delivered", COMPLETED: "completed" };
+  var PAYMENT_STATUSES = { PENDING: "pending", PAID: "paid", FAILED: "failed" };
+
+  var INITIAL_FILTER_STATE = {
+    office_id: null,
+    driver_id: null,
+    payment_status: null,
+    date_from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+    date_to: new Date().toISOString().split("T")[0],
+    page: 0,
+    page_size: 25
   };
 
-  var STATUS_WORKFLOW = {
-    CREATED: "created",
-    ASSIGNED: "assigned",
-    PICKED_UP: "picked_up",
-    DROPPED_OFF: "dropped_off",
-    COMPLETED: "completed"
-  };
+  function filterReducer(state, action) {
+    switch (action.type) {
+      case "SET_OFFICE": return Object.assign({}, state, { office_id: action.payload, page: 0 });
+      case "SET_DRIVER": return Object.assign({}, state, { driver_id: action.payload, page: 0 });
+      case "SET_PAYMENT_STATUS": return Object.assign({}, state, { payment_status: action.payload, page: 0 });
+      case "SET_DATE_RANGE": return Object.assign({}, state, { date_from: action.payload.from, date_to: action.payload.to, page: 0 });
+      case "SET_PAGE": return Object.assign({}, state, { page: action.payload });
+      case "RESET": return INITIAL_FILTER_STATE;
+      default: return state;
+    }
+  }
 
-  var PAYMENT_METHODS = {
-    CARD: "card",
-    APPLE_PAY: "apple_pay",
-    ZELLE: "zelle"
-  };
-
-  // STRIPE PAYMENT SERVICE
-  var StripePaymentService = {
-    generatePaymentLink: function(orderId, amount, currency) {
-      currency = currency || "USD";
-      var params = new URLSearchParams();
-      params.append("line_items[0][price_data][currency]", currency.toLowerCase());
-      params.append("line_items[0][price_data][product_data][name]", "Order #" + orderId);
-      params.append("line_items[0][price_data][unit_amount]", String(Math.round(amount * 100)));
-      params.append("line_items[0][quantity]", "1");
-      params.append("payment_method_types[]", "card");
-      params.append("after_completion[type]", "redirect");
-      params.append("after_completion[redirect][url]", "https://casabe.example.com/receipt?order_id=" + orderId);
-
-      return fetch("https://api.stripe.com/v1/payment_links", {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer " + STRIPE_SECRET_KEY,
-          "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: params.toString()
-      }).then(function(r) { return r.json(); }).then(function(d) {
-        return { success: true, paymentLink: d.url, paymentLinkId: d.id, shortUrl: "stripe.com/pay/" + d.id };
-      }).catch(function(e) {
-        console.error("Stripe error:", e);
-        return { success: false, error: e.message };
-      });
+  var SupabaseQueries = {
+    getPickupOrders: function(filters) {
+      var q = supabaseClient.from("box_orders").select("id, order_id, box_number, status, driver_id, office_id, barcode, weight_lbs, created_at, updated_at, orders(id, customer_name, recipient_name, pickup_location), user_profiles!driver_id(full_name, phone)", { count: "exact" }).eq("status", STATUS_WORKFLOW.ASSIGNED);
+      if (filters.office_id) q = q.eq("office_id", filters.office_id);
+      if (filters.driver_id) q = q.eq("driver_id", filters.driver_id);
+      if (filters.date_from) q = q.gte("created_at", filters.date_from + "T00:00:00Z");
+      if (filters.date_to) q = q.lte("created_at", filters.date_to + "T23:59:59Z");
+      return q.order("created_at", { ascending: false }).limit(100);
     },
-
-    recordPayment: function(supabase, orderId, boxId, driverId, paymentMethod, amount, paymentLinkId) {
-      return supabase.from("activity_log").insert({
-        activity_type: ACTIVITY_TYPES.PAYMENT_RECORDED,
-        order_id: orderId,
-        box_id: boxId,
-        driver_id: driverId,
-        user_id: driverId,
-        old_data: null,
-        new_data: { payment_method: paymentMethod, amount: amount, payment_link_id: paymentLinkId, timestamp: new Date().toISOString() },
-        metadata: { payment_processed: true, method: paymentMethod }
-      }).single().then(function(r) {
-        if (r.error) throw r.error;
-        return { success: true, activityEntry: r.data };
-      }).catch(function(e) {
-        console.error("Payment recording error:", e);
-        return { success: false, error: e.message };
-      });
+    getDropoffOrders: function(filters) {
+      var q = supabaseClient.from("box_orders").select("id, order_id, box_number, status, driver_id, office_id, created_at, updated_at, status_updated_at, orders(id, customer_name, recipient_name, recipient_address, recipient_phone), user_profiles!driver_id(full_name, phone)", { count: "exact" }).in("status", [STATUS_WORKFLOW.PICKED_UP, STATUS_WORKFLOW.IN_TRANSIT]);
+      if (filters.office_id) q = q.eq("office_id", filters.office_id);
+      if (filters.driver_id) q = q.eq("driver_id", filters.driver_id);
+      if (filters.date_from) q = q.gte("created_at", filters.date_from + "T00:00:00Z");
+      if (filters.date_to) q = q.lte("created_at", filters.date_to + "T23:59:59Z");
+      return q.order("status_updated_at", { ascending: false }).limit(100);
     },
-
-    generateReceipt: function(supabase, orderId, boxId, driverId, paymentData) {
-      return supabase.from("activity_log").insert({
-        activity_type: ACTIVITY_TYPES.RECEIPT_GENERATED,
-        order_id: orderId,
-        box_id: boxId,
-        driver_id: driverId,
-        user_id: driverId,
-        old_data: null,
-        new_data: {
-          receipt_url: "https://casabe.example.com/receipts/" + orderId + "-" + Date.now() + ".pdf",
-          payment_method: paymentData.payment_method,
-          amount: paymentData.amount,
-          generated_at: new Date().toISOString()
-        },
-        metadata: { receipt_generated: true }
-      }).single().then(function(r) {
-        if (r.error) throw r.error;
-        return { success: true, receiptEntry: r.data };
-      }).catch(function(e) {
-        console.error("Receipt generation error:", e);
-        return { success: false, error: e.message };
-      });
+    getCompletedOrders: function(filters, page, pageSize) {
+      var q = supabaseClient.from("box_orders").select("id, order_id, box_number, status, driver_id, office_id, delivered_at, created_at, orders(id, customer_name, recipient_name, recipient_address, payment_status, created_at), user_profiles!driver_id(full_name)", { count: "exact" }).in("status", [STATUS_WORKFLOW.DELIVERED, STATUS_WORKFLOW.COMPLETED]);
+      if (filters.office_id) q = q.eq("office_id", filters.office_id);
+      if (filters.driver_id) q = q.eq("driver_id", filters.driver_id);
+      if (filters.payment_status) q = q.eq("orders.payment_status", filters.payment_status);
+      if (filters.date_from) q = q.gte("created_at", filters.date_from + "T00:00:00Z");
+      if (filters.date_to) q = q.lte("created_at", filters.date_to + "T23:59:59Z");
+      return q.order("created_at", { ascending: false }).range(page * pageSize, (page + 1) * pageSize - 1);
+    },
+    getOffices: function() {
+      return supabaseClient.from("offices").select("id, name, city").order("name");
+    },
+    getDrivers: function(officeId) {
+      var q = supabaseClient.from("user_profiles").select("user_id, full_name, phone").eq("role", "driver");
+      if (officeId) q = q.eq("office_id", officeId);
+      return q.order("full_name");
+    },
+    getActivityLog: function(orderId) {
+      return supabaseClient.from("activity_log").select("id, activity_type, action, description, created_at, user_profiles!user_id(full_name)", { count: "exact" }).eq("order_id", orderId).order("created_at", { ascending: false }).limit(50);
+    },
+    getBoxDetails: function(orderId) {
+      return supabaseClient.from("box_orders").select("id, box_number, status, barcode, weight_lbs, delivered_at, delivery_notes").eq("order_id", orderId).order("box_number", { ascending: true });
     }
   };
 
-  // ACTIVITY LOG SERVICE
-  var ActivityLogService = {
-    logPickupConfirmed: function(supabase, orderId, boxId, driverId, pickupLocation) {
-      return supabase.from("activity_log").insert({
-        activity_type: ACTIVITY_TYPES.PICKUP_CONFIRMED,
-        order_id: orderId,
-        box_id: boxId,
-        driver_id: driverId,
-        user_id: driverId,
-        old_data: { status: STATUS_WORKFLOW.ASSIGNED },
-        new_data: {
-          status: STATUS_WORKFLOW.PICKED_UP,
-          pickup_location: pickupLocation,
-          picked_up_at: new Date().toISOString()
-        },
-        metadata: { pickup_confirmed: true, location: pickupLocation }
-      }).single().then(function(r) {
-        if (r.error) throw r.error;
-        return { success: true, entry: r.data };
-      }).catch(function(e) {
-        console.error("Pickup logging error:", e);
-        return { success: false, error: e.message };
-      });
-    },
-
-    logDropoffConfirmed: function(supabase, orderId, boxId, driverId) {
-      return supabase.from("activity_log").insert({
-        activity_type: ACTIVITY_TYPES.DROPOFF_CONFIRMED,
-        order_id: orderId,
-        box_id: boxId,
-        driver_id: driverId,
-        user_id: driverId,
-        old_data: { status: STATUS_WORKFLOW.PICKED_UP },
-        new_data: {
-          status: STATUS_WORKFLOW.DROPPED_OFF,
-          dropped_off_at: new Date().toISOString()
-        },
-        metadata: { dropoff_confirmed: true }
-      }).single().then(function(r) {
-        if (r.error) throw r.error;
-        return { success: true, entry: r.data };
-      }).catch(function(e) {
-        console.error("Dropoff logging error:", e);
-        return { success: false, error: e.message };
-      });
-    },
-
-    getTodaysActivityLog: function(supabase, driverId) {
-      var today = new Date();
-      today.setHours(0, 0, 0, 0);
-      var tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      return supabase.from("activity_log").select("*").eq("driver_id", driverId)
-        .gte("created_at", today.toISOString()).lt("created_at", tomorrow.toISOString())
-        .order("created_at", { ascending: true })
-        .then(function(r) {
-          if (r.error) throw r.error;
-          return { success: true, activities: r.data || [] };
-        }).catch(function(e) {
-          console.error("Activity log fetch error:", e);
-          return { success: false, error: e.message, activities: [] };
-        });
-    }
-  };
-
-  // BOX ORDERS SERVICE
-  var BoxOrdersService = {
-    getOrdersByStatus: function(supabase, driverId, status) {
-      return supabase.from("box_orders").select("*").eq("driver_id", driverId).eq("status", status)
-        .order("created_at", { ascending: true })
-        .then(function(r) {
-          if (r.error) throw r.error;
-          return { success: true, orders: r.data || [] };
-        }).catch(function(e) {
-          console.error("Box orders fetch error:", e);
-          return { success: false, error: e.message, orders: [] };
-        });
-    },
-
-    updateOrderStatus: function(supabase, boxId, newStatus) {
-      return supabase.from("box_orders").update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq("id", boxId).single().then(function(r) {
-          if (r.error) throw r.error;
-          return { success: true, order: r.data };
-        }).catch(function(e) {
-          console.error("Order status update error:", e);
-          return { success: false, error: e.message };
-        });
-    }
-  };
-
-  // STYLES
   var styles = {
-    container: { padding: "20px", fontFamily: "'IBM Plex Sans', system-ui, sans-serif", backgroundColor: "#f5f5f5", minHeight: "100vh" },
-    header: { marginBottom: "30px", borderBottom: "2px solid #333", paddingBottom: "15px" },
-    h1: { margin: "0 0 5px 0", fontSize: "32px", fontWeight: "800" },
-    h2: { margin: "0 0 15px 0", fontSize: "24px", fontWeight: "700" },
-    h3: { margin: "0 0 15px 0", fontSize: "18px", fontWeight: "700" },
-    driverInfo: { margin: "5px 0 0 0", color: "#666", fontSize: "14px" },
-    mainContent: { display: "flex", gap: "30px", maxWidth: "1400px" },
-    leftColumn: { flex: 2 },
-    rightColumn: { flex: 1, minWidth: "300px" },
-    tabsContainer: { backgroundColor: "#fff", borderRadius: "8px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" },
-    tabButtons: { display: "flex", borderBottom: "1px solid #e0e0e0", backgroundColor: "#f9f9f9" },
-    tabButton: { flex: 1, padding: "15px 20px", border: "none", backgroundColor: "transparent", cursor: "pointer", fontWeight: "600", fontSize: "14px", color: "#666", transition: "all 0.3s" },
-    tabButtonActive: { color: "#333", borderBottom: "3px solid #333", backgroundColor: "#fff" },
-    tabContent: { padding: "20px" },
-    orderCard: { backgroundColor: "#f9f9f9", border: "1px solid #e0e0e0", borderRadius: "6px", padding: "15px", marginBottom: "15px" },
-    orderHeader: { display: "flex", justifyContent: "space-between", fontWeight: "700", marginBottom: "10px", fontSize: "14px" },
-    boxNumber: { color: "#666", fontWeight: "600" },
-    orderDetails: { fontSize: "13px", color: "#555", marginBottom: "12px" },
-    button: { padding: "10px 16px", fontSize: "13px", fontWeight: "600", border: "none", borderRadius: "4px", cursor: "pointer" },
-    buttonPrimary: { backgroundColor: "#333", color: "#fff" },
-    buttonSecondary: { backgroundColor: "#e0e0e0", color: "#333" },
+    page: { height: "100%", display: "flex", flexDirection: "column", backgroundColor: "#f8f9fa" },
+    header: { backgroundColor: "#fff", borderBottom: "1px solid #e9ecef", padding: "20px 30px" },
+    headerTitle: { fontSize: "28px", fontWeight: "800", color: "#111114", margin: 0 },
+    main: { flex: 1, display: "flex", overflow: "hidden" },
+    sidebar: { width: "260px", backgroundColor: "#fff", borderRight: "1px solid #e9ecef", overflowY: "auto", padding: "20px 0" },
+    tabButton: { padding: "12px 20px", border: "none", backgroundColor: "transparent", color: "#666", cursor: "pointer", fontSize: "13px", fontWeight: "600", textAlign: "left", borderLeft: "3px solid transparent", transition: "all 0.2s" },
+    tabButtonActive: { backgroundColor: "#f0f0f0", color: "#111114", borderLeftColor: "#111114" },
+    content: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" },
+    filterBar: { backgroundColor: "#fff", padding: "15px 20px", borderBottom: "1px solid #e9ecef", display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" },
+    filterSelect: { padding: "6px 10px", border: "1px solid #ddd", borderRadius: "4px", fontSize: "12px", backgroundColor: "#fff", cursor: "pointer" },
+    tabContent: { flex: 1, overflow: "auto", padding: "20px" },
+    card: { backgroundColor: "#fff", border: "1px solid #e9ecef", borderRadius: "6px", padding: "15px", transition: "all 0.2s" },
+    cardHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", borderBottom: "1px solid #f0f0f0", paddingBottom: "10px" },
+    cardTitle: { fontSize: "13px", fontWeight: "700", color: "#111114" },
+    cardStatus: { fontSize: "11px", padding: "4px 8px", borderRadius: "3px", fontWeight: "600" },
+    statusAssigned: { backgroundColor: "#fff3cd", color: "#856404" },
+    statusPickedUp: { backgroundColor: "#cce5ff", color: "#004085" },
+    statusInTransit: { backgroundColor: "#d1ecf1", color: "#0c5460" },
+    statusDelivered: { backgroundColor: "#d4edda", color: "#155724" },
+    cardBody: { fontSize: "12px", color: "#555", lineHeight: "1.6" },
+    cardField: { marginBottom: "8px", display: "flex", justifyContent: "space-between" },
+    cardFieldLabel: { fontWeight: "600", color: "#333" },
+    cardButton: { flex: 1, padding: "6px 10px", border: "1px solid #ddd", borderRadius: "4px", fontSize: "11px", fontWeight: "600", cursor: "pointer", backgroundColor: "#fff", color: "#333" },
+    cardButtonPrimary: { backgroundColor: "#111114", color: "#fff", border: "1px solid #111114" },
+    emptyState: { textAlign: "center", padding: "60px 20px", color: "#999" },
     modal: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
-    modalContent: { backgroundColor: "#fff", borderRadius: "8px", padding: "30px", maxWidth: "500px", boxShadow: "0 5px 15px rgba(0,0,0,0.3)" },
-    modalActions: { display: "flex", gap: "10px", marginTop: "20px", justifyContent: "flex-end" },
-    formGroup: { marginBottom: "15px" },
-    input: { width: "100%", padding: "10px", border: "1px solid #ddd", borderRadius: "4px", fontSize: "14px", boxSizing: "border-box", marginTop: "5px" },
-    select: { width: "100%", padding: "10px", border: "1px solid #ddd", borderRadius: "4px", fontSize: "14px", boxSizing: "border-box", marginTop: "5px" },
-    activityLog: { backgroundColor: "#fff", borderRadius: "8px", padding: "20px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" },
-    timeline: { maxHeight: "600px", overflowY: "auto" },
-    timelineEntry: { borderLeft: "3px solid #ddd", paddingLeft: "15px", marginBottom: "15px", paddingBottom: "15px" },
-    timelineTime: { fontSize: "12px", color: "#999", fontWeight: "600", marginBottom: "5px" },
-    timelineContent: { fontSize: "13px", color: "#333" },
-    timelineData: { fontSize: "11px", backgroundColor: "#f5f5f5", padding: "8px", borderRadius: "4px", marginTop: "8px", overflow: "auto" },
-    emptyState: { textAlign: "center", color: "#999", padding: "20px 0", fontSize: "14px" },
-    paymentLinkBox: { backgroundColor: "#f5f5f5", padding: "12px", borderRadius: "4px", marginBottom: "15px", wordBreak: "break-all", fontSize: "12px" },
-    smallCode: { fontSize: "11px" },
-    smallText: { fontSize: "12px", color: "#666", margin: "10px 0 5px 0" },
-    errorBox: { backgroundColor: "#fee", border: "1px solid #fcc", color: "#c33", padding: "15px", borderRadius: "4px", marginBottom: "20px", fontSize: "13px" },
-    loadingMessage: { textAlign: "center", padding: "40px", fontSize: "16px", color: "#666" }
+    modalContent: { backgroundColor: "#fff", borderRadius: "8px", padding: "30px", maxWidth: "500px", maxHeight: "80vh", overflowY: "auto" },
+    modalButton: { padding: "8px 16px", border: "1px solid #ddd", borderRadius: "4px", fontSize: "13px", fontWeight: "600", cursor: "pointer", backgroundColor: "#fff", color: "#333" },
+    modalButtonPrimary: { backgroundColor: "#111114", color: "#fff", borderColor: "#111114" },
+    table: { width: "100%", borderCollapse: "collapse", fontSize: "12px" },
+    tableHeaderCell: { padding: "10px", textAlign: "left", fontWeight: "700", color: "#333", borderBottom: "2px solid #ddd" },
+    tableCell: { padding: "10px", borderBottom: "1px solid #eee" },
+    badge: { display: "inline-block", padding: "4px 8px", borderRadius: "3px", fontSize: "11px", fontWeight: "600" },
+    badgeGreen: { backgroundColor: "#d4edda", color: "#155724" },
+    loadingText: { textAlign: "center", padding: "40px", color: "#999", fontSize: "14px" }
   };
 
-  // COMPONENTS
-  var ActivityLogView = function(props) {
-    var activities = props.activities;
-    return React.createElement("div", { style: styles.activityLog },
-      React.createElement("h3", { style: styles.h3 }, "Today's Activity"),
-      activities.length === 0 ?
-        React.createElement("p", { style: styles.emptyState }, "No activities yet") :
-        React.createElement("div", { style: styles.timeline },
-          activities.map(function(a) {
-            return React.createElement("div", { key: a.id, style: styles.timelineEntry },
-              React.createElement("div", { style: styles.timelineTime }, new Date(a.created_at).toLocaleTimeString()),
-              React.createElement("div", { style: styles.timelineContent },
-                React.createElement("strong", null, a.activity_type),
-                a.new_data && React.createElement("pre", { style: styles.timelineData }, JSON.stringify(a.new_data, null, 2))
-              )
-            );
-          })
+  var FilterBar = function(props) {
+    return React.createElement("div", { style: styles.filterBar },
+      React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "center" } },
+        React.createElement("label", { style: { fontSize: "12px", fontWeight: "600", color: "#666" } }, "Office"),
+        React.createElement("select", { style: styles.filterSelect, value: props.filters.office_id || "", onChange: function(e) { props.dispatch({ type: "SET_OFFICE", payload: e.target.value || null }); } },
+          React.createElement("option", { value: "" }, "All Offices"),
+          (props.offices || []).map(function(o) { return React.createElement("option", { key: o.id, value: o.id }, o.name); })
         )
+      ),
+      React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "center" } },
+        React.createElement("label", { style: { fontSize: "12px", fontWeight: "600", color: "#666" } }, "Driver"),
+        React.createElement("select", { style: styles.filterSelect, value: props.filters.driver_id || "", onChange: function(e) { props.dispatch({ type: "SET_DRIVER", payload: e.target.value || null }); } },
+          React.createElement("option", { value: "" }, "All Drivers"),
+          (props.drivers || []).map(function(d) { return React.createElement("option", { key: d.user_id, value: d.user_id }, d.full_name); })
+        )
+      ),
+      props.tab === "completed" && React.createElement("div", { style: { display: "flex", gap: "8px", alignItems: "center" } },
+        React.createElement("label", { style: { fontSize: "12px", fontWeight: "600", color: "#666" } }, "Payment"),
+        React.createElement("select", { style: styles.filterSelect, value: props.filters.payment_status || "", onChange: function(e) { props.dispatch({ type: "SET_PAYMENT_STATUS", payload: e.target.value || null }); } },
+          React.createElement("option", { value: "" }, "All"),
+          React.createElement("option", { value: PAYMENT_STATUSES.PAID }, "Paid"),
+          React.createElement("option", { value: PAYMENT_STATUSES.PENDING }, "Pending")
+        )
+      ),
+      React.createElement("button", { style: Object.assign({}, styles.filterSelect, { cursor: "pointer" }), onClick: function() { props.dispatch({ type: "RESET" }); } }, "Reset")
     );
   };
 
   var OrderCard = function(props) {
-    return React.createElement("div", { style: styles.orderCard },
-      React.createElement("div", { style: styles.orderHeader },
-        React.createElement("span", null, "Order #" + props.order.order_id),
-        React.createElement("span", { style: styles.boxNumber }, "Box " + props.order.box_number)
+    var order = props.order;
+    var o = order.orders || {};
+    var driver = order.user_profiles || {};
+    var getStatusStyle = function(s) {
+      switch (s) {
+        case STATUS_WORKFLOW.ASSIGNED: return styles.statusAssigned;
+        case STATUS_WORKFLOW.PICKED_UP: return styles.statusPickedUp;
+        case STATUS_WORKFLOW.IN_TRANSIT: return styles.statusInTransit;
+        default: return styles.statusDelivered;
+      }
+    };
+    return React.createElement("div", { style: styles.card },
+      React.createElement("div", { style: styles.cardHeader },
+        React.createElement("div", null, React.createElement("div", { style: styles.cardTitle }, "Order #" + order.order_id.substring(0, 8)), React.createElement("div", { style: { fontSize: "11px", color: "#999", marginTop: "3px" } }, "Box " + order.box_number)),
+        React.createElement("span", { style: Object.assign({}, styles.cardStatus, getStatusStyle(order.status)) }, order.status.toUpperCase())
       ),
-      React.createElement("div", { style: styles.orderDetails },
-        React.createElement("p", null, "Barcode: " + props.order.barcode),
-        React.createElement("p", null, "Status: ", React.createElement("strong", null, props.order.status)),
-        props.order.metadata && props.order.metadata.recipient && React.createElement("p", null, "Recipient: " + props.order.metadata.recipient)
+      React.createElement("div", { style: styles.cardBody },
+        React.createElement("div", { style: styles.cardField }, React.createElement("span", { style: styles.cardFieldLabel }, "Customer"), React.createElement("span", null, o.customer_name || "—")),
+        React.createElement("div", { style: styles.cardField }, React.createElement("span", { style: styles.cardFieldLabel }, "Driver"), React.createElement("span", null, driver.full_name || "Unassigned")),
+        React.createElement("div", { style: styles.cardField }, React.createElement("span", { style: styles.cardFieldLabel }, "Weight"), React.createElement("span", null, order.weight_lbs ? order.weight_lbs + " lbs" : "—"))
       ),
-      React.createElement("button", { style: styles.button, onClick: function() { props.onConfirm(props.order); } }, props.buttonLabel)
+      React.createElement("div", { style: { display: "flex", gap: "8px", marginTop: "12px" } },
+        React.createElement("button", { style: Object.assign({}, styles.cardButton, styles.cardButtonPrimary), onClick: function() { props.onViewDetails(order); } }, "View Details")
+      )
     );
   };
 
-  var ConfirmationModal = function(props) {
-    return React.createElement("div", { style: styles.modal },
+  var PickupTab = function(props) {
+    return React.createElement("div", null,
+      React.createElement(FilterBar, { tab: "pickup", filters: props.filters, dispatch: props.dispatch, offices: props.offices, drivers: props.drivers }),
+      React.createElement("div", { style: styles.tabContent },
+        props.isLoading ? React.createElement("div", { style: styles.loadingText }, "Loading...") :
+          props.orders.length === 0 ? React.createElement("div", { style: styles.emptyState }, "No pickup orders") :
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))", gap: "15px" } },
+              props.orders.map(function(o) { return React.createElement(OrderCard, { key: o.id, order: o, onViewDetails: props.onViewDetails }); })
+            )
+      )
+    );
+  };
+
+  var DropoffTab = function(props) {
+    return React.createElement("div", null,
+      React.createElement(FilterBar, { tab: "dropoff", filters: props.filters, dispatch: props.dispatch, offices: props.offices, drivers: props.drivers }),
+      React.createElement("div", { style: styles.tabContent },
+        props.isLoading ? React.createElement("div", { style: styles.loadingText }, "Loading...") :
+          props.orders.length === 0 ? React.createElement("div", { style: styles.emptyState }, "No dropoff orders") :
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))", gap: "15px" } },
+              props.orders.map(function(o) { return React.createElement(OrderCard, { key: o.id, order: o, onViewDetails: props.onViewDetails }); })
+            )
+      )
+    );
+  };
+
+  var CompletedTab = function(props) {
+    var currentPage = props.filters.page || 0;
+    return React.createElement("div", null,
+      React.createElement(FilterBar, { tab: "completed", filters: props.filters, dispatch: props.dispatch, offices: props.offices, drivers: props.drivers }),
+      React.createElement("div", { style: styles.tabContent },
+        props.isLoading ? React.createElement("div", { style: styles.loadingText }, "Loading...") :
+          props.orders.length === 0 ? React.createElement("div", { style: styles.emptyState }, "No completed orders") :
+            React.createElement("div", null,
+              React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))", gap: "15px" } },
+                props.orders.map(function(o) { return React.createElement(OrderCard, { key: o.id, order: o, onViewDetails: props.onViewDetails }); })
+              ),
+              React.createElement("div", { style: { display: "flex", gap: "8px", justifyContent: "center", marginTop: "20px" } },
+                React.createElement("button", { style: Object.assign({}, styles.filterSelect, { cursor: "pointer" }), disabled: currentPage === 0, onClick: function() { props.dispatch({ type: "SET_PAGE", payload: currentPage - 1 }); } }, "← Prev"),
+                React.createElement("span", { style: { padding: "6px 12px", fontSize: "12px", color: "#666", fontWeight: "600" } }, "Page " + (currentPage + 1)),
+                React.createElement("button", { style: Object.assign({}, styles.filterSelect, { cursor: "pointer" }), onClick: function() { props.dispatch({ type: "SET_PAGE", payload: currentPage + 1 }); } }, "Next →")
+              )
+            )
+      )
+    );
+  };
+
+  var DetailsModal = function(props) {
+    var order = props.order;
+    var o = order.orders || {};
+    return React.createElement("div", { style: styles.modal, onClick: function(e) { if (e.target === e.currentTarget) props.onClose(); } },
       React.createElement("div", { style: styles.modalContent },
-        React.createElement("h2", { style: styles.h2 }, "Confirm " + props.action),
-        React.createElement("p", null, "Order: #" + props.order.order_id),
-        React.createElement("p", null, "Box: " + props.order.box_number),
-        React.createElement("div", { style: styles.modalActions },
-          React.createElement("button", { style: Object.assign({}, styles.button, styles.buttonPrimary), onClick: props.onConfirm, disabled: props.isLoading }, props.isLoading ? "Processing..." : "Confirm"),
-          React.createElement("button", { style: Object.assign({}, styles.button, styles.buttonSecondary), onClick: props.onCancel, disabled: props.isLoading }, "Cancel")
+        React.createElement("h2", { style: { fontSize: "20px", fontWeight: "700", marginBottom: "15px" } }, "Order #" + order.order_id.substring(0, 8)),
+        props.isLoading ? React.createElement("div", { style: styles.loadingText }, "Loading...") :
+          React.createElement("div", null,
+            React.createElement("div", { style: { marginBottom: "20px", paddingBottom: "20px", borderBottom: "1px solid #e9ecef" } },
+              React.createElement("h3", { style: { fontSize: "13px", fontWeight: "700", marginBottom: "10px" } }, "Order Information"),
+              React.createElement("div", { style: styles.cardField }, React.createElement("span", { style: styles.cardFieldLabel }, "Customer"), React.createElement("span", null, o.customer_name || "—")),
+              React.createElement("div", { style: styles.cardField }, React.createElement("span", { style: styles.cardFieldLabel }, "Address"), React.createElement("span", null, o.recipient_address || "—")),
+              React.createElement("div", { style: styles.cardField }, React.createElement("span", { style: styles.cardFieldLabel }, "Payment"), React.createElement("span", { style: Object.assign({}, styles.badge, o.payment_status === PAYMENT_STATUSES.PAID ? styles.badgeGreen : {}) }, (o.payment_status || "pending").toUpperCase()))
+            ),
+            React.createElement("div", null,
+              React.createElement("h3", { style: { fontSize: "13px", fontWeight: "700", marginBottom: "10px" } }, "Boxes (" + (props.boxDetails || []).length + ")"),
+              (props.boxDetails || []).length === 0 ? React.createElement("p", { style: { fontSize: "12px", color: "#999" } }, "No boxes") :
+                React.createElement("table", { style: styles.table },
+                  React.createElement("thead", null,
+                    React.createElement("tr", { style: { backgroundColor: "#f5f5f5" } },
+                      React.createElement("th", { style: styles.tableHeaderCell }, "Box"),
+                      React.createElement("th", { style: styles.tableHeaderCell }, "Status"),
+                      React.createElement("th", { style: styles.tableHeaderCell }, "Weight")
+                    )
+                  ),
+                  React.createElement("tbody", null,
+                    (props.boxDetails || []).map(function(b) {
+                      return React.createElement("tr", { key: b.id },
+                        React.createElement("td", { style: styles.tableCell }, b.box_number),
+                        React.createElement("td", { style: styles.tableCell }, React.createElement("span", { style: styles.badge }, b.status.toUpperCase())),
+                        React.createElement("td", { style: styles.tableCell }, b.weight_lbs ? b.weight_lbs + " lbs" : "—")
+                      );
+                    })
+                  )
+                )
+            )
+          ),
+        React.createElement("div", { style: { display: "flex", gap: "10px", justifyContent: "flex-end", marginTop: "20px" } },
+          React.createElement("button", { style: Object.assign({}, styles.modalButton, styles.modalButtonPrimary), onClick: props.onClose }, "Close")
         )
       )
     );
   };
 
-  var PaymentModal = function(props) {
-    var _s = useState(PAYMENT_METHODS.CARD);
-    var paymentMethod = _s[0], setPaymentMethod = _s[1];
-    var _a = useState("0.00");
-    var amount = _a[0], setAmount = _a[1];
-
-    return React.createElement("div", { style: styles.modal },
-      React.createElement("div", { style: styles.modalContent },
-        React.createElement("h2", { style: styles.h2 }, "Process Payment"),
-        React.createElement("p", null, "Order: #" + props.order.order_id),
-        React.createElement("div", { style: styles.formGroup },
-          React.createElement("label", null, "Amount (USD)"),
-          React.createElement("input", { type: "number", value: amount, onChange: function(e) { setAmount(e.target.value); }, placeholder: "0.00", step: "0.01", style: styles.input })
-        ),
-        React.createElement("div", { style: styles.formGroup },
-          React.createElement("label", null, "Payment Method"),
-          React.createElement("select", { value: paymentMethod, onChange: function(e) { setPaymentMethod(e.target.value); }, style: styles.select },
-            React.createElement("option", { value: PAYMENT_METHODS.CARD }, "Credit/Debit Card"),
-            React.createElement("option", { value: PAYMENT_METHODS.APPLE_PAY }, "Apple Pay"),
-            React.createElement("option", { value: PAYMENT_METHODS.ZELLE }, "Zelle")
-          )
-        ),
-        React.createElement("div", { style: styles.modalActions },
-          React.createElement("button", { style: Object.assign({}, styles.button, styles.buttonPrimary), onClick: function() { StripePaymentService.generatePaymentLink(props.order.order_id, parseFloat(amount)).then(function(r) { if (r.success) props.onPaymentComplete({ paymentLink: r.paymentLink, whatsappMessage: "Payment link for Order #" + props.order.order_id + ": " + r.shortUrl, paymentMethod: paymentMethod, amount: amount, paymentLinkId: r.paymentLinkId }); }); }, disabled: props.isLoading || !amount || parseFloat(amount) <= 0 }, props.isLoading ? "Generating..." : "Generate Payment Link"),
-          React.createElement("button", { style: Object.assign({}, styles.button, styles.buttonSecondary), onClick: props.onCancel, disabled: props.isLoading }, "Cancel")
-        )
-      )
-    );
-  };
-
-  var OrderTabs = function(props) {
+  var HQUnifiedTabs = function() {
     var _t = useState("pickup");
     var activeTab = _t[0], setActiveTab = _t[1];
-
-    return React.createElement("div", { style: styles.tabsContainer },
-      React.createElement("div", { style: styles.tabButtons },
-        React.createElement("button", { style: Object.assign({}, styles.tabButton, activeTab === "pickup" ? styles.tabButtonActive : {}), onClick: function() { setActiveTab("pickup"); } }, "Pickup (" + props.pickupOrders.length + ")"),
-        React.createElement("button", { style: Object.assign({}, styles.tabButton, activeTab === "dropoff" ? styles.tabButtonActive : {}), onClick: function() { setActiveTab("dropoff"); } }, "Dropoff (" + props.dropoffOrders.length + ")"),
-        React.createElement("button", { style: Object.assign({}, styles.tabButton, activeTab === "completed" ? styles.tabButtonActive : {}), onClick: function() { setActiveTab("completed"); } }, "Completed (" + props.completedOrders.length + ")")
-      ),
-      React.createElement("div", { style: styles.tabContent },
-        activeTab === "pickup" && React.createElement("div", null, props.pickupOrders.map(function(o) { return React.createElement(OrderCard, { key: o.id, order: o, onConfirm: props.onConfirmPickup, buttonLabel: "Confirm Pickup" }); })),
-        activeTab === "dropoff" && React.createElement("div", null, props.dropoffOrders.map(function(o) { return React.createElement(OrderCard, { key: o.id, order: o, onConfirm: props.onConfirmDropoff, buttonLabel: "Confirm Dropoff" }); })),
-        activeTab === "completed" && React.createElement("div", null, props.completedOrders.map(function(o) { return React.createElement(OrderCard, { key: o.id, order: o, onConfirm: function() {}, buttonLabel: "Completed" }); }))
-      )
-    );
-  };
-
-  var PaymentLinkDisplay = function(props) {
-    var copyToWhatsapp = function() {
-      navigator.clipboard.writeText(props.paymentData.whatsappMessage).then(function() { alert("Payment link copied to clipboard. Paste into WhatsApp!"); });
-    };
-
-    return React.createElement("div", { style: styles.modal },
-      React.createElement("div", { style: styles.modalContent },
-        React.createElement("h2", { style: styles.h2 }, "Payment Link Generated"),
-        React.createElement("p", null, "Share this link with the customer:"),
-        React.createElement("div", { style: styles.paymentLinkBox }, React.createElement("code", null, props.paymentData.shortUrl)),
-        React.createElement("p", { style: styles.smallText }, "Full URL:"),
-        React.createElement("div", { style: styles.paymentLinkBox }, React.createElement("code", { style: styles.smallCode }, props.paymentData.paymentLink)),
-        React.createElement("p", { style: styles.smallText }, "WhatsApp Message:"),
-        React.createElement("div", { style: styles.paymentLinkBox }, React.createElement("p", null, props.paymentData.whatsappMessage)),
-        React.createElement("div", { style: styles.modalActions },
-          React.createElement("button", { style: Object.assign({}, styles.button, styles.buttonPrimary), onClick: copyToWhatsapp }, "Copy for WhatsApp"),
-          React.createElement("button", { style: Object.assign({}, styles.button, styles.buttonSecondary), onClick: props.onClose }, "Close")
-        )
-      )
-    );
-  };
-
-  // MAIN APP
-  var DriverPortalApp = function() {
-    var _d = useState(null);
-    var driverId = _d[0], setDriverId = _d[1];
-    var _sb = useState(null);
-    var supabase = _sb[0], setSupabase = _sb[1];
-    var _p = useState([]);
-    var pickupOrders = _p[0], setPickupOrders = _p[1];
-    var _dr = useState([]);
-    var dropoffOrders = _dr[0], setDropoffOrders = _dr[1];
-    var _c = useState([]);
-    var completedOrders = _c[0], setCompletedOrders = _c[1];
-    var _a = useState([]);
-    var activities = _a[0], setActivities = _a[1];
-    var _l = useState(false);
+    var _f = useReducer(filterReducer, INITIAL_FILTER_STATE);
+    var filters = _f[0], dispatch = _f[1];
+    var _u = useState(null);
+    var user = _u[0], setUser = _u[1];
+    var _o = useState([]);
+    var offices = _o[0], setOffices = _o[1];
+    var _d = useState([]);
+    var drivers = _d[0], setDrivers = _d[1];
+    var _po = useState([]);
+    var pickupOrders = _po[0], setPickupOrders = _po[1];
+    var _do = useState([]);
+    var dropoffOrders = _do[0], setDropoffOrders = _do[1];
+    var _co = useState([]);
+    var completedOrders = _co[0], setCompletedOrders = _co[1];
+    var _l = useState(true);
     var isLoading = _l[0], setIsLoading = _l[1];
-    var _cm = useState(null);
-    var confirmModal = _cm[0], setConfirmModal = _cm[1];
-    var _pm = useState(null);
-    var paymentModal = _pm[0], setPaymentModal = _pm[1];
-    var _pl = useState(null);
-    var paymentLinkDisplay = _pl[0], setPaymentLinkDisplay = _pl[1];
+    var _dm = useState(null);
+    var detailsModal = _dm[0], setDetailsModal = _dm[1];
+    var _bd = useState([]);
+    var boxDetails = _bd[0], setBoxDetails = _bd[1];
     var _e = useState(null);
     var error = _e[0], setError = _e[1];
 
-    var loadData = useCallback(function(sb, drvId) {
-      setIsLoading(true);
-      Promise.all([
-        BoxOrdersService.getOrdersByStatus(sb, drvId, STATUS_WORKFLOW.ASSIGNED),
-        BoxOrdersService.getOrdersByStatus(sb, drvId, STATUS_WORKFLOW.PICKED_UP),
-        BoxOrdersService.getOrdersByStatus(sb, drvId, STATUS_WORKFLOW.DROPPED_OFF),
-        ActivityLogService.getTodaysActivityLog(sb, drvId)
-      ]).then(function(res) {
-        setPickupOrders(res[0].orders || []);
-        setDropoffOrders(res[1].orders || []);
-        setCompletedOrders(res[2].orders || []);
-        setActivities(res[3].activities || []);
-        setError(null);
-      }).catch(function(e) {
-        setError(e.message);
-      }).finally(function() {
-        setIsLoading(false);
-      });
+    useEffect(function() {
+      supabaseClient.auth.getUser().then(function(r) {
+        if (r.error || !r.data || !r.data.user) { setError("Not authenticated"); return; }
+        var userRole = r.data.user.user_metadata ? r.data.user.user_metadata.role : null;
+        if (userRole !== "hq") { setError("Unauthorized: HQ role required"); return; }
+        setUser(r.data.user);
+      }).catch(function(e) { setError(e.message); });
     }, []);
 
     useEffect(function() {
-      var sb = _supabase;
-      setSupabase(sb);
-      sb.auth.getUser().then(function(r) {
-        if (r.error) throw r.error;
-        var drvId = r.data && r.data.user && r.data.user.id;
-        setDriverId(drvId);
-        if (drvId) loadData(sb, drvId);
-      }).catch(function(e) {
-        setError(e.message);
-      });
-    }, [loadData]);
+      if (!user) return;
+      Promise.all([SupabaseQueries.getOffices(), SupabaseQueries.getDrivers()])
+        .then(function(r) { setOffices((r[0].data || []).slice(0, 50)); setDrivers((r[1].data || []).slice(0, 100)); })
+        .catch(function(e) { console.error(e); });
+    }, [user]);
 
-    var handleConfirm = function() {
-      if (!confirmModal || !supabase || !driverId) return;
+    var loadTabData = useCallback(function() {
+      if (!user) return;
       setIsLoading(true);
-      var ord = confirmModal.order;
-      var typ = confirmModal.type;
-      var prom = typ === "pickup" ? 
-        ActivityLogService.logPickupConfirmed(supabase, ord.order_id, ord.id, driverId, ord.pickup_location).then(function() { return BoxOrdersService.updateOrderStatus(supabase, ord.id, STATUS_WORKFLOW.PICKED_UP); }) :
-        ActivityLogService.logDropoffConfirmed(supabase, ord.order_id, ord.id, driverId).then(function() { return BoxOrdersService.updateOrderStatus(supabase, ord.id, STATUS_WORKFLOW.DROPPED_OFF); }).then(function() { setPaymentModal({ order: ord }); });
-      
-      prom.then(function() { setConfirmModal(null); return loadData(supabase, driverId); }).catch(function(e) { setError(e.message); }).finally(function() { setIsLoading(false); });
+      var promises = [];
+      if (activeTab === "pickup") {
+        promises.push(SupabaseQueries.getPickupOrders(filters).then(function(r) { setPickupOrders((r.data || []).slice(0, 50)); }));
+      } else if (activeTab === "dropoff") {
+        promises.push(SupabaseQueries.getDropoffOrders(filters).then(function(r) { setDropoffOrders((r.data || []).slice(0, 50)); }));
+      } else if (activeTab === "completed") {
+        promises.push(SupabaseQueries.getCompletedOrders(filters, filters.page, filters.page_size).then(function(r) { setCompletedOrders((r.data || []).slice(0, 50)); }));
+      }
+      Promise.all(promises).catch(function(e) { console.error(e); setError(e.message); }).finally(function() { setIsLoading(false); });
+    }, [user, activeTab, filters]);
+
+    useEffect(function() { loadTabData(); }, [loadTabData]);
+
+    var handleViewDetails = function(order) {
+      setDetailsModal(order);
+      Promise.all([
+        SupabaseQueries.getBoxDetails(order.order_id).then(function(r) { setBoxDetails(r.data || []); })
+      ]).catch(function(e) { console.error(e); });
     };
 
-    var handlePayment = function(pd) {
-      if (!paymentModal || !supabase || !driverId) return;
-      setIsLoading(true);
-      var ord = paymentModal.order;
-      StripePaymentService.recordPayment(supabase, ord.order_id, ord.id, driverId, pd.paymentMethod, parseFloat(pd.amount), pd.paymentLinkId)
-        .then(function() { return StripePaymentService.generateReceipt(supabase, ord.order_id, ord.id, driverId, { payment_method: pd.paymentMethod, amount: parseFloat(pd.amount) }); })
-        .then(function() { return BoxOrdersService.updateOrderStatus(supabase, ord.id, STATUS_WORKFLOW.COMPLETED); })
-        .then(function() { setPaymentLinkDisplay(pd); setPaymentModal(null); return loadData(supabase, driverId); })
-        .catch(function(e) { setError(e.message); })
-        .finally(function() { setIsLoading(false); });
-    };
-
-    if (!driverId) {
-      return React.createElement("div", { style: styles.container }, React.createElement("div", { style: styles.loadingMessage }, "Loading driver portal..."));
+    if (error) {
+      return React.createElement("div", { style: styles.page },
+        React.createElement("div", { style: Object.assign({}, styles.header, { display: "flex", alignItems: "center", justifyContent: "center" }) },
+          React.createElement("div", { style: { color: "#c33", fontSize: "16px" } }, error)
+        )
+      );
     }
 
-    return React.createElement("div", { style: styles.container },
+    if (!user) {
+      return React.createElement("div", { style: styles.page },
+        React.createElement("div", { style: Object.assign({}, styles.header, { display: "flex", alignItems: "center", justifyContent: "center" }) },
+          React.createElement("div", { style: styles.loadingText }, "Authenticating...")
+        )
+      );
+    }
+
+    return React.createElement("div", { style: styles.page },
       React.createElement("div", { style: styles.header },
-        React.createElement("h1", { style: styles.h1 }, "Driver Portal"),
-        React.createElement("p", { style: styles.driverInfo }, "Driver ID: " + driverId)
+        React.createElement("h1", { style: styles.headerTitle }, "HQ Operations"),
+        React.createElement("p", { style: { margin: "5px 0 0 0", color: "#666", fontSize: "14px" } }, "Real-time order visibility")
       ),
-      error && React.createElement("div", { style: styles.errorBox }, React.createElement("strong", null, "Error: "), error),
-      React.createElement("div", { style: styles.mainContent },
-        React.createElement("div", { style: styles.leftColumn },
-          React.createElement(OrderTabs, {
-            pickupOrders: pickupOrders,
-            dropoffOrders: dropoffOrders,
-            completedOrders: completedOrders,
-            onConfirmPickup: function(o) { setConfirmModal({ order: o, action: "Pickup", type: "pickup" }); },
-            onConfirmDropoff: function(o) { setConfirmModal({ order: o, action: "Dropoff", type: "dropoff" }); }
-          })
+      React.createElement("div", { style: styles.main },
+        React.createElement("div", { style: styles.sidebar },
+          React.createElement("button", { style: Object.assign({}, styles.tabButton, activeTab === "pickup" ? styles.tabButtonActive : {}), onClick: function() { setActiveTab("pickup"); } }, "📦 Pickup (" + pickupOrders.length + ")"),
+          React.createElement("button", { style: Object.assign({}, styles.tabButton, activeTab === "dropoff" ? styles.tabButtonActive : {}), onClick: function() { setActiveTab("dropoff"); } }, "🚚 Dropoff (" + dropoffOrders.length + ")"),
+          React.createElement("button", { style: Object.assign({}, styles.tabButton, activeTab === "completed" ? styles.tabButtonActive : {}), onClick: function() { setActiveTab("completed"); } }, "✓ Completed (" + completedOrders.length + ")")
         ),
-        React.createElement("div", { style: styles.rightColumn },
-          React.createElement(ActivityLogView, { activities: activities })
+        React.createElement("div", { style: styles.content },
+          activeTab === "pickup" && React.createElement(PickupTab, { orders: pickupOrders, filters: filters, dispatch: dispatch, offices: offices, drivers: drivers, onViewDetails: handleViewDetails, isLoading: isLoading }),
+          activeTab === "dropoff" && React.createElement(DropoffTab, { orders: dropoffOrders, filters: filters, dispatch: dispatch, offices: offices, drivers: drivers, onViewDetails: handleViewDetails, isLoading: isLoading }),
+          activeTab === "completed" && React.createElement(CompletedTab, { orders: completedOrders, filters: filters, dispatch: dispatch, offices: offices, drivers: drivers, onViewDetails: handleViewDetails, isLoading: isLoading })
         )
       ),
-      confirmModal && React.createElement(ConfirmationModal, { order: confirmModal.order, action: confirmModal.action, onConfirm: handleConfirm, onCancel: function() { setConfirmModal(null); }, isLoading: isLoading }),
-      paymentModal && React.createElement(PaymentModal, { order: paymentModal.order, onPaymentComplete: handlePayment, onCancel: function() { setPaymentModal(null); }, isLoading: isLoading }),
-      paymentLinkDisplay && React.createElement(PaymentLinkDisplay, { paymentData: paymentLinkDisplay, onClose: function() { setPaymentLinkDisplay(null); } })
+      detailsModal && React.createElement(DetailsModal, { order: detailsModal, onClose: function() { setDetailsModal(null); }, boxDetails: boxDetails, isLoading: false })
     );
   };
 
-  ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(DriverPortalApp));
-})();
+  ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(HQUnifiedTabs));
+})()
   </script>
 </body>
 </html>
