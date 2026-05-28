@@ -291,6 +291,12 @@ CREATE INDEX IF NOT EXISTS idx_box_invoice_invoice_id ON box_order_invoices(invo
 COMMENT ON TABLE box_order_invoices IS 'Junction table tracking box inclusion in invoices';
 
 
+-- ─────────────────────────────────────────────────────────
+-- Add office_id to invoices if not already present (required for RLS scoping)
+-- ─────────────────────────────────────────────────────────
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS office_id UUID;
+CREATE INDEX IF NOT EXISTS idx_invoices_office_id ON invoices(office_id);
+
 -- ═════════════════════════════════════════════════════════════════════
 -- ROW LEVEL SECURITY (RLS) POLICIES FOR PHASE 5
 -- ═════════════════════════════════════════════════════════════════════
@@ -317,9 +323,8 @@ FOR SELECT TO authenticated
 USING (
   get_user_role() = 'office'
   AND order_id IN (
-    SELECT id FROM orders WHERE office_id = (
-      SELECT office_id FROM user_profiles WHERE user_id = auth.uid()
-    )
+    SELECT id FROM public.orders WHERE office_id = ANY(get_user_office_ids())
+    AND tenant_id = current_tenant_id()
   )
 );
 
@@ -353,9 +358,8 @@ FOR SELECT TO authenticated
 USING (
   get_user_role() = 'office'
   AND order_id IN (
-    SELECT id FROM orders WHERE office_id = (
-      SELECT office_id FROM user_profiles WHERE user_id = auth.uid()
-    )
+    SELECT id FROM public.orders WHERE office_id = ANY(get_user_office_ids())
+    AND tenant_id = current_tenant_id()
   )
 );
 
@@ -379,9 +383,8 @@ FOR SELECT TO authenticated
 USING (
   get_user_role() = 'office'
   AND order_id IN (
-    SELECT id FROM orders WHERE office_id = (
-      SELECT office_id FROM user_profiles WHERE user_id = auth.uid()
-    )
+    SELECT id FROM public.orders WHERE office_id = ANY(get_user_office_ids())
+    AND tenant_id = current_tenant_id()
   )
 );
 
@@ -395,17 +398,15 @@ FOR UPDATE TO authenticated
 USING (
   get_user_role() = 'hq'
   OR order_id IN (
-    SELECT id FROM orders WHERE office_id = (
-      SELECT office_id FROM user_profiles WHERE user_id = auth.uid()
-    )
+    SELECT id FROM public.orders WHERE office_id = ANY(get_user_office_ids())
+    AND tenant_id = current_tenant_id()
   )
 )
 WITH CHECK (
   get_user_role() = 'hq'
   OR order_id IN (
-    SELECT id FROM orders WHERE office_id = (
-      SELECT office_id FROM user_profiles WHERE user_id = auth.uid()
-    )
+    SELECT id FROM public.orders WHERE office_id = ANY(get_user_office_ids())
+    AND tenant_id = current_tenant_id()
   )
 );
 
@@ -413,14 +414,41 @@ WITH CHECK (
 -- RLS: invoice_items & box_order_invoices
 -- ─────────────────────────────────────────────────────────
 
--- These follow parent invoice policies (through foreign key)
-CREATE POLICY invoice_items_all ON invoice_items
+-- invoice_items: scope through parent invoice
+CREATE POLICY invoice_items_hq ON invoice_items
 FOR ALL TO authenticated
-USING (TRUE);
+USING (
+  get_user_role() IN ('hq', 'admin', 'owner')
+);
 
-CREATE POLICY box_order_invoices_all ON box_order_invoices
+CREATE POLICY invoice_items_office ON invoice_items
+FOR SELECT TO authenticated
+USING (
+  get_user_role() IN ('office', 'manager', 'dispatcher')
+  AND invoice_id IN (
+    SELECT id FROM public.invoices
+    WHERE office_id = ANY(get_user_office_ids())
+    AND tenant_id = current_tenant_id()
+  )
+);
+
+-- box_order_invoices: scope through parent invoice
+CREATE POLICY box_order_invoices_hq ON box_order_invoices
 FOR ALL TO authenticated
-USING (TRUE);
+USING (
+  get_user_role() IN ('hq', 'admin', 'owner')
+);
+
+CREATE POLICY box_order_invoices_office ON box_order_invoices
+FOR SELECT TO authenticated
+USING (
+  get_user_role() IN ('office', 'manager', 'dispatcher')
+  AND invoice_id IN (
+    SELECT id FROM public.invoices
+    WHERE office_id = ANY(get_user_office_ids())
+    AND tenant_id = current_tenant_id()
+  )
+);
 
 -- ═════════════════════════════════════════════════════════════════════
 -- HELPER FUNCTIONS
