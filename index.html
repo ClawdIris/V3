@@ -24858,7 +24858,7 @@ setOrders(function (prev) {
     setRoleKey(r);
     // Validate page for new role and reset if invalid
     var newPage = r === "hq" ? "overview" : r === "office" ? "ow_dash" : "driver_route";
-    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices"] : ["driver_route", "driver_proof"];
+    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices"] : ["driver_route", "driver_proof"];
     var shouldResetPage = !validPages.includes(page);
     setPage(shouldResetPage ? newPage : page);
   };
