@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Phase 6 — Slice 3: Route Preview Screenshot</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #0a0b0f; color: #e2e8f0; font-family: 'IBM Plex Mono', monospace; font-size: 13px; padding: 24px; }
+    :root {
+      --bg: #111114; --bg2: #17181e; --bg3: #1f2028;
+      --blue: #3b82f6; --green: #10b981; --amber: #f59e0b; --red: #ef4444;
+      --indigo: #818cf8; --text3: #94a3b8; --text4: #64748b;
+    }
+    .page-header {
+      font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800;
+      color: #f1f5f9; margin-bottom: 6px;
+    }
+    .page-sub { color: var(--text4); font-size: 11px; margin-bottom: 24px; }
+    
+    .card { background: var(--bg2); border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; margin-bottom: 18px; overflow: hidden; }
+    .card-hd { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .card-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; flex: 1; color: #f1f5f9; }
+    .card-bd { padding: 18px; }
+    
+    /* coord stats */
+    .sg4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+    .sc { background: var(--bg); border-radius: 10px; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.05); }
+    .sc-ico { font-size: 18px; margin-bottom: 4px; }
+    .sc-lbl { font-size: 10px; color: var(--text4); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .sc-val { font-size: 22px; font-weight: 700; }
+    
+    /* route preview panel */
+    .preview-badge { font-size: 11px; padding: 3px 10px; border-radius: 6px; background: rgba(99,102,241,0.15); color: #818cf8; font-weight: 600; }
+    .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .fg { flex: 1; min-width: 140px; }
+    .fl { display: block; font-size: 10px; color: var(--text4); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; }
+    .fi { width: 100%; background: var(--bg3); border: 1px solid rgba(255,255,255,0.1); border-radius: 7px; padding: 8px 10px; color: #e2e8f0; font-family: inherit; font-size: 12px; }
+    .btn-primary { background: var(--blue); color: #fff; border: none; padding: 9px 18px; border-radius: 8px; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    
+    .alert-a { background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); border-radius: 8px; padding: 10px 14px; color: #fbbf24; margin-bottom: 14px; font-size: 12px; }
+    
+    /* stop list */
+    .route-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    .stop-list { display: flex; flex-direction: column; gap: 6px; }
+    .stop-row { display: flex; align-items: flex-start; gap: 10px; padding: 9px 14px; background: var(--bg); border-radius: 8px; }
+    .stop-num { min-width: 24px; height: 24px; border-radius: 50%; background: rgba(59,130,246,0.85); border: 2px solid rgba(99,102,241,0.5); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0; }
+    .stop-name { font-weight: 600; font-size: 12px; color: #e2e8f0; }
+    .stop-addr { font-size: 10px; color: var(--text4); margin-top: 2px; }
+    .stop-dist { text-align: right; flex-shrink: 0; }
+    .stop-dist .km { color: var(--blue); font-size: 12px; font-family: 'IBM Plex Mono', monospace; }
+    .stop-dist .leg { font-size: 9px; color: var(--text4); }
+    
+    /* map area */
+    .map-area { position: relative; height: 280px; background: var(--bg); border-radius: 0 0 11px 11px; overflow: hidden; }
+    .map-grid { position: absolute; inset: 0; background-image: linear-gradient(rgba(59,130,246,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.06) 1px, transparent 1px); background-size: 40px 40px; }
+    .map-overlay { position: absolute; inset: 0; background: linear-gradient(160deg, rgba(14,28,60,0.55) 0%, rgba(7,9,15,0.85) 100%); }
+    .map-pin { position: absolute; transform: translate(-50%,-50%); font-size: 20px; filter: drop-shadow(0 0 4px rgba(59,130,246,0.6)); z-index: 10; }
+    .route-pin { position: absolute; transform: translate(-50%,-50%); width: 22px; height: 22px; border-radius: 50%; background: rgba(59,130,246,0.9); border: 2px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; z-index: 15; font-family: 'IBM Plex Mono', monospace; }
+    .map-label { position: absolute; bottom: 10px; right: 12px; font-size: 10px; color: rgba(100,116,139,0.6); }
+    
+    .badge-hq { background: rgba(59,130,246,0.15); color: var(--blue); font-size: 10px; padding: 3px 8px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="page-header">🗺️ Active Order Map — Phase 6 Slice 3</div>
+  <div class="page-sub">Casabe Konnect R4 • Route Preview (Nearest-Neighbor TSP) • 2026-05-28 <span class="badge-hq">HQ Only</span></div>
+
+  <!-- Coord stats (Slice 2 preserved) -->
+  <div class="sg4">
+    <div class="sc">
+      <div class="sc-ico">📍</div>
+      <div class="sc-lbl">Geocoded</div>
+      <div class="sc-val" style="color: #10b981;">4</div>
+    </div>
+    <div class="sc">
+      <div class="sc-ico">✏️</div>
+      <div class="sc-lbl">Manual Override</div>
+      <div class="sc-val" style="color: #3b82f6;">1</div>
+    </div>
+    <div class="sc">
+      <div class="sc-ico">⚠️</div>
+      <div class="sc-lbl">Low Confidence</div>
+      <div class="sc-val" style="color: #f59e0b;">2</div>
+    </div>
+    <div class="sc">
+      <div class="sc-ico">❓</div>
+      <div class="sc-lbl">Missing</div>
+      <div class="sc-val" style="color: #ef4444;">1</div>
+    </div>
+  </div>
+
+  <!-- Map canvas (Slice 1 + route line overlay) -->
+  <div class="card" style="margin-bottom: 18px;">
+    <div class="card-hd">
+      <span class="card-title">Order Pins — Coordinate Quality View</span>
+      <span style="font-size: 11px; color: var(--text4);">📍 Geocoded &nbsp; ✏️ Manual &nbsp; ⚠️ Low Conf. &nbsp; ❓ Missing</span>
+    </div>
+    <div class="map-area">
+      <div class="map-grid"></div>
+      <div class="map-overlay"></div>
+      <!-- SVG route line -->
+      <svg style="position:absolute;inset:0;width:100%;height:100%;" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <defs>
+          <radialGradient id="bay" cx="70%" cy="50%" r="40%">
+            <stop offset="0%" stop-color="#1e3a5f" stop-opacity="0.45"/>
+            <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+        <ellipse cx="78" cy="50" rx="22" ry="38" fill="url(#bay)"/>
+        <line x1="0" y1="40" x2="70" y2="40" stroke="rgba(59,130,246,0.12)" stroke-width="0.5"/>
+        <line x1="0" y1="60" x2="70" y2="60" stroke="rgba(59,130,246,0.12)" stroke-width="0.5"/>
+        <line x1="30" y1="0" x2="30" y2="100" stroke="rgba(59,130,246,0.12)" stroke-width="0.5"/>
+        <line x1="55" y1="0" x2="55" y2="100" stroke="rgba(59,130,246,0.12)" stroke-width="0.5"/>
+        <line x1="20" y1="0" x2="22" y2="100" stroke="rgba(245,158,11,0.18)" stroke-width="1"/>
+        <!-- Route line (Slice 3) -->
+        <polyline id="route-svg-line" points="12,30 38,20 52,55 65,35 22,80" fill="none" stroke="rgba(59,130,246,0.75)" stroke-width="1.5" stroke-dasharray="3,2"/>
+      </svg>
+      <!-- Numbered route stop pins -->
+      <div class="route-pin" style="left:12%;top:30%;">1</div>
+      <div class="route-pin" style="left:38%;top:20%;">2</div>
+      <div class="route-pin" style="left:52%;top:55%;">3</div>
+      <div class="route-pin" style="left:65%;top:35%;">4</div>
+      <div class="route-pin" style="left:22%;top:80%;">5</div>
+      <!-- Regular pins (dimmed) -->
+      <div class="map-pin" style="left:48%;top:75%;font-size:16px;opacity:0.5;">⚠️</div>
+      <div class="map-pin" style="left:72%;top:20%;font-size:16px;opacity:0.5;">❓</div>
+      <div class="map-label">Miami Metro • Nominatim/OSM</div>
+    </div>
+  </div>
+
+  <!-- Route Preview Panel (Slice 3) -->
+  <div class="card" id="route-preview-panel">
+    <div class="card-hd">
+      <span class="card-title">🚦 Route Optimization Preview</span>
+      <span class="preview-badge" id="route-preview-badge">👁 Preview Only — No assignments saved</span>
+    </div>
+    <div class="card-bd">
+      <!-- Controls -->
+      <div class="row" style="margin-bottom: 16px;">
+        <div class="fg">
+          <label class="fl">Driver</label>
+          <select class="fi" id="route-driver-select">
+            <option value="">Carlos Vargas</option>
+            <option>Mike Torres</option>
+            <option>Jorge Ruiz</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Date</label>
+          <input class="fi" type="date" id="route-date-picker" value="2026-05-28"/>
+        </div>
+        <button class="btn-primary" id="preview-route-btn" onclick="void(0)">🔍 Preview Route</button>
+      </div>
+      
+      <!-- Excluded warning -->
+      <div class="alert-a" id="route-excluded-warning">
+        ⚠️ 3 orders excluded (missing/low-confidence coordinates)
+      </div>
+      
+      <!-- Summary stats -->
+      <div class="route-summary" id="route-results">
+        <div class="sc">
+          <div class="sc-ico">🛣️</div>
+          <div class="sc-lbl">Stops</div>
+          <div class="sc-val" style="color: var(--blue);">5</div>
+        </div>
+        <div class="sc">
+          <div class="sc-ico">📏</div>
+          <div class="sc-lbl">Total (est.)</div>
+          <div class="sc-val" style="color: var(--green); font-size: 18px;">24.7 km</div>
+        </div>
+        <div class="sc">
+          <div class="sc-ico">👤</div>
+          <div class="sc-lbl">Driver</div>
+          <div class="sc-val" style="color: var(--amber); font-size: 12px; padding-top: 4px;">Carlos Vargas</div>
+        </div>
+      </div>
+      
+      <!-- Stop list -->
+      <div class="stop-list" id="route-stop-list">
+        <div class="stop-row">
+          <div class="stop-num">1</div>
+          <div style="flex:1;min-width:0;">
+            <div class="stop-name">Maria Garcia</div>
+            <div class="stop-addr">1234 NW 7th Ave, Miami</div>
+          </div>
+          <div class="stop-dist"><div class="km">3.2 km</div><div class="leg">this leg</div></div>
+        </div>
+        <div class="stop-row">
+          <div class="stop-num">2</div>
+          <div style="flex:1;min-width:0;">
+            <div class="stop-name">Carlos Mendez</div>
+            <div class="stop-addr">4521 NW 7th Ave, Miami</div>
+          </div>
+          <div class="stop-dist"><div class="km">5.8 km</div><div class="leg">this leg</div></div>
+        </div>
+        <div class="stop-row">
+          <div class="stop-num">3</div>
+          <div style="flex:1;min-width:0;">
+            <div class="stop-name">Ana Rodriguez</div>
+            <div class="stop-addr">890 SW 8th St, Miami</div>
+          </div>
+          <div class="stop-dist"><div class="km">4.1 km</div><div class="leg">this leg</div></div>
+        </div>
+        <div class="stop-row">
+          <div class="stop-num">4</div>
+          <div style="flex:1;min-width:0;">
+            <div class="stop-name">Luis Perez</div>
+            <div class="stop-addr">2301 Brickell Ave, Miami</div>
+          </div>
+          <div class="stop-dist"><div class="km">6.3 km</div><div class="leg">this leg</div></div>
+        </div>
+        <div class="stop-row">
+          <div class="stop-num">5</div>
+          <div style="flex:1;min-width:0;">
+            <div class="stop-name">Sofia Castro</div>
+            <div class="stop-addr">5678 SW 24th St, Miami</div>
+          </div>
+          <div class="stop-dist"><div class="km">5.3 km</div><div class="leg">this leg</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

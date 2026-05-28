@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
  * PHASE 1 RLS POLICY TEST SUITE
- * 
+ *
  * Tests Row Level Security implementation for:
  * - box_orders table (pickup_location, box-level operations)
  * - activity_log table (immutable audit trail)
- * 
+ *
  * Verifies role-based access control:
  * - HQ (admin): See all
  * - Office: See own office & assigned boxes
  * - Driver: See assigned boxes only
  * - Anonymous: See nothing
- * 
+ *
  * NOTE: These are integration tests. In production, they would run
  * against a real Supabase instance with authenticated test users.
  * For now, we verify the SQL syntax and logic.
@@ -40,7 +40,7 @@ console.log('─'.repeat(60));
 const schemaSyntaxTests = [
   {
     name: 'pickup_location field migration',
-    check: () => schemaContent.includes('ALTER TABLE orders') && 
+    check: () => schemaContent.includes('ALTER TABLE orders') &&
                  schemaContent.includes('pickup_location')
   },
   {
@@ -53,13 +53,13 @@ const schemaSyntaxTests = [
   },
   {
     name: 'box_orders columns: id, order_id, box_number',
-    check: () => schemaContent.includes('id') && 
-                 schemaContent.includes('order_id') && 
+    check: () => schemaContent.includes('id') &&
+                 schemaContent.includes('order_id') &&
                  schemaContent.includes('box_number')
   },
   {
     name: 'box_orders columns: office_id, driver_id',
-    check: () => schemaContent.includes('office_id') && 
+    check: () => schemaContent.includes('office_id') &&
                  schemaContent.includes('driver_id')
   },
   {
@@ -68,7 +68,7 @@ const schemaSyntaxTests = [
   },
   {
     name: 'box_orders audit columns (created_by, updated_by)',
-    check: () => schemaContent.includes('created_by') && 
+    check: () => schemaContent.includes('created_by') &&
                  schemaContent.includes('updated_by')
   },
   {
@@ -77,19 +77,19 @@ const schemaSyntaxTests = [
   },
   {
     name: 'activity_log columns: order_id, box_id, user_id',
-    check: () => schemaContent.includes('order_id') && 
-                 schemaContent.includes('box_id') && 
+    check: () => schemaContent.includes('order_id') &&
+                 schemaContent.includes('box_id') &&
                  schemaContent.includes('user_id')
   },
   {
     name: 'activity_log columns: activity_type, action, resource_type',
-    check: () => schemaContent.includes('activity_type') && 
-                 schemaContent.includes('action') && 
+    check: () => schemaContent.includes('activity_type') &&
+                 schemaContent.includes('action') &&
                  schemaContent.includes('resource_type')
   },
   {
     name: 'activity_log immutable (old_data, new_data)',
-    check: () => schemaContent.includes('old_data') && 
+    check: () => schemaContent.includes('old_data') &&
                  schemaContent.includes('new_data')
   },
   {
@@ -274,7 +274,7 @@ const activityLogRLSTests = [
   },
   {
     name: 'activity_type enum validation',
-    check: () => schemaContent.includes('activity_type IN') && 
+    check: () => schemaContent.includes('activity_type IN') &&
                  schemaContent.includes('order_created', 'box_scanned', 'status_changed')
   }
 ];
@@ -302,8 +302,10 @@ const helperTests = [
     check: () => schemaContent.includes('CREATE OR REPLACE FUNCTION get_user_role()')
   },
   {
-    name: 'get_user_role() returns user role from user_profiles',
-    check: () => schemaContent.includes('SELECT role INTO user_role FROM user_profiles')
+    name: 'get_user_role() returns user role from members',
+    check: () => schemaContent.includes('FROM public.members') &&
+                 schemaContent.includes("SET search_path = ''") &&
+                 schemaContent.includes('COALESCE(app_role, role)')
   },
   {
     name: 'get_user_office_ids() function defined',
@@ -311,8 +313,10 @@ const helperTests = [
   },
   {
     name: 'get_user_office_ids() returns office IDs array',
-    check: () => schemaContent.includes('RETURN ARRAY(') && 
-                 schemaContent.includes('SELECT office_id FROM user_profiles')
+    check: () => schemaContent.includes('RETURN ARRAY(') &&
+                 schemaContent.includes('SELECT office_id FROM public.members') &&
+                 schemaContent.includes("SET search_path = ''") &&
+                 schemaContent.includes('tenant_id = current_tenant_id()')
   }
 ];
 
@@ -336,25 +340,25 @@ console.log('─'.repeat(60));
 const permissionTests = [
   {
     name: 'Authenticated users can SELECT box_orders',
-    check: () => schemaContent.includes('GRANT SELECT') && 
+    check: () => schemaContent.includes('GRANT SELECT') &&
                  schemaContent.includes('box_orders') &&
                  schemaContent.includes('authenticated')
   },
   {
     name: 'Authenticated users can INSERT box_orders',
-    check: () => schemaContent.includes('GRANT') && 
+    check: () => schemaContent.includes('GRANT') &&
                  schemaContent.includes('INSERT') &&
                  schemaContent.includes('box_orders')
   },
   {
     name: 'Authenticated users can UPDATE box_orders',
-    check: () => schemaContent.includes('GRANT') && 
+    check: () => schemaContent.includes('GRANT') &&
                  schemaContent.includes('UPDATE') &&
                  schemaContent.includes('box_orders')
   },
   {
     name: 'Service role has full access',
-    check: () => schemaContent.includes('GRANT ALL') && 
+    check: () => schemaContent.includes('GRANT ALL') &&
                  schemaContent.includes('service_role')
   }
 ];
@@ -395,7 +399,7 @@ const docTests = [
   },
   {
     name: 'Test queries documented',
-    check: () => schemaContent.includes('Test HQ role') && 
+    check: () => schemaContent.includes('Test HQ role') &&
                  schemaContent.includes('Test Office role') &&
                  schemaContent.includes('Test Driver role')
   }

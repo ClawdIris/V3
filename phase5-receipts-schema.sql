@@ -1,6 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════
 -- PHASE 5: RECEIPTS & INVOICES - Casabe Konnect R4
 -- ═══════════════════════════════════════════════════════════════════
+-- STATUS: APPLIED — live on Supabase, verified by Jefe/Codex. DO NOT RE-RUN.
 --
 -- This script creates the data schema for Phase 5:
 -- 1. payments table - Payment transaction records
