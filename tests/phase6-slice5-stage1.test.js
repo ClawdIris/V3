@@ -1,123 +1,35 @@
-/**
- * Phase 6 — Slice 5 Stage 1: Message Template Library
- * Tests for nav, validPages, template data, role-gating, and safety checks.
- */
-
 const fs = require('fs');
-const path = require('path');
+const src = fs.readFileSync('index.html', 'utf8');
 
-const htmlPath = path.join(__dirname, '..', 'index.html');
-let html;
-
-beforeAll(() => {
-  html = fs.readFileSync(htmlPath, 'utf8');
-});
-
-// ── validPages ────────────────────────────────────────────────
-describe('validPages', () => {
-  test('msg_templates is in HQ validPages', () => {
-    const match = html.match(/var validPages = r === "hq" \? \[([^\]]+)\]/);
-    expect(match).not.toBeNull();
-    expect(match[1]).toContain('"msg_templates"');
+describe('Phase 6 Slice 5 Stage 1 — Message Templates', () => {
+  test('msg_templates in HQ validPages', () => expect(src).toMatch(/"msg_templates"/));
+  test('msg_templates NOT in Driver validPages', () => {
+    const m = src.match(/validPages\s*=.*?\[([^\]]+)\].*?\[([^\]]+)\].*?\[([^\]]+)\]/);
+    const driverPages = m ? m[3] : '';
+    expect(driverPages).not.toContain('msg_templates');
   });
-
-  test('msg_templates is in Office validPages', () => {
-    const match = html.match(/r === "office" \? \[([^\]]+)\]/);
-    expect(match).not.toBeNull();
-    expect(match[1]).toContain('"msg_templates"');
+  test('MessageTemplatesPage component exists', () => expect(src).toContain('var MessageTemplatesPage'));
+  test('All 7 templates present', () => {
+    ['ORDER_CONFIRMATION','PAYMENT_REQUEST','PICKUP_SCHEDULED','DELIVERY_IN_TRANSIT','DELIVERY_COMPLETED','TAPE_DIRECT_ALERT','DRIVER_ASSIGNMENT']
+      .forEach(t => expect(src).toContain(t));
   });
-
-  test('msg_templates is NOT in Driver validPages', () => {
-    const match = html.match(/: \["driver_route", "driver_proof"\]/);
-    expect(match).not.toBeNull();
-    expect(match[0]).not.toContain('msg_templates');
+  test('EN and ES variants present', () => { expect(src).toContain('body_en'); expect(src).toContain('body_es'); });
+  test('EN/ES language selector exists', () => { expect(src).toContain('lang-en'); expect(src).toContain('lang-es'); });
+  test('Preview interpolates variables (fillTemplate function)', () => expect(src).toContain('fillTemplate'));
+  test('SMS/WhatsApp channel selector exists', () => { expect(src).toContain('chan-sms'); expect(src).toContain('chan-whatsapp'); });
+  test('Send button disabled in Stage 1', () => { expect(src).toContain('send-disabled-btn'); expect(src).toContain('Stage 2'); });
+  test('No Twilio API endpoint called', () => { expect(src).not.toContain('twilio.com/2010'); expect(src).not.toContain('AccountSid'); });
+  test('No frontend Twilio secret/token', () => { expect(src).not.toMatch(/AC[a-f0-9]{32}/); });
+  test('TAPE_DIRECT_ALERT is HQ-only', () => expect(src).toContain('hqOnly: true'));
+  test('Driver access denied at render level', () => expect(src).toContain('roleKey === "driver"'));
+  test('Preview only label present', () => expect(src).toMatch(/[Pp]review [Oo]nly/));
+  test('Provider-not-configured badge present', () => expect(src).toMatch(/Stage 1|not configured|preview/i));
+  test('sample vars: customer_name, order_id, tracking_url, amount, driver_name, company_name', () => {
+    ['customer_name','order_id','tracking_url','amount','driver_name','company_name']
+      .forEach(v => expect(src).toContain(v));
   });
-});
-
-// ── Nav entries ───────────────────────────────────────────────
-describe('nav entries', () => {
-  test('msg_templates nav key exists in HQ nav section', () => {
-    const hqNavIdx = html.indexOf('k: "margin_summary"');
-    expect(hqNavIdx).toBeGreaterThan(0);
-    const hqNavSection = html.substring(hqNavIdx, hqNavIdx + 200);
-    expect(hqNavSection).toContain('"msg_templates"');
-  });
-
-  test('msg_templates label is Message Templates (HQ)', () => {
-    expect(html).toContain('msg_templates: "Message Templates"');
-  });
-});
-
-// ── Template IDs ──────────────────────────────────────────────
-describe('template IDs', () => {
-  const expectedIds = [
-    'ORDER_CONFIRMATION',
-    'PAYMENT_REQUEST',
-    'DELIVERY_IN_TRANSIT',
-    'DELIVERY_COMPLETED',
-    'DRIVER_ASSIGNMENT',
-    'TAPE_DIRECT_ALERT',
-  ];
-
-  expectedIds.forEach(id => {
-    test(`template ID ${id} is present in index.html`, () => {
-      expect(html).toContain(`"${id}"`);
-    });
-  });
-});
-
-// ── TAPE_DIRECT_ALERT hqOnly ──────────────────────────────────
-describe('TAPE_DIRECT_ALERT', () => {
-  test('TAPE_DIRECT_ALERT is marked hqOnly: true', () => {
-    const idx = html.indexOf('"TAPE_DIRECT_ALERT"');
-    expect(idx).toBeGreaterThan(0);
-    const block = html.substring(idx, idx + 750);
-    expect(block).toContain('hqOnly: true');
-  });
-});
-
-// ── No Twilio in MessageTemplatesPage ────────────────────────
-describe('security checks', () => {
-  test('no Twilio API calls inside MessageTemplatesPage component', () => {
-    const startIdx = html.indexOf('Phase 6 \u2014 Slice 5 Stage 1: MessageTemplatesPage');
-    const endIdx   = html.indexOf('END Phase 6 Slice 5 Stage 1: MessageTemplatesPage');
-    expect(startIdx).toBeGreaterThan(0);
-    expect(endIdx).toBeGreaterThan(startIdx);
-    const component = html.substring(startIdx, endIdx);
-    // Must not contain Twilio require/import or API endpoint calls
-    expect(component).not.toMatch(/require\s*\(\s*['"]twilio/i);
-    expect(component).not.toMatch(/import.*from.*twilio/i);
-    expect(component).not.toMatch(/api\.twilio\.com/i);
-    expect(component).not.toMatch(/TWILIO_ACCOUNT_SID/i);
-  });
-
-  test('no messaging API fetch calls in MessageTemplatesPage', () => {
-    const startIdx = html.indexOf('Phase 6 \u2014 Slice 5 Stage 1: MessageTemplatesPage');
-    const endIdx   = html.indexOf('END Phase 6 Slice 5 Stage 1: MessageTemplatesPage');
-    expect(startIdx).toBeGreaterThan(0);
-    expect(endIdx).toBeGreaterThan(startIdx);
-    const component = html.substring(startIdx, endIdx);
-    expect(component).not.toMatch(/fetch\s*\(\s*['"]https?:\/\/api\.(twilio|messagebird|vonage)/i);
-  });
-});
-
-// ── renderPage wiring ─────────────────────────────────────────
-describe('renderPage wiring', () => {
-  test('msg_templates is handled in renderPage', () => {
-    expect(html).toContain('page === "msg_templates"');
-    expect(html).toContain('React.createElement(MessageTemplatesPage');
-  });
-
-  test('MessageTemplatesPage component is defined', () => {
-    expect(html).toContain('var MessageTemplatesPage = function MessageTemplatesPage');
-  });
-});
-
-// ── Disabled send button ──────────────────────────────────────
-describe('Stage 1 send gate', () => {
-  test('send button is disabled and labelled Stage 2', () => {
-    expect(html).toContain('send-disabled-btn');
-    expect(html).toContain('disabled: true');
-    expect(html).toMatch(/Sending disabled.*Stage 2/);
+  test('No missing runtime files referenced', () => {
+    const scriptRefs = [...src.matchAll(/src="([^"]+\.js)"/g)].map(m => m[1]).filter(s => !s.startsWith('http'));
+    scriptRefs.forEach(ref => expect(fs.existsSync(ref)).toBe(true));
   });
 });

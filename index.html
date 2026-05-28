@@ -26235,6 +26235,18 @@ setOrders(function (prev) {
       updatedAt: "2026-05-28"
     },
     {
+      id: "PICKUP_SCHEDULED",
+      name: "Pickup Scheduled",
+      channel: "both",
+      languages: ["en", "es"],
+      body_en: "Hi {{customer_name}}! Your Casabe pickup is scheduled \ud83d\uddd3\nOrder #{{order_id}} | {{company_name}}\n\ud83d\udccd Address: {{pickup_location}}\n\ud83d\udd52 Window: {{pickup_window}}\nTrack: {{tracking_url}}",
+      body_es: "\u00a1Hola {{customer_name}}! Tu recogida de Casabe est\u00e1 programada \ud83d\uddd3\nOrden #{{order_id}} | {{company_name}}\n\ud83d\udccd Direcci\u00f3n: {{pickup_location}}\n\ud83d\udd52 Ventana: {{pickup_window}}\nSeguimiento: {{tracking_url}}",
+      variables: ["customer_name", "order_id", "company_name", "pickup_location", "pickup_window", "tracking_url"],
+      sampleData: { customer_name: "Maria Lopez", order_id: "ORD-2026-0042", company_name: "Casabe Konnect", pickup_location: "456 Ocean Dr, Miami FL 33139", pickup_window: "Jun 3, 10am-2pm", tracking_url: "https://track.casabe.com/ORD-2026-0042" },
+      hqOnly: false,
+      updatedAt: "2026-05-28"
+    },
+    {
       id: "DRIVER_ASSIGNMENT",
       name: "Driver Assignment",
       channel: "both",
