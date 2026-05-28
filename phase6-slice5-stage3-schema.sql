@@ -136,15 +136,27 @@ CREATE POLICY "office_messages_insert" ON messages
   );
 
 -- Driver: no access
--- (no policy = implicit deny; explicit block for clarity)
-CREATE POLICY "driver_messages_deny" ON messages
-  FOR ALL
-  USING (public.get_user_role() NOT IN ('driver', 'anon'));
+-- Implicit deny is correct and sufficient — no permissive policy matches drivers,
+-- so they cannot read or write any rows. Adding a permissive policy with
+-- USING(role NOT IN ('driver')) would invert to a broad allow, not a deny.
+-- If defense-in-depth is required, use AS RESTRICTIVE (Postgres 15+):
+--
+-- CREATE POLICY "driver_messages_deny" ON messages
+--   AS RESTRICTIVE FOR ALL
+--   USING (public.get_user_role() != 'driver');
+--
+-- Omitting for now: implicit deny is the safe, correct default.
 
 -- Anon: blocked
-CREATE POLICY "anon_messages_deny" ON messages
-  FOR ALL
-  USING (auth.role() != 'anon');
+-- Same reasoning — no permissive policy covers anon role,
+-- so anon users are implicitly denied all access.
+-- Explicit restrictive policy (optional, Postgres 15+):
+--
+-- CREATE POLICY "anon_messages_deny" ON messages
+--   AS RESTRICTIVE FOR ALL
+--   USING (auth.role() != 'anon');
+--
+-- Omitting for now: implicit deny is sufficient.
 
 -- ─────────────────────────────────────────────────────────
 -- Verification (run after applying)

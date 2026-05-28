@@ -36,8 +36,17 @@ describe('Phase 6 Slice 5 Stage 3 — Message Queue', () => {
   test('Schema has deny-delete policy', () => expect(schemaSrc).toContain('USING (FALSE)'));
   test('Schema has HQ select policy', () => expect(schemaSrc).toContain('hq_messages_select'));
   test('Schema has Office select policy scoped to orders', () => expect(schemaSrc).toContain('office_messages_select'));
-  test('Schema has driver deny policy', () => expect(schemaSrc).toContain('driver_messages_deny'));
-  test('Schema has anon deny policy', () => expect(schemaSrc).toContain('anon_messages_deny'));
+  test('Schema: no inverted permissive driver/anon policy in active SQL', () => {
+    const activeSQL = schemaSrc.split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
+    expect(activeSQL).not.toContain('driver_messages_deny');
+    expect(activeSQL).not.toContain('anon_messages_deny');
+    expect(activeSQL).not.toMatch(/NOT IN.*driver|NOT IN.*anon/i);
+  });
+  test('Schema: driver/anon blocked by implicit deny (no permissive match)', () => {
+    // HQ + Office policies require get_user_role() = hq/office — drivers get no matching policy
+    expect(schemaSrc).toContain("public.get_user_role() = 'hq'");
+    expect(schemaSrc).toContain("public.get_user_role() = 'office'");
+  });
   test('Schema has no USING (TRUE)', () => expect(schemaSrc).not.toMatch(/USING\s*\(\s*TRUE\s*\)/i));
   test('Schema has no user_profiles reference', () => expect(schemaSrc).not.toContain('user_profiles'));
   test('SECURITY DEFINER function sets search_path', () => expect(schemaSrc).toContain("SET search_path = ''"));
