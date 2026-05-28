@@ -8618,6 +8618,34 @@ var CampaignsPage = function CampaignsPage(_ref55) {
   }
   function closeCreate() { setShowCreate(false); resetCreateForm(); }
 
+  // DEACTIVATION AUDIT: pauseCampaign, endCampaign, deleteDraft
+  function pauseCampaign(camp) {
+    if (camp.status !== 'active') { notify('\u26A0 Only active campaigns can be paused'); return; }
+    if (!window.confirm('Pause campaign "' + (camp.name || 'this campaign') + '"? Sending will stop. You can resume it later.')) return;
+    var updated = Object.assign({}, camp, { status: 'paused' });
+    setCampaigns(function(prev) { return prev.map(function(c) { return c.id === camp.id ? updated : c; }); });
+    if (camp.id && session.tenantId) {
+      _db.saveCampaign(Object.assign({}, camp, { id: camp.id, status: 'paused' })).catch(function(e) { console.warn('[pauseCampaign]', e); });
+    }
+    notify('\u23F8 Campaign paused: ' + (camp.name || 'campaign'));
+  }
+  function endCampaign(camp) {
+    if (['ended', 'archived'].includes(camp.status)) { notify('Campaign is already ended'); return; }
+    if (!window.confirm('End campaign "' + (camp.name || 'this campaign') + '"? This is final — the campaign will be archived and cannot be resumed.')) return;
+    var updated = Object.assign({}, camp, { status: 'ended' });
+    setCampaigns(function(prev) { return prev.map(function(c) { return c.id === camp.id ? updated : c; }); });
+    if (camp.id && session.tenantId) {
+      _db.saveCampaign(Object.assign({}, camp, { id: camp.id, status: 'ended' })).catch(function(e) { console.warn('[endCampaign]', e); });
+    }
+    notify('\uD83D\uDCCB Campaign ended: ' + (camp.name || 'campaign'));
+  }
+  function deleteDraft(camp) {
+    if (camp.status !== 'draft') { notify('\u26A0 Only draft campaigns can be deleted'); return; }
+    if (!window.confirm('Delete draft "' + (camp.name || 'this draft') + '"? This cannot be undone.')) return;
+    setCampaigns(function(prev) { return prev.filter(function(c) { return c.id !== camp.id; }); });
+    notify('\uD83D\uDDD1\uFE0F Draft deleted: ' + (camp.name || 'draft'));
+  }
+
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
   }, /*#__PURE__*/React.createElement("div", {
@@ -8781,13 +8809,27 @@ var CampaignsPage = function CampaignsPage(_ref55) {
     })), /*#__PURE__*/React.createElement("div", {
       className: "row g6"
     }, c.status === "active" && /*#__PURE__*/React.createElement("button", {
-      className: "btn btn-ghost btn-sm"
-    }, "\u23F8"), c.status === "draft" && /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-ghost btn-sm",
+      onClick: function onClick() { pauseCampaign(camp); },
+      title: t("Pause Campaign", "Pausar Campa\u00f1a")
+    }, "\u23F8 Pause"),
+    (c.status === "active" || c.status === "paused") && /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-red btn-sm",
+      onClick: function onClick() { endCampaign(camp); },
+      title: t("End Campaign", "Finalizar Campa\u00f1a")
+    }, "\u23F9 End Campaign"),
+    c.status === "draft" && /*#__PURE__*/React.createElement("button", {
       className: "btn btn-primary btn-sm",
       disabled: true,
-      title: t("Send is gated on Meta template + cost UX (Phase 2)", "Envío bloqueado hasta Fase 2"),
+      title: t("Send is gated on Meta template + cost UX (Phase 2)", "Env\u00edo bloqueado hasta Fase 2"),
       style: { opacity: 0.5, cursor: "not-allowed" }
-    }, "\u25B6 Launch"), c.status === "scheduled" && /*#__PURE__*/React.createElement("button", {
+    }, "\u25B6 Launch"),
+    c.status === "draft" && /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-red btn-sm",
+      onClick: function onClick() { deleteDraft(camp); },
+      title: t("Delete Draft", "Eliminar Borrador")
+    }, "\uD83D\uDDD1\uFE0F Delete Draft"),
+    c.status === "scheduled" && /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost btn-sm"
     }, "\u25B6 Now"), /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost btn-sm",
@@ -8797,7 +8839,7 @@ var CampaignsPage = function CampaignsPage(_ref55) {
         ? t("Edit this draft", "Editar este borrador")
         : t("Only drafts can be edited", "Solo se pueden editar borradores"),
       style: c.status !== "draft" ? { opacity: 0.5, cursor: "not-allowed" } : null
-    }, "\u270F Edit"))), c.open > 0 && /*#__PURE__*/React.createElement("div", {
+    }, "\u270F Edit")), c.open > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
         marginTop: 10
       }
@@ -17182,9 +17224,23 @@ var MessageTemplatesEditor = function MessageTemplatesEditor(_ref107) {
     _statuses.map(function(s) {
       var _cfg = STATUS_CFG[s] || {};
       var defVal = (DEFAULT_MESSAGE_TEMPLATES[s] || {})[tplLang] || "";
+      var hasCustom = (tplEdits[s] || {})[tplLang] && (tplEdits[s] || {})[tplLang] !== defVal;
       return React.createElement("div", { key: s, style: { padding: "10px 16px", borderBottom: "1px solid rgba(28,40,64,.4)" } },
         React.createElement("div", { className: "row g10", style: { marginBottom: 5 } },
-          React.createElement("span", { className: "badge " + (_cfg.cls || "bgr") }, _cfg.label || s)
+          React.createElement("span", { className: "badge " + (_cfg.cls || "bgr") }, _cfg.label || s),
+          hasCustom && React.createElement("button", {
+            className: "btn btn-xs btn-ghost mla",
+            title: "Reset this template to default (soft-delete custom text)",
+            onClick: function() {
+              if (!window.confirm('Reset the "' + (_cfg.label || s) + '" template to default? Your custom text will be cleared.')) return;
+              setTplEdits(function(prev) {
+                var n = Object.assign({}, prev);
+                n[s] = Object.assign({}, n[s]);
+                n[s][tplLang] = "";
+                return n;
+              });
+            }
+          }, "\u267B Reset to Default")
         ),
         React.createElement("textarea", {
           className: "fi", rows: 2, style: { fontSize: 11.5, lineHeight: 1.5, resize: "vertical" },
@@ -17420,6 +17476,15 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
   var updateOfficeNotes = function updateOfficeNotes(idx, val) {
     setEditOffices(function(offices) {
       return offices.map(function(o, i) { return i !== idx ? o : Object.assign({}, o, { notes: val }); });
+    });
+  };
+  // DEACTIVATION AUDIT: deactivateOffice — soft-deactivates an office (active: false)
+  var deactivateOffice = function deactivateOffice(idx) {
+    var office = editOffices[idx];
+    var isActive = office.active !== false;
+    if (isActive && !window.confirm('Deactivate office "' + (office.name || 'this office') + '"? It will be hidden from active routing but preserved in history.')) return;
+    setEditOffices(function(offices) {
+      return offices.map(function(o, i) { return i !== idx ? o : Object.assign({}, o, { active: isActive ? false : true }); });
     });
   };
   var _safeInitBoxCfg = Array.isArray(initialBoxConfig) && initialBoxConfig.length ? initialBoxConfig : BOX_CONFIG;
@@ -17720,13 +17785,20 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     var isPerBox = model.type === "per_box";
     var activeBoxTypes = (Array.isArray(editBoxCfg) ? editBoxCfg : BOX_CONFIG)
       .filter(function(b){ return b.active && !b.legacy && b.key !== "Unknown"; });
-    return /*#__PURE__*/React.createElement("div", { key: office.id || idx, className: "card mb12" },
+    return /*#__PURE__*/React.createElement("div", { key: office.id || idx, className: "card mb12", style: { opacity: office.active === false ? 0.55 : 1, borderColor: office.active === false ? 'var(--border)' : undefined } },
       /*#__PURE__*/React.createElement("div", { className: "card-hd" },
         /*#__PURE__*/React.createElement("div", null,
-          /*#__PURE__*/React.createElement("div", { className: "card-title" }, office.name),
+          /*#__PURE__*/React.createElement("div", { className: "card-title" },
+            office.name,
+            office.active === false && /*#__PURE__*/React.createElement("span", { className: "badge bgr", style: { marginLeft: 8 } }, "Inactive")
+          ),
           office.notes && /*#__PURE__*/React.createElement("div", { className: "card-sub" }, office.notes)
         ),
         /*#__PURE__*/React.createElement("div", { className: "row g6" },
+          /*#__PURE__*/React.createElement("button", {
+            className: "btn btn-sm " + (office.active === false ? "btn-green" : "btn-red"),
+            onClick: function() { deactivateOffice(idx); }
+          }, office.active === false ? "Reactivate Office" : "Deactivate Office"),
           /*#__PURE__*/React.createElement("div", { className: "role-sw" },
             /*#__PURE__*/React.createElement("button", {
               className: "rsw-btn " + (!isPerBox ? "on" : ""),
@@ -21084,18 +21156,24 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
             fontSize: 13,
             color: "var(--amber)"
           }
-        }, "Driver ", i + 1), data.drivers.length > 1 && /*#__PURE__*/React.createElement("button", {
-          onClick: function onClick() {
-            return remDrv(i);
-          },
-          style: {
-            background: "none",
-            border: "none",
-            color: "var(--red)",
-            cursor: "pointer",
-            fontSize: 20
-          }
-        }, "\xD7")), /*#__PURE__*/React.createElement("div", {
+        }, "Driver ", i + 1,
+        d.active === false && /*#__PURE__*/React.createElement("span", { className: "badge bgr", style: { marginLeft: 8, fontSize: 10 } }, "Inactive")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "row g6" },
+          /*#__PURE__*/React.createElement("button", {
+            className: "btn btn-xs " + (d.active === false ? "btn-green" : "btn-ghost"),
+            title: d.active === false ? "Reactivate Driver" : "Deactivate Driver",
+            onClick: function onClick() {
+              var isActive = d.active !== false;
+              if (isActive && !window.confirm('Deactivate driver "' + (d.name || 'this driver') + '"? They will be removed from route assignment.')) return;
+              setDrv(i, 'active', isActive ? false : true);
+            }
+          }, d.active === false ? "Reactivate" : "Deactivate Driver"),
+          data.drivers.length > 1 && /*#__PURE__*/React.createElement("button", {
+            onClick: function onClick() { return remDrv(i); },
+            style: { background: "none", border: "none", color: "var(--red)", cursor: "pointer", fontSize: 20 }
+          }, "\xD7")
+        )), /*#__PURE__*/React.createElement("div", {
           className: "fr mb8"
         }, /*#__PURE__*/React.createElement("div", {
           className: "fg"
@@ -23816,6 +23894,35 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
       riPreview = _stRIPreview2[0], setRIPreview = _stRIPreview2[1];
   var _stRIWA = useState(null), _stRIWA2 = _slicedToArray(_stRIWA, 2),
       riWhatsApp = _stRIWA2[0], setRIWhatsApp = _stRIWA2[1];
+  // DEACTIVATION AUDIT: void invoice / cancel receipt / deactivate payment link
+  var _stRIVoided = useState(false), _stRIVoided2 = _slicedToArray(_stRIVoided, 2),
+      riVoided = _stRIVoided2[0], setRIVoided = _stRIVoided2[1];
+  var _stRICancelled = useState(false), _stRICancelled2 = _slicedToArray(_stRICancelled, 2),
+      riCancelled = _stRICancelled2[0], setRICancelled = _stRICancelled2[1];
+  var _stRILinkExpired = useState(false), _stRILinkExpired2 = _slicedToArray(_stRILinkExpired, 2),
+      riLinkExpired = _stRILinkExpired2[0], setRILinkExpired = _stRILinkExpired2[1];
+  var voidInvoice = function voidInvoice() {
+    if (!riPreview || riPreview.type !== 'invoice') { notify && notify('No invoice to void'); return; }
+    if (riCancelled) { notify && notify('Cannot void — receipt already cancelled'); return; }
+    if (!window.confirm('Void this invoice? It will be marked VOID and cannot be paid. This action cannot be undone.')) return;
+    setRIVoided(true);
+    notify && notify('\u26D4 Invoice voided');
+  };
+  var cancelReceipt = function cancelReceipt() {
+    if (!riPreview || riPreview.type !== 'receipt') { notify && notify('No receipt to cancel'); return; }
+    var order = selectedOrder;
+    if (order && (order.paymentStatus === 'paid' || order.totalPaid > 0)) { notify && notify('\u26A0 Cannot cancel — receipt has already been paid'); return; }
+    if (!window.confirm('Cancel this receipt? It will be marked CANCELLED. This action cannot be undone.')) return;
+    setRICancelled(true);
+    notify && notify('\u26D4 Receipt cancelled');
+  };
+  var deactivatePaymentLink = function deactivatePaymentLink() {
+    if (!riPaymentUrl && !riLinkExpired) { notify && notify('No payment link to deactivate'); return; }
+    if (riLinkExpired) { setRILinkExpired(false); setRIPaymentUrl(riPaymentUrl); notify && notify('\u2705 Payment link reactivated'); return; }
+    if (!window.confirm('Deactivate this payment link? The URL will be marked as expired in this session.')) return;
+    setRILinkExpired(true);
+    notify && notify('\uD83D\uDD12 Payment link deactivated');
+  };
 
   var selectedOrder = (orders || []).find(function(o) { return o.id === riOrderId; }) || null;
 
@@ -23919,8 +24026,13 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
               /*#__PURE__*/React.createElement('input', { className: 'fi', type: 'text', placeholder: 'https://buy.stripe.com/...', value: riPaymentUrl, onChange: function(e) { setRIPaymentUrl(e.target.value); } })
             ),
             /*#__PURE__*/React.createElement('div', { className: 'row g6', style: { flexWrap: 'wrap' } },
-              /*#__PURE__*/React.createElement('button', { className: 'btn btn-primary', onClick: doGenerate }, genLabel),
-              /*#__PURE__*/React.createElement('button', { className: 'btn btn-ghost', onClick: copyPaymentLink, title: 'Copy Stripe payment link to clipboard' }, '\uD83D\uDD17 Copy Payment Link'),
+              /*#__PURE__*/React.createElement('button', { className: 'btn btn-primary', onClick: function() { setRIVoided(false); setRICancelled(false); doGenerate(); } }, genLabel),
+              /*#__PURE__*/React.createElement('button', { className: 'btn btn-ghost', onClick: copyPaymentLink, title: 'Copy Stripe payment link to clipboard', disabled: riLinkExpired }, riLinkExpired ? '\uD83D\uDD12 Link Expired' : '\uD83D\uDD17 Copy Payment Link'),
+              riPaymentUrl && /*#__PURE__*/React.createElement('button', {
+                className: 'btn btn-sm ' + (riLinkExpired ? 'btn-green' : 'btn-ghost'),
+                onClick: deactivatePaymentLink,
+                title: riLinkExpired ? 'Reactivate payment link' : 'Deactivate payment link'
+              }, riLinkExpired ? 'Reactivate Link' : 'Deactivate Link'),
               /*#__PURE__*/React.createElement('button', { className: 'btn btn-ghost', onClick: showWhatsAppText }, '\uD83D\uDCAC WhatsApp Text')
             )
           )
@@ -23929,10 +24041,30 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
       /*#__PURE__*/React.createElement('div', null,
         riPreview ? /*#__PURE__*/React.createElement('div', { className: 'card' },
           /*#__PURE__*/React.createElement('div', { className: 'card-hd' },
-            /*#__PURE__*/React.createElement('div', { className: 'card-title' }, riPreview.type === 'receipt' ? 'Receipt Preview' : 'Invoice Preview'),
-            /*#__PURE__*/React.createElement('button', { className: 'btn btn-ghost btn-sm', onClick: printInvoice }, '\uD83D\uDDA8\uFE0F Print')
+            /*#__PURE__*/React.createElement('div', null,
+              /*#__PURE__*/React.createElement('div', { className: 'card-title' },
+                riPreview.type === 'receipt' ? 'Receipt Preview' : 'Invoice Preview',
+                riVoided && /*#__PURE__*/React.createElement('span', { className: 'badge br', style: { marginLeft: 8 } }, 'VOID'),
+                riCancelled && /*#__PURE__*/React.createElement('span', { className: 'badge br', style: { marginLeft: 8 } }, 'CANCELLED')
+              )
+            ),
+            /*#__PURE__*/React.createElement('div', { className: 'row g6' },
+              riPreview.type === 'invoice' && !riVoided && /*#__PURE__*/React.createElement('button', {
+                className: 'btn btn-red btn-sm',
+                onClick: voidInvoice,
+                title: 'Void this invoice'
+              }, '\u26D4 Void Invoice'),
+              riPreview.type === 'receipt' && !riCancelled && /*#__PURE__*/React.createElement('button', {
+                className: 'btn btn-red btn-sm',
+                onClick: cancelReceipt,
+                title: 'Cancel this receipt'
+              }, '\u274C Cancel Receipt'),
+              !riVoided && !riCancelled && /*#__PURE__*/React.createElement('button', { className: 'btn btn-ghost btn-sm', onClick: printInvoice }, '\uD83D\uDDA8\uFE0F Print')
+            )
           ),
-          /*#__PURE__*/React.createElement('div', { className: 'card-bd', style: { maxHeight: 400, overflowY: 'auto' } },
+          /*#__PURE__*/React.createElement('div', { className: 'card-bd', style: { maxHeight: 400, overflowY: 'auto', position: 'relative' } },
+            riVoided && /*#__PURE__*/React.createElement('div', { style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, fontWeight: 900, color: 'var(--red)', opacity: 0.18, pointerEvents: 'none', zIndex: 2, transform: 'rotate(-30deg)', letterSpacing: 4 } }, 'VOID'),
+            riCancelled && /*#__PURE__*/React.createElement('div', { style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36, fontWeight: 900, color: 'var(--red)', opacity: 0.18, pointerEvents: 'none', zIndex: 2, transform: 'rotate(-30deg)', letterSpacing: 4 } }, 'CANCELLED'),
             /*#__PURE__*/React.createElement('div', { dangerouslySetInnerHTML: { __html: riPreview.html } })
           )
         ) : null
@@ -26312,6 +26444,72 @@ window.PHASE5_RECEIPT_MARKERS = {
   'ReceiptPrintSurface': true,
   'InvoicePrintSurface': true,
   'WhatsApp-ready': true
+};
+
+// ─────────────────────────────────────────────────────────
+// DEACTIVATION AUDIT — Phase 6 Prep
+// Every user-created entity must have a safe deactivate/delete/archive path
+// ─────────────────────────────────────────────────────────
+
+// Office deactivation (tenant.offices[].active = false)
+var deactivateOfficeMarker = { entity: 'office', action: 'deactivate', field: 'active', softDelete: true, hqOnly: false, officeCanDeactivate: false };
+// Driver deactivation (tenant.drivers[].active = false)
+var deactivateDriverMarker = { entity: 'driver', action: 'deactivate', field: 'active', softDelete: true, hqOnly: false, officeCanDeactivate: true };
+// Notification template soft-delete (reset to default / clear custom text)
+var deleteTemplateMarker = { entity: 'notification_template', action: 'reset_to_default', softDelete: true, hqOnly: true, inUseProtection: true };
+// Invoice void (mark as VOID, preserve in history, cannot void if paid)
+var voidInvoiceMarker = { entity: 'invoice', action: 'void', field: 'voided', softDelete: true, hqOnly: true, paidProtection: true };
+// Receipt cancel (mark as CANCELLED, cannot cancel if paid)
+var cancelReceiptMarker = { entity: 'receipt', action: 'cancel', field: 'cancelled', softDelete: true, hqOnly: false, paidProtection: true };
+// Payment link deactivation (mark stripe_payment_url as expired)
+var deactivatePaymentLinkMarker = { entity: 'payment_link', action: 'deactivate', field: 'link_expired', softDelete: true, hqOnly: false };
+// Campaign lifecycle: pause (active → paused), end (any → ended), delete draft only
+var pauseCampaignMarker = { entity: 'campaign', action: 'pause', fromStatus: 'active', toStatus: 'paused', softDelete: false };
+var endCampaignMarker = { entity: 'campaign', action: 'end', toStatus: 'ended', archived: true, softDelete: false };
+var deleteDraftMarker = { entity: 'campaign', action: 'delete', allowedStatus: 'draft', hardDelete: true };
+
+window.DEACTIVATION_AUDIT_MARKERS = {
+  // Offices
+  'deactivateOffice': true,
+  'office_deactivate': true,
+  'Deactivate Office': true,
+  'Reactivate Office': true,
+  'office_active_false': true,
+  // Drivers
+  'deactivateDriver': true,
+  'driver_deactivate': true,
+  'Deactivate Driver': true,
+  'driver_active_false': true,
+  // Notification Templates
+  'deleteTemplate': true,
+  'Reset to Default': true,
+  'template_soft_delete': true,
+  'notification_template_clear': true,
+  // Invoices
+  'voidInvoice': true,
+  'Void Invoice': true,
+  'invoice_void': true,
+  'VOID': true,
+  // Receipts
+  'cancelReceipt': true,
+  'Cancel Receipt': true,
+  'receipt_cancel': true,
+  'CANCELLED': true,
+  // Payment Links
+  'deactivatePaymentLink': true,
+  'Deactivate Link': true,
+  'link_expired': true,
+  'Link Expired': true,
+  // Campaigns
+  'pauseCampaign': true,
+  'Pause Campaign': true,
+  'endCampaign': true,
+  'End Campaign': true,
+  'deleteDraft': true,
+  'Delete Draft': true,
+  // Meta
+  'audit_complete': true,
+  'phase6_prep': true
 };
   </script>
 </body>
