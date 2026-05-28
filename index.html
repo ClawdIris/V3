@@ -24936,11 +24936,48 @@ setOrders(function (prev) {
       });
   }
 
+  /* ── Haversine distance helper (km) — used by Slice 3 TSP solver, no DB writes ── */
+  function haversineDist(lat1, lon1, lat2, lon2) {
+    var R = 6371;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+            Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*
+            Math.sin(dLon/2)*Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+  /* ── Nearest-neighbor TSP solver (client-side preview only, no DB writes) ── */
+  function nearestNeighborTSP(stops, depotLat, depotLon) {
+    if (!stops || stops.length === 0) return [];
+    var unvisited = stops.slice();
+    var ordered = [];
+    var curLat = depotLat, curLon = depotLon;
+    var cumDist = 0;
+    while (unvisited.length > 0) {
+      var bestIdx = 0, bestDist = Infinity;
+      for (var i = 0; i < unvisited.length; i++) {
+        var d = haversineDist(curLat, curLon, unvisited[i].lat, unvisited[i].lon);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
+      cumDist += bestDist;
+      ordered.push(Object.assign({}, unvisited[bestIdx], {
+        legDist: Math.round(bestDist * 10) / 10,
+        cumDist: Math.round(cumDist * 10) / 10,
+        stopNum: ordered.length + 1
+      }));
+      curLat = unvisited[bestIdx].lat;
+      curLon = unvisited[bestIdx].lon;
+      unvisited.splice(bestIdx, 1);
+    }
+    return ordered;
+  }
+
   var MapViewPage = function MapViewPage(_ref_mvp) {
     var _orders  = _ref_mvp.orders;
     var _session = _ref_mvp.session || {};
     var _notify  = _ref_mvp.notify || function() {};
     var _onCoordOverride = _ref_mvp.onCoordOverride || function() {};
+    var _driversList = _ref_mvp.driversList || null;
 
     var ACTIVE_STATUSES = ["received","in_warehouse","ready_pickup","in_transit","out_for_delivery","loaded_container","processing"];
     var activeOrders = (_orders || []).filter(function(o) { return ACTIVE_STATUSES.includes(o.status); });
@@ -24966,6 +25003,16 @@ setOrders(function (prev) {
 
     var _useState_gc2 = useState(false);
     var geocoding = _useState_gc2[0], setGeocoding = _useState_gc2[1];
+
+    /* ── Route preview state (Slice 3) ── */
+    var _useState_rdv = useState("");
+    var routeDriver = _useState_rdv[0], setRouteDriver = _useState_rdv[1];
+
+    var _useState_rdt = useState(new Date().toISOString().slice(0, 10));
+    var routeDate = _useState_rdt[0], setRouteDate = _useState_rdt[1];
+
+    var _useState_rr = useState(null);
+    var routeResult = _useState_rr[0], setRouteResult = _useState_rr[1];
 
     /* ── Auto-geocode orders without coords on mount + when orders change ── */
     useEffect(function() {
@@ -25061,6 +25108,36 @@ setOrders(function (prev) {
       setOverrideForm({ orderId: "", lat: "", lon: "", note: "" });
       setShowOverride(false);
       _notify("✅ Coordinates saved for " + oid);
+    };
+
+    /* ── Route preview handler — nearest-neighbor TSP, client-side only, zero DB writes ── */
+    var handlePreviewRoute = function() {
+      var DEPOT_LAT = 25.7617, DEPOT_LON = -80.1918; // Miami metro default depot
+      var eligible = activeOrders.filter(function(o) {
+        var entry = geoCache[o.id];
+        return entry && hasUsableCoords(entry);
+      });
+      var excludedCount = activeOrders.length - eligible.length;
+      var filtered = routeDriver
+        ? eligible.filter(function(o) { return o.assignedDriver === routeDriver; })
+        : eligible;
+      if (filtered.length < 2) {
+        setRouteResult({ error: "needsMore", eligibleCount: filtered.length, excludedCount: excludedCount });
+        return;
+      }
+      var stops = filtered.map(function(o) {
+        var entry = geoCache[o.id];
+        return { id: o.id, name: o.name || o.id, lat: entry.lat, lon: entry.lon,
+                 status: entry.status, address: [o.address, o.city].filter(Boolean).join(", ") };
+      });
+      var ordered = nearestNeighborTSP(stops, DEPOT_LAT, DEPOT_LON);
+      setRouteResult({
+        stops: ordered,
+        totalDist: ordered.length > 0 ? ordered[ordered.length - 1].cumDist : 0,
+        excludedCount: excludedCount,
+        driverLabel: routeDriver || "All Drivers",
+        routeDate: routeDate
+      });
     };
 
     /* ── Render ── */
@@ -25217,7 +25294,16 @@ setOrders(function (prev) {
             /*#__PURE__*/React.createElement("line", { x1: "0", y1: "60", x2: "70", y2: "60", stroke: "rgba(59,130,246,0.12)", strokeWidth: "0.5" }),
             /*#__PURE__*/React.createElement("line", { x1: "30", y1: "0", x2: "30", y2: "100", stroke: "rgba(59,130,246,0.12)", strokeWidth: "0.5" }),
             /*#__PURE__*/React.createElement("line", { x1: "55", y1: "0", x2: "55", y2: "100", stroke: "rgba(59,130,246,0.12)", strokeWidth: "0.5" }),
-            /*#__PURE__*/React.createElement("line", { x1: "20", y1: "0", x2: "22", y2: "100", stroke: "rgba(245,158,11,0.18)", strokeWidth: "1" })
+            /*#__PURE__*/React.createElement("line", { x1: "20", y1: "0", x2: "22", y2: "100", stroke: "rgba(245,158,11,0.18)", strokeWidth: "1" }),
+            /* Route polyline overlay (Slice 3 — visual only, no DB) */
+            routeResult && routeResult.stops && routeResult.stops.length >= 2 &&
+              React.createElement("polyline", {
+                id: "route-svg-line",
+                points: routeResult.stops.slice(0, PIN_OFFSETS.length).map(function(s, i) {
+                  return PIN_OFFSETS[i].dx + "," + PIN_OFFSETS[i].dy;
+                }).join(" "),
+                fill: "none", stroke: "rgba(59,130,246,0.75)", strokeWidth: "1.5", strokeDasharray: "3,2"
+              })
           ),
 
           /* Order pins — color/icon by coordinate_status */
@@ -25243,6 +25329,23 @@ setOrders(function (prev) {
                   : "drop-shadow(0 0 3px " + coordStatusColor(cStatus) + "88)"
               }
             }, icon);
+          }),
+
+          /* Route numbered stop pins (Slice 3) */
+          routeResult && routeResult.stops && routeResult.stops.slice(0, PIN_OFFSETS.length).map(function(stop, i) {
+            var pos = PIN_OFFSETS[i];
+            return React.createElement("div", {
+              key: "rpin-" + stop.id,
+              style: {
+                position: "absolute", left: pos.dx + "%", top: pos.dy + "%",
+                width: 22, height: 22, borderRadius: "50%",
+                background: "rgba(59,130,246,0.9)", border: "2px solid #fff",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 11, fontWeight: 700, color: "#fff",
+                transform: "translate(-50%,-50%)", zIndex: 15, pointerEvents: "none",
+                fontFamily: "'IBM Plex Mono',monospace"
+              }
+            }, stop.stopNum);
           }),
 
           /* Popup */
@@ -25359,6 +25462,107 @@ setOrders(function (prev) {
                     );
                   })
             )
+          )
+        )
+      ),
+
+      /* ── PHASE 6 — SLICE 3: Route Preview Panel (HQ-only, read-only, no DB writes) ── */
+      /*#__PURE__*/React.createElement("div", { id: "route-preview-panel", className: "card mb18" },
+        /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDEA6 Route Optimization Preview"),
+          /*#__PURE__*/React.createElement("span", {
+            id: "route-preview-badge",
+            style: { fontSize: 11, padding: "3px 10px", borderRadius: 6, background: "rgba(99,102,241,0.15)", color: "#818cf8", fontWeight: 600 }
+          }, "\uD83D\uDC41 Preview Only \u2014 No assignments saved")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+          /*#__PURE__*/React.createElement("div", { className: "row g10 mb14", style: { flexWrap: "wrap", alignItems: "flex-end" } },
+            /*#__PURE__*/React.createElement("div", { className: "fg" },
+              /*#__PURE__*/React.createElement("label", { className: "fl" }, "Driver"),
+              /*#__PURE__*/React.createElement("select", {
+                id: "route-driver-select",
+                className: "fi",
+                value: routeDriver,
+                onChange: function(e) { setRouteDriver(e.target.value); setRouteResult(null); }
+              },
+                /*#__PURE__*/React.createElement("option", { value: "" }, "All Drivers"),
+                (_driversList || DEFAULT_DRIVERS).map(function(d) {
+                  var name = typeof d === "string" ? d : (d.name || "");
+                  return /*#__PURE__*/React.createElement("option", { key: name, value: name }, name);
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fg" },
+              /*#__PURE__*/React.createElement("label", { className: "fl" }, "Date"),
+              /*#__PURE__*/React.createElement("input", {
+                id: "route-date-picker",
+                className: "fi", type: "date",
+                value: routeDate,
+                onChange: function(e) { setRouteDate(e.target.value); setRouteResult(null); }
+              })
+            ),
+            /*#__PURE__*/React.createElement("button", {
+              id: "preview-route-btn",
+              className: "btn btn-primary",
+              onClick: handlePreviewRoute
+            }, "\uD83D\uDD0D Preview Route")
+          ),
+          routeResult && routeResult.excludedCount > 0 && /*#__PURE__*/React.createElement("div", {
+            id: "route-excluded-warning",
+            className: "alert alert-a mb12"
+          }, "\u26A0\uFE0F " + routeResult.excludedCount + " order" + (routeResult.excludedCount !== 1 ? "s" : "") + " excluded (missing/low-confidence coordinates)"),
+          routeResult && routeResult.error === "needsMore" && /*#__PURE__*/React.createElement("div", {
+            id: "route-not-enough",
+            className: "alert alert-r mb12"
+          }, "\uD83D\uDEAB Route preview requires \u2265 2 eligible orders with valid coordinates. Currently " + (routeResult.eligibleCount || 0) + " eligible."),
+          routeResult && routeResult.stops && routeResult.stops.length >= 2 && /*#__PURE__*/React.createElement("div", { id: "route-results" },
+            /*#__PURE__*/React.createElement("div", { className: "sg4 mb14" },
+              /*#__PURE__*/React.createElement("div", { className: "sc sc-b" },
+                /*#__PURE__*/React.createElement("div", { className: "sc-ico" }, "\uD83D\uDEE3\uFE0F"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Stops"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-val", style: { color: "var(--blue)" } }, routeResult.stops.length)
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "sc sc-g" },
+                /*#__PURE__*/React.createElement("div", { className: "sc-ico" }, "\uD83D\uDCCF"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Total (est.)"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-val", style: { color: "var(--green)" } }, routeResult.totalDist.toFixed(1) + " km")
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "sc sc-a" },
+                /*#__PURE__*/React.createElement("div", { className: "sc-ico" }, "\uD83D\uDC64"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Driver"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-val xs", style: { color: "var(--amber)", fontSize: 11 } }, routeResult.driverLabel)
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { id: "route-stop-list", style: { display: "flex", flexDirection: "column", gap: 6 } },
+              routeResult.stops.map(function(stop) {
+                return /*#__PURE__*/React.createElement("div", {
+                  key: stop.id,
+                  className: "row g10",
+                  style: { padding: "8px 12px", background: "var(--bg)", borderRadius: 8, alignItems: "flex-start" }
+                },
+                  /*#__PURE__*/React.createElement("div", {
+                    style: {
+                      minWidth: 24, height: 24, borderRadius: "50%",
+                      background: "rgba(59,130,246,0.85)", border: "2px solid rgba(99,102,241,0.5)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0,
+                      fontFamily: "'IBM Plex Mono',monospace"
+                    }
+                  }, stop.stopNum),
+                  /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                    /*#__PURE__*/React.createElement("div", { className: "tb xs" }, stop.name || stop.id),
+                    stop.address && /*#__PURE__*/React.createElement("div", { className: "mut xs" }, stop.address)
+                  ),
+                  /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", flexShrink: 0 } },
+                    /*#__PURE__*/React.createElement("div", { className: "mono xs", style: { color: "var(--blue)" } }, stop.legDist + " km"),
+                    /*#__PURE__*/React.createElement("div", { className: "mut", style: { fontSize: 9 } }, "this leg")
+                  )
+                );
+              })
+            )
+          ),
+          !routeResult && /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { textAlign: "center", padding: "16px 0" } },
+            "Select driver and date, then click \u201CPreview Route\u201D to compute the optimized stop order."
           )
         )
       )
@@ -25681,7 +25885,7 @@ setOrders(function (prev) {
       driversList: tenantDrivers
     });
     // Phase 6 — Slice 1: Map View (HQ-only, role gate enforced by nav config)
-    if (page === "map_view") return /*#__PURE__*/React.createElement(MapViewPage, { orders: orders, session: session, notify: notify, onCoordOverride: function(oid, patch) { setOrders(function(prev) { return prev.map(function(o) { return o.id === oid ? Object.assign({}, o, patch) : o; }); }); } });
+    if (page === "map_view") return /*#__PURE__*/React.createElement(MapViewPage, { orders: orders, session: session, notify: notify, driversList: tenantDrivers, onCoordOverride: function(oid, patch) { setOrders(function(prev) { return prev.map(function(o) { return o.id === oid ? Object.assign({}, o, patch) : o; }); }); } });
     if (page === "batches") return /*#__PURE__*/React.createElement("div", {
       className: "fu"
     }, /*#__PURE__*/React.createElement("div", {
