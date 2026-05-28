@@ -17131,6 +17131,85 @@ var OfficeDetailModal = function OfficeDetailModal(props) {
   );
 };
 
+var MessageTemplatesEditor = function MessageTemplatesEditor(_ref107) {
+  var tenant = _ref107.tenant,
+    onUpdateTenant = _ref107.onUpdateTenant;
+  var _statuses = Object.keys(DEFAULT_MESSAGE_TEMPLATES);
+  var _saved = tenant && tenant.messageTemplates || {};
+  var _initTemplates = function _initTemplates() {
+    return _statuses.reduce(function(acc, s) {
+      var d = DEFAULT_MESSAGE_TEMPLATES[s] || {};
+      var sv = _saved[s] || {};
+      acc[s] = { en: sv.en || d.en || "", es: sv.es || d.es || "" };
+      return acc;
+    }, {});
+  };
+  var _stTE = useState(_initTemplates),
+    _stTE2 = _slicedToArray(_stTE, 2),
+    tplEdits = _stTE2[0],
+    setTplEdits = _stTE2[1];
+  var _stLng = useState("en"),
+    _stLng2 = _slicedToArray(_stLng, 2),
+    tplLang = _stLng2[0],
+    setTplLang = _stLng2[1];
+  var _stSvd = useState(false),
+    _stSvd2 = _slicedToArray(_stSvd, 2),
+    tplSaved = _stSvd2[0],
+    setTplSaved = _stSvd2[1];
+  React.useEffect(function() {
+    setTplEdits(_initTemplates());
+  }, [tenant && tenant.messageTemplates]);
+  function saveTpls() {
+    if (typeof onUpdateTenant === "function") {
+      onUpdateTenant({ messageTemplates: tplEdits });
+    }
+    setTplSaved(true);
+    setTimeout(function() { setTplSaved(false); }, 2500);
+  }
+  return React.createElement(React.Fragment, null,
+    React.createElement("div", { className: "row g10", style: { padding: "8px 16px", borderBottom: "1px solid var(--border)" } },
+      React.createElement("span", { className: "mut xs" }, "Tokens: [Name] [ID] [TrackURL] [Company] [Destination]"),
+      React.createElement("div", { className: "role-sw mla" },
+        ["en","es"].map(function(lng) {
+          return React.createElement("button", { key: lng,
+            className: "rsw-btn " + (tplLang === lng ? "on" : ""),
+            onClick: function() { setTplLang(lng); } },
+            lng === "en" ? "English" : "Espa\xf1ol");
+        })
+      ),
+      tplSaved && React.createElement("span", { className: "badge bg" }, "\u2713 Saved")
+    ),
+    _statuses.map(function(s) {
+      var _cfg = STATUS_CFG[s] || {};
+      var defVal = (DEFAULT_MESSAGE_TEMPLATES[s] || {})[tplLang] || "";
+      return React.createElement("div", { key: s, style: { padding: "10px 16px", borderBottom: "1px solid rgba(28,40,64,.4)" } },
+        React.createElement("div", { className: "row g10", style: { marginBottom: 5 } },
+          React.createElement("span", { className: "badge " + (_cfg.cls || "bgr") }, _cfg.label || s)
+        ),
+        React.createElement("textarea", {
+          className: "fi", rows: 2, style: { fontSize: 11.5, lineHeight: 1.5, resize: "vertical" },
+          value: (tplEdits[s] || {})[tplLang] || "", placeholder: defVal,
+          onChange: function(e) {
+            var val = e.target.value;
+            setTplEdits(function(prev) {
+              var n = Object.assign({}, prev);
+              n[s] = Object.assign({}, n[s]);
+              n[s][tplLang] = val;
+              return n;
+            });
+          }
+        }),
+        React.createElement("div", { className: "mut xs", style: { marginTop: 2 } }, "Default: ", defVal)
+      );
+    }),
+    React.createElement("div", { style: { padding: "12px 16px" } },
+      React.createElement("button", { className: "btn btn-primary btn-sm", onClick: saveTpls }, "\u2713 Save Templates"),
+      typeof onUpdateTenant !== "function" && React.createElement("span", { className: "mut xs", style: { marginLeft: 10 } },
+        "Tenant save handler unavailable")
+    )
+  );
+};
+
 var PricingAdminPage = function PricingAdminPage(_ref107) {
   var pricing = _ref107.pricing,
     onUpdate = _ref107.onUpdate,
@@ -17223,6 +17302,14 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
         var m = Object.assign({}, p.commissionModel || {});
         m.rates = Object.assign({}, m.rates || {}, _defineProperty({}, boxKey, parseFloat(val) || 0));
         return Object.assign({}, p, { commissionModel: m });
+      });
+    });
+  };
+  var togglePartnerActive = function togglePartnerActive(idx) {
+    setEditPartners(function(ps) {
+      return ps.map(function(p, i) {
+        if (i !== idx) return p;
+        return Object.assign({}, p, { is_active: p.is_active === false });
       });
     });
   };
@@ -17735,6 +17822,15 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
             partner.is_active === false && /*#__PURE__*/React.createElement("span", { className: "badge mut", style: { marginLeft: "8px" } }, "inactive")
           ),
           /*#__PURE__*/React.createElement("div", { className: "card-sub" }, "Slug: ", partner.slug || "\u2014")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "row g10" },
+          /*#__PURE__*/React.createElement("button", {
+            className: "btn btn-sm " + (partner.is_active === false ? "btn-green" : "btn-ghost"),
+            onClick: function() {
+              if (partner.is_active !== false && !window.confirm("Deactivate " + partner.name + "? New orders will no longer be able to select this partner, but historical orders stay intact.")) return;
+              togglePartnerActive(idx);
+            }
+          }, partner.is_active === false ? "Reactivate" : "Deactivate")
         )
       ),
       /*#__PURE__*/React.createElement("div", { className: "row g10 mb8" },
@@ -17827,65 +17923,10 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
     style: {
       padding: "8px 0"
     }
-  }, (function() {
-    var _statuses = Object.keys(DEFAULT_MESSAGE_TEMPLATES);
-    var _saved = (tenant && tenant.messageTemplates) || {};
-    var _init = _statuses.reduce(function(acc, s) {
-      var d = DEFAULT_MESSAGE_TEMPLATES[s] || {}; var sv = _saved[s] || {};
-      acc[s] = { en: sv.en || d.en || "", es: sv.es || d.es || "" }; return acc;
-    }, {});
-    var _stTE = useState(_init), _stTE2 = _slicedToArray(_stTE, 2),
-        tplEdits = _stTE2[0], setTplEdits = _stTE2[1];
-    var _stLng = useState("en"), _stLng2 = _slicedToArray(_stLng, 2),
-        tplLang = _stLng2[0], setTplLang = _stLng2[1];
-    var _stSvd = useState(false), _stSvd2 = _slicedToArray(_stSvd, 2),
-        tplSaved = _stSvd2[0], setTplSaved = _stSvd2[1];
-    function saveTpls() {
-      if (typeof onSaveTenant === "function")
-        onSaveTenant(Object.assign({}, tenant, { messageTemplates: tplEdits }));
-      setTplSaved(true); setTimeout(function() { setTplSaved(false); }, 2500);
-    }
-    return React.createElement(React.Fragment, null,
-      React.createElement("div", { className: "row g10", style: { padding: "8px 16px", borderBottom: "1px solid var(--border)" } },
-        React.createElement("span", { className: "mut xs" }, "Tokens: [Name] [ID] [TrackURL] [Company] [Destination]"),
-        React.createElement("div", { className: "role-sw mla" },
-          ["en","es"].map(function(lng) {
-            return React.createElement("button", { key: lng,
-              className: "rsw-btn " + (tplLang === lng ? "on" : ""),
-              onClick: function() { setTplLang(lng); } },
-              lng === "en" ? "English" : "Espa\xf1ol");
-          })
-        ),
-        tplSaved && React.createElement("span", { className: "badge bg" }, "\u2713 Saved")
-      ),
-      _statuses.map(function(s) {
-        var _cfg = STATUS_CFG[s] || {};
-        var defVal = (DEFAULT_MESSAGE_TEMPLATES[s] || {})[tplLang] || "";
-        return React.createElement("div", { key: s, style: { padding: "10px 16px", borderBottom: "1px solid rgba(28,40,64,.4)" } },
-          React.createElement("div", { className: "row g10", style: { marginBottom: 5 } },
-            React.createElement("span", { className: "badge " + (_cfg.cls || "bgr") }, _cfg.label || s)
-          ),
-          React.createElement("textarea", {
-            className: "fi", rows: 2, style: { fontSize: 11.5, lineHeight: 1.5, resize: "vertical" },
-            value: (tplEdits[s] || {})[tplLang] || "", placeholder: defVal,
-            onChange: function(e) {
-              var val = e.target.value;
-              setTplEdits(function(prev) {
-                var n = Object.assign({}, prev);
-                n[s] = Object.assign({}, n[s]); n[s][tplLang] = val; return n;
-              });
-            }
-          }),
-          React.createElement("div", { className: "mut xs", style: { marginTop: 2 } }, "Default: ", defVal)
-        );
-      }),
-      React.createElement("div", { style: { padding: "12px 16px" } },
-        React.createElement("button", { className: "btn btn-primary btn-sm", onClick: saveTpls }, "\u2713 Save Templates"),
-        typeof onSaveTenant !== "function" && React.createElement("span", { className: "mut xs", style: { marginLeft: 10 } },
-          "Wire onSaveTenant to enable saving")
-      )
-    );
-  })()))
+  }, /*#__PURE__*/React.createElement(MessageTemplatesEditor, {
+    tenant: tenant,
+    onUpdateTenant: onUpdateTenant
+  })))
     );
     } catch(e) {
       console.error("NOTIFICATIONS TAB ERROR:", e);

@@ -334,7 +334,10 @@ FOR SELECT TO authenticated
 USING (
   get_user_role() = 'driver'
   AND order_id IN (
-    SELECT id FROM box_orders WHERE driver_id = auth.uid() GROUP BY order_id
+    SELECT bo.order_id
+    FROM public.box_orders bo
+    WHERE bo.driver_id = auth.uid()
+      AND bo.tenant_id = current_tenant_id()
   )
 );
 
