@@ -21972,6 +21972,11 @@ var ROLES = {
         ls: "Resumen de Margen",
         i: "📊"
       }, {
+        k: "msg_templates",
+        l: "Message Templates",
+        ls: "Plantillas de Mensajes",
+        i: "📨"
+      }, {
         k: "campaigns",
         l: "Campaigns",
         ls: "Campañas",
@@ -22043,7 +22048,8 @@ var ROLES = {
       receipts_invoices: "Receipts & Invoices",
       tape_direct: "Tape Direct",
       box_sale: "Box Sale Tracking",
-      margin_summary: "Margin Summary"
+      margin_summary: "Margin Summary",
+      msg_templates: "Message Templates"
     }
   },
   office: {
@@ -22122,6 +22128,11 @@ var ROLES = {
         ls: "Resumen de Margen",
         i: "📊"
       }, {
+        k: "msg_templates",
+        l: "Message Templates",
+        ls: "Plantillas de Mensajes",
+        i: "📨"
+      }, {
         k: "campaigns",
         l: "Campaigns",
         ls: "Campañas",
@@ -22140,7 +22151,8 @@ var ROLES = {
       receipts_invoices: "Receipts & Invoices",
       tape_direct: "Tape Direct",
       box_sale: "Box Sale Tracking",
-      margin_summary: "Margin Summary"
+      margin_summary: "Margin Summary",
+      msg_templates: "Message Templates"
     }
   },
   driver: {
@@ -24894,7 +24906,7 @@ setOrders(function (prev) {
     setRoleKey(r);
     // Validate page for new role and reset if invalid
     var newPage = r === "hq" ? "overview" : r === "office" ? "ow_dash" : "driver_route";
-    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view", "tape_direct", "box_sale", "margin_summary"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices", "tape_direct", "box_sale", "margin_summary"] : ["driver_route", "driver_proof"];
+    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view", "tape_direct", "box_sale", "margin_summary", "msg_templates"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices", "tape_direct", "box_sale", "margin_summary", "msg_templates"] : ["driver_route", "driver_proof"];
     var shouldResetPage = !validPages.includes(page);
     setPage(shouldResetPage ? newPage : page);
   };
@@ -26153,6 +26165,373 @@ setOrders(function (prev) {
     );
   };
 
+  /* ══════════════════════════════════════════════════════════════
+     Phase 6 — Slice 5 Stage 1: MessageTemplatesPage
+     100% client-side — no Twilio, no sends, no fetch() calls.
+     Template data lives in MESSAGE_TEMPLATES constant below.
+     Stage 2 will add real send logic.
+  ══════════════════════════════════════════════════════════════ */
+
+  /* ── Template data ─────────────────────────────────────────── */
+  var MESSAGE_TEMPLATES = [
+    {
+      id: "ORDER_CONFIRMATION",
+      name: "Order Confirmation",
+      channel: "both",
+      languages: ["en", "es"],
+      body_en: "Hi {{customer_name}}! Your Casabe order #{{order_id}} is confirmed.\n\ud83d\udce6 Boxes: {{box_count}}\n\ud83c\udfe2 Pickup: {{pickup_location}}\n\ud83d� Delivery: {{delivery_address}}\n\ud83d� Estimated: {{delivery_date}}\nQuestions? Reply to this message.",
+      body_es: "\u00a1Hola {{customer_name}}! Tu orden de Casabe #{{order_id}} est\u00e1 confirmada.\n\ud83d\udce6 Cajas: {{box_count}}\n\ud83c\udfe2 Recogida: {{pickup_location}}\n\ud83d\udccd Entrega: {{delivery_address}}\n\ud83d\ude9a Estimado: {{delivery_date}}\n\u00bfPreguntas? Responde a este mensaje.",
+      variables: ["customer_name", "order_id", "box_count", "pickup_location", "delivery_address", "delivery_date"],
+      sampleData: { customer_name: "Maria Lopez", order_id: "ORD-2026-0042", box_count: "3", pickup_location: "Casabe NY HQ, 123 Main St", delivery_address: "456 Ocean Dr, Miami FL 33139", delivery_date: "2026-06-05" },
+      hqOnly: false,
+      updatedAt: "2026-05-28"
+    },
+    {
+      id: "PAYMENT_REQUEST",
+      name: "Payment Request",
+      channel: "both",
+      languages: ["en", "es"],
+      body_en: "Your Casabe order #{{order_id}} is ready!\n\ud83d\udcb3 Total: ${{amount}}\n\ud83d� Pay here: {{payment_link}}\nOr reply with your preferred payment method.\nExpires in 24 hours.",
+      body_es: "\u00a1Tu orden de Casabe #{{order_id}} est\u00e1 lista!\n\ud83d\udcb3 Total: ${{amount}}\n\ud83d� Paga aqu\u00ed: {{payment_link}}\nO responde con tu m\u00e9todo de pago preferido.\nVence en 24 horas.",
+      variables: ["order_id", "amount", "payment_link"],
+      sampleData: { order_id: "ORD-2026-0042", amount: "45.50", payment_link: "https://pay.casabe.com/inv/42" },
+      hqOnly: false,
+      updatedAt: "2026-05-28"
+    },
+    {
+      id: "DELIVERY_IN_TRANSIT",
+      name: "Delivery In Transit",
+      channel: "both",
+      languages: ["en", "es"],
+      body_en: "Your Casabe order #{{order_id}} is on the way!\n\ud83d\ude9a Driver: {{driver_name}}\n\ud83d\udccd ETA: {{eta_time}}\n\ud83d\udcde Call/WhatsApp: {{driver_phone}}",
+      body_es: "\u00a1Tu orden de Casabe #{{order_id}} est\u00e1 en camino!\n\ud83d\ude9a Conductor: {{driver_name}}\n\ud83d\udccd ETA: {{eta_time}}\n\ud83d\udcde Llamar/WhatsApp: {{driver_phone}}",
+      variables: ["order_id", "driver_name", "eta_time", "driver_phone"],
+      sampleData: { order_id: "ORD-2026-0042", driver_name: "Carlos Vargas", eta_time: "2:30 PM", driver_phone: "+1-305-555-0191" },
+      hqOnly: false,
+      updatedAt: "2026-05-28"
+    },
+    {
+      id: "DELIVERY_COMPLETED",
+      name: "Delivery Completed",
+      channel: "both",
+      languages: ["en", "es"],
+      body_en: "Delivery complete! \ud83c\udf89\nOrder #{{order_id}} delivered to {{delivery_address}}\n\ud83d\udcf8 Photo: {{delivery_photo_url}}\nReceipt: {{receipt_url}}\nThank you! Any issues? Reply here.",
+      body_es: "\u00a1Entrega completada! \ud83c\udf89\nOrden #{{order_id}} entregada en {{delivery_address}}\n\ud83d\udcf8 Foto: {{delivery_photo_url}}\nRecibo: {{receipt_url}}\n\u00a1Gracias! \u00bfAlg\u00fan problema? Responde aqu\u00ed.",
+      variables: ["order_id", "delivery_address", "delivery_photo_url", "receipt_url"],
+      sampleData: { order_id: "ORD-2026-0042", delivery_address: "456 Ocean Dr, Miami FL 33139", delivery_photo_url: "https://cdn.casabe.com/photos/delivery-42.jpg", receipt_url: "https://casabe.com/receipts/42" },
+      hqOnly: false,
+      updatedAt: "2026-05-28"
+    },
+    {
+      id: "TAPE_DIRECT_ALERT",
+      name: "Tape Direct Alert",
+      channel: "sms",
+      languages: ["en"],
+      body_en: "TAPE DIRECT \u2713\nOrder #{{order_id}} verified by {{driver_name}}\n\ud83d\udce6 Boxes: {{box_count}}\n\ud83d\udcb5 Margin: ${{margin}}\nVendor: {{vendor_name}}\nWeight: {{weight_lbs}} lbs",
+      body_es: null,
+      variables: ["order_id", "driver_name", "box_count", "margin", "vendor_name", "weight_lbs"],
+      sampleData: { order_id: "ORD-2026-0042", driver_name: "Carlos Vargas", box_count: "5", margin: "47.50", vendor_name: "Uline Wholesale", weight_lbs: "32.4" },
+      hqOnly: true,
+      updatedAt: "2026-05-28"
+    },
+    {
+      id: "DRIVER_ASSIGNMENT",
+      name: "Driver Assignment",
+      channel: "both",
+      languages: ["en", "es"],
+      body_en: "\ud83d\udccb New Assignment\n{{assignment_count}} pickup(s) ready for you.\nOrders: {{order_ids}}\n\ud83d�\ufe0f Route optimized \u2014 tap for details.\nStart whenever ready!",
+      body_es: "\ud83d\udccb Nueva Asignaci\u00f3n\n{{assignment_count}} recogida(s) listas para ti.\n\u00d3rdenes: {{order_ids}}\n\ud83d�\ufe0f Ruta optimizada \u2014 toca para detalles.\n\u00a1Comienza cuando est\u00e9s listo!",
+      variables: ["assignment_count", "order_ids"],
+      sampleData: { assignment_count: "4", order_ids: "ORD-0038, ORD-0039, ORD-0041, ORD-0042" },
+      hqOnly: false,
+      updatedAt: "2026-05-28"
+    }
+  ];
+
+  /* ── MessageTemplatesPage ──────────────────────────────────── */
+  var MessageTemplatesPage = function MessageTemplatesPage(_ref_mtp) {
+    var roleKey = _ref_mtp.roleKey;
+
+    /* Role gate — driver has NO access */
+    if (!roleKey || roleKey === "driver") {
+      return /*#__PURE__*/React.createElement("div", { className: "fu", style: { textAlign: "center", padding: "60px 20px" } },
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 40, marginBottom: 12 } }, "\ud83d\udeab"),
+        /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 16, color: "var(--red)" } }, "Access Denied"),
+        /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 6 } }, "Message Templates are not available for drivers.")
+      );
+    }
+
+    /* Filter templates by role: Office cannot see TAPE_DIRECT_ALERT */
+    var visibleTemplates = MESSAGE_TEMPLATES.filter(function(t) {
+      return roleKey === "hq" ? true : !t.hqOnly;
+    });
+
+    var _useState_mtp1 = useState(null);
+    var selectedTemplate = _useState_mtp1[0], setSelectedTemplate = _useState_mtp1[1];
+    var _useState_mtp2 = useState("raw");
+    var previewMode = _useState_mtp2[0], setPreviewMode = _useState_mtp2[1];
+    var _useState_mtp3 = useState("sms");
+    var channelMode = _useState_mtp3[0], setChannelMode = _useState_mtp3[1];
+    var _useState_mtp4 = useState("en");
+    var langMode = _useState_mtp4[0], setLangMode = _useState_mtp4[1];
+
+    /* Fill placeholders with sample data */
+    function fillTemplate(body, data) {
+      if (!body) return "(No translation available for this language)";
+      var result = body;
+      Object.keys(data).forEach(function(key) {
+        result = result.split("{{" + key + "}}").join(data[key]);
+      });
+      return result;
+    }
+
+    /* Channel badge helper */
+    function channelBadge(ch) {
+      if (ch === "sms") return /*#__PURE__*/React.createElement("span", { className: "badge bt", id: "ch-badge-sms-" + ch }, "SMS");
+      if (ch === "whatsapp") return /*#__PURE__*/React.createElement("span", { className: "badge bp", id: "ch-badge-wa-" + ch }, "WhatsApp");
+      return /*#__PURE__*/React.createElement(React.Fragment, null,
+        /*#__PURE__*/React.createElement("span", { className: "badge bt", style: { marginRight: 3 } }, "SMS"),
+        /*#__PURE__*/React.createElement("span", { className: "badge bp" }, "WhatsApp")
+      );
+    }
+
+    /* Character count for SMS warning */
+    function smsCharWarning(text) {
+      if (!text) return null;
+      var len = text.length;
+      var over = len > 160;
+      return /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, marginTop: 6, color: over ? "var(--red)" : "var(--text3)" } },
+        /*#__PURE__*/React.createElement("span", { style: { fontWeight: 700 } }, len + " chars"),
+        over
+          ? /*#__PURE__*/React.createElement("span", { style: { marginLeft: 6 }, id: "sms-char-warning" }, "\u26a0 Exceeds 160-char SMS limit (", len - 160, " over) \u2014 will split into ", Math.ceil(len / 153), " SMS parts")
+          : /*#__PURE__*/React.createElement("span", { style: { marginLeft: 6, color: "var(--green)" } }, "\u2713 Within 160-char SMS limit")
+      );
+    }
+
+    /* Highlight {{variable}} in raw mode */
+    function highlightVars(text) {
+      var parts = text.split(/(\{\{[^}]+\}\})/g);
+      return parts.map(function(part, i) {
+        if (/^\{\{.*\}\}$/.test(part)) {
+          return /*#__PURE__*/React.createElement("span", {
+            key: i,
+            style: { background: "rgba(245,158,11,0.18)", color: "var(--amber)", borderRadius: 3, padding: "0 2px", fontWeight: 700, fontFamily: "'IBM Plex Mono',monospace", fontSize: 11 }
+          }, part);
+        }
+        return /*#__PURE__*/React.createElement("span", { key: i }, part);
+      });
+    }
+
+    var tpl = selectedTemplate;
+    var rawBody = tpl ? (langMode === "es" && tpl.body_es ? tpl.body_es : tpl.body_en) : null;
+    var filledBody = tpl ? fillTemplate(langMode === "es" && tpl.body_es ? tpl.body_es : tpl.body_en, tpl.sampleData) : null;
+
+    return /*#__PURE__*/React.createElement("div", { className: "fu", id: "msg-templates-panel" },
+      /* Header */
+      /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: "wrap" } },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\ud83d\udce8 Message Templates"),
+          /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 2 } },
+            roleKey === "hq"
+              ? "All " + visibleTemplates.length + " templates — SMS & WhatsApp. Preview only \u2014 sending enabled in Stage 2."
+              : visibleTemplates.length + " templates available for Office role. Sending enabled in Stage 2."
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "mla" },
+          /*#__PURE__*/React.createElement("div", { className: "alert alert-b", style: { marginBottom: 0, fontSize: 11 } },
+            "\ud83d\udd12 Stage 1 \u2014 Preview Only. Real sending comes in Stage 2."
+          )
+        )
+      ),
+
+      /* Two-column layout */
+      /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "300px 1fr", gap: 16 }, id: "msg-templates-layout" },
+
+        /* LEFT: Template list */
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { className: "card", id: "msg-template-list" },
+            /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+              /*#__PURE__*/React.createElement("div", { className: "card-title" }, "Templates"),
+              /*#__PURE__*/React.createElement("span", { className: "badge ba" }, visibleTemplates.length + " available")
+            ),
+            /*#__PURE__*/React.createElement("div", { style: { padding: "8px 0" } },
+              visibleTemplates.map(function(t) {
+                var isActive = selectedTemplate && selectedTemplate.id === t.id;
+                return /*#__PURE__*/React.createElement("div", {
+                  key: t.id,
+                  id: "tpl-row-" + t.id,
+                  onClick: function() {
+                    setSelectedTemplate(t);
+                    setPreviewMode("raw");
+                    setLangMode("en");
+                    setChannelMode(t.channel === "whatsapp" ? "whatsapp" : "sms");
+                  },
+                  style: {
+                    padding: "10px 16px",
+                    cursor: "pointer",
+                    borderLeft: isActive ? "3px solid var(--amber)" : "3px solid transparent",
+                    background: isActive ? "var(--amberdim)" : "transparent",
+                    transition: ".12s"
+                  }
+                },
+                  /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, fontSize: 12.5, color: isActive ? "var(--amber)" : "var(--text)" } }, t.name),
+                  /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 5, marginTop: 4, flexWrap: "wrap", alignItems: "center" } },
+                    channelBadge(t.channel),
+                    t.languages.map(function(l) {
+                      return /*#__PURE__*/React.createElement("span", { key: l, className: "badge bgr", style: { fontSize: 9 } }, l.toUpperCase());
+                    }),
+                    t.hqOnly && /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { fontSize: 9 } }, "HQ Only")
+                  ),
+                  /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, color: "var(--text4)", marginTop: 3 } }, "Updated " + t.updatedAt)
+                );
+              })
+            )
+          )
+        ),
+
+        /* RIGHT: Preview panel */
+        /*#__PURE__*/React.createElement("div", null,
+          !tpl
+            ? /*#__PURE__*/React.createElement("div", { className: "card", id: "msg-template-empty-state" },
+                /*#__PURE__*/React.createElement("div", { className: "card-bd", style: { textAlign: "center", padding: "50px 20px", color: "var(--text3)" } },
+                  /*#__PURE__*/React.createElement("div", { style: { fontSize: 36, marginBottom: 10 } }, "\ud83d\udce8"),
+                  /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, fontSize: 14 } }, "Select a template to preview"),
+                  /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 4 } }, "Click any template from the list to see its body, variables, and preview.")
+                )
+              )
+            : /*#__PURE__*/React.createElement("div", { className: "card", id: "msg-template-preview-panel" },
+                /* Template header */
+                /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+                  /*#__PURE__*/React.createElement("div", null,
+                    /*#__PURE__*/React.createElement("div", { className: "card-title", id: "preview-template-name" }, tpl.name),
+                    /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 5, marginTop: 4 } },
+                      channelBadge(tpl.channel),
+                      tpl.languages.map(function(l) {
+                        return /*#__PURE__*/React.createElement("span", { key: l, className: "badge bgr", style: { fontSize: 9 } }, l.toUpperCase());
+                      }),
+                      tpl.hqOnly && /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { fontSize: 9 } }, "HQ Only")
+                    )
+                  )
+                ),
+
+                /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+
+                  /* Controls row */
+                  /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" } },
+
+                    /* Raw ↔ Preview toggle */
+                    /*#__PURE__*/React.createElement("div", { style: { display: "flex", background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 7, padding: 3, gap: 2 }, id: "preview-mode-toggle" },
+                      /*#__PURE__*/React.createElement("button", {
+                        className: "btn btn-sm" + (previewMode === "raw" ? " btn-primary" : " btn-ghost"),
+                        id: "mode-raw",
+                        onClick: function() { setPreviewMode("raw"); }
+                      }, "\ud83d\udcdd Raw"),
+                      /*#__PURE__*/React.createElement("button", {
+                        className: "btn btn-sm" + (previewMode === "preview" ? " btn-primary" : " btn-ghost"),
+                        id: "mode-preview",
+                        onClick: function() { setPreviewMode("preview"); }
+                      }, "\ud83d\udcf1 Preview")
+                    ),
+
+                    /* Channel selector */
+                    tpl.channel === "both" && /*#__PURE__*/React.createElement("div", { style: { display: "flex", background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 7, padding: 3, gap: 2 }, id: "channel-selector" },
+                      /*#__PURE__*/React.createElement("button", {
+                        className: "btn btn-sm" + (channelMode === "sms" ? " btn-primary" : " btn-ghost"),
+                        id: "chan-sms",
+                        onClick: function() { setChannelMode("sms"); }
+                      }, "\ud83d\udcf1 SMS"),
+                      /*#__PURE__*/React.createElement("button", {
+                        className: "btn btn-sm" + (channelMode === "whatsapp" ? " btn-primary" : " btn-ghost"),
+                        id: "chan-whatsapp",
+                        onClick: function() { setChannelMode("whatsapp"); }
+                      }, "\ud83d\udcac WhatsApp")
+                    ),
+
+                    /* Language selector */
+                    tpl.languages.length > 1 && /*#__PURE__*/React.createElement("div", { style: { display: "flex", background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 7, padding: 3, gap: 2 }, id: "lang-selector" },
+                      /*#__PURE__*/React.createElement("button", {
+                        className: "btn btn-sm" + (langMode === "en" ? " btn-primary" : " btn-ghost"),
+                        id: "lang-en",
+                        onClick: function() { setLangMode("en"); }
+                      }, "\ud83c\uddec\ud83c\udde7 EN"),
+                      /*#__PURE__*/React.createElement("button", {
+                        className: "btn btn-sm" + (langMode === "es" ? " btn-primary" : " btn-ghost"),
+                        id: "lang-es",
+                        onClick: function() { setLangMode("es"); }
+                      }, "\ud83c\uddea\ud83c\uddf8 ES")
+                    )
+                  ),
+
+                  /* Template body display */
+                  /*#__PURE__*/React.createElement("div", {
+                    style: {
+                      background: "var(--bg)",
+                      border: "1px solid var(--border2)",
+                      borderRadius: 8,
+                      padding: "14px 16px",
+                      fontFamily: "'IBM Plex Mono',monospace",
+                      fontSize: 12,
+                      lineHeight: 1.7,
+                      whiteSpace: "pre-wrap",
+                      color: "var(--text2)",
+                      minHeight: 120
+                    },
+                    id: "template-body-display"
+                  },
+                    previewMode === "raw"
+                      ? (rawBody ? highlightVars(rawBody) : /*#__PURE__*/React.createElement("span", { style: { color: "var(--text4)" } }, "(No body for this language)"))
+                      : (filledBody ? filledBody : /*#__PURE__*/React.createElement("span", { style: { color: "var(--text4)" } }, "(No body for this language)"))
+                  ),
+
+                  /* SMS char count (only when channel = sms mode) */
+                  channelMode === "sms" && previewMode === "preview" && filledBody && smsCharWarning(filledBody),
+                  channelMode === "sms" && previewMode === "raw" && rawBody && smsCharWarning(rawBody),
+
+                  /* Variables table */
+                  /*#__PURE__*/React.createElement("div", { style: { marginTop: 14 } },
+                    /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "var(--text4)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 } }, "Template Variables"),
+                    /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, id: "template-variables-list" },
+                      tpl.variables.map(function(v) {
+                        return /*#__PURE__*/React.createElement("span", {
+                          key: v,
+                          style: { background: "rgba(245,158,11,0.1)", color: "var(--amber)", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 4, padding: "2px 8px", fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700 }
+                        }, "{{" + v + "}}");
+                      })
+                    )
+                  ),
+
+                  /* Sample data used in preview */
+                  previewMode === "preview" && /*#__PURE__*/React.createElement("div", { style: { marginTop: 14 }, id: "sample-data-panel" },
+                    /*#__PURE__*/React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "var(--text4)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 } }, "Sample Data Used"),
+                    /*#__PURE__*/React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 12px" } },
+                      Object.entries(tpl.sampleData).map(function(_entry) {
+                        var k = _entry[0], v = _entry[1];
+                        return /*#__PURE__*/React.createElement("div", { key: k, style: { fontSize: 11 } },
+                          /*#__PURE__*/React.createElement("span", { style: { color: "var(--amber)", fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700 } }, "{{" + k + "}}"),
+                          /*#__PURE__*/React.createElement("span", { style: { color: "var(--text3)", marginLeft: 6 } }, v)
+                        );
+                      })
+                    )
+                  ),
+
+                  /* SEND BUTTON — permanently disabled in Stage 1 */
+                  /*#__PURE__*/React.createElement("div", { style: { marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border)" } },
+                    /*#__PURE__*/React.createElement("button", {
+                      className: "btn btn-ghost",
+                      id: "send-disabled-btn",
+                      disabled: true,
+                      title: "Sending is disabled in Stage 1. Real send logic arrives in Stage 2.",
+                      style: { opacity: 0.45, cursor: "not-allowed", width: "100%", justifyContent: "center" }
+                    }, "\ud83d\udd12 Sending disabled \u2014 Stage 2")
+                  )
+                )
+              )
+        )
+      )
+    );
+  };
+  /* END Phase 6 Slice 5 Stage 1: MessageTemplatesPage */
+
   var renderPage = function renderPage() {
     // HQ pages
     if (page === "overview") return /*#__PURE__*/React.createElement(HQOverview, {
@@ -26476,6 +26855,8 @@ setOrders(function (prev) {
     if (page === "box_sale") return /*#__PURE__*/React.createElement(BoxSaleTrackingPage, { session: session, notify: notify, roleKey: roleKey });
     // Phase 6 — Slice 4: Margin Summary (HQ tenant-wide; Office scoped; Driver blocked)
     if (page === "margin_summary") return /*#__PURE__*/React.createElement(MarginSummaryPage, { roleKey: roleKey, officeFilter: (function(){ if (roleKey !== 'office') return null; var _off = (tenant && tenant.__dbOffices) || []; var _firstOff = _off.find(function(o){ return o.slug === 'casabe-xpress-ny'; }) || _off[0]; return _firstOff ? _firstOff.id : null; })() });
+    // Phase 6 — Slice 5 Stage 1: Message Templates (HQ + Office only; Driver blocked)
+    if (page === "msg_templates") return /*#__PURE__*/React.createElement(MessageTemplatesPage, { roleKey: roleKey });
     if (page === "batches") return /*#__PURE__*/React.createElement("div", {
       className: "fu"
     }, /*#__PURE__*/React.createElement("div", {
