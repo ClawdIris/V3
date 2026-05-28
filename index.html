@@ -26763,7 +26763,7 @@ setOrders(function (prev) {
   }
 
   var MessageQueuePage = function MessageQueuePage(_ref_mqp) {
-    var roleKey = _ref_mqp.roleKey, currentUser = _ref_mqp.currentUser;
+    var roleKey = _ref_mqp.roleKey, currentUser = _ref_mqp.currentUser, supabase = _ref_mqp.supabase;
 
     if (!roleKey || roleKey === "driver") {
       return React.createElement("div", { className: "fu", style: { textAlign: "center", padding: "60px 20px" } },
@@ -26776,6 +26776,8 @@ setOrders(function (prev) {
     var records = mqUseStore();
     var _sf = useState("all"), filterStatus = _sf[0], setFilterStatus = _sf[1];
     var _sc = useState(null), confirmCancel = _sc[0], setConfirmCancel = _sc[1];
+    var _si = useState(null), _sendingId = _si[0], setSendingId = _si[1];
+    var _sr = useState(null), _sendResult = _sr[0], setSendResult = _sr[1];
 
     /* Office scoping: only show records linked to their orders.
        Since this is pre-Supabase, office filter is advisory only (enforced by RLS post-schema). */
@@ -26826,6 +26828,17 @@ setOrders(function (prev) {
         })
       ),
 
+      /* Send result toast */
+      _sendResult && React.createElement("div", {
+        className: _sendResult.ok ? "alert alert-g" : "alert alert-r",
+        style: { marginBottom: 12 },
+        id: "send-result-toast"
+      },
+        _sendResult.ok
+          ? "\u2705 Sent. Twilio SID: " + (_sendResult.sid || "n/a")
+          : "\u274C Send failed: " + _sendResult.error
+      ),
+
       /* Empty state */
       visible.length === 0 && React.createElement("div", { className: "card", id: "queue-empty-state" },
         React.createElement("div", { className: "card-bd", style: { textAlign: "center", padding: "40px 20px", color: "var(--text3)" } },
@@ -26861,12 +26874,35 @@ setOrders(function (prev) {
                   React.createElement("td", { style: { padding: "8px 12px", color: "var(--text4)", fontSize: 10 } }, r.created_at ? r.created_at.slice(0,16).replace("T"," ") : ""),
                   React.createElement("td", { style: { padding: "8px 12px" } },
                     (r.status === "draft" || r.status === "queued")
-                      ? React.createElement("button", {
-                          className: "btn btn-sm btn-ghost",
-                          id: "cancel-btn-" + r.id,
-                          onClick: function() { setConfirmCancel(r.id); },
-                          style: { color: "var(--red)", fontSize: 11 }
-                        }, "\u2715 Cancel")
+                      ? React.createElement("div", { style: { display: "flex", gap: 5 } },
+                          roleKey === "hq" && React.createElement("button", {
+                            className: "btn btn-sm btn-primary",
+                            id: "send-now-btn-" + r.id,
+                            disabled: _sendingId === r.id,
+                            style: { fontSize: 11 },
+                            onClick: function() {
+                              setSendingId(r.id);
+                              setSendResult(null);
+                              if (!supabase) { setSendingId(null); setSendResult({ id: r.id, ok: false, error: "Supabase not available" }); return; }
+                              supabase.functions.invoke("sms-send", { body: { message_id: r.id } })
+                                .then(function(res) {
+                                  setSendingId(null);
+                                  if (res.error || (res.data && !res.data.ok)) {
+                                    setSendResult({ id: r.id, ok: false, error: (res.data && res.data.error) || "Send failed" });
+                                  } else {
+                                    setSendResult({ id: r.id, ok: true, sid: res.data && res.data.provider_message_id });
+                                  }
+                                })
+                                .catch(function(e) { setSendingId(null); setSendResult({ id: r.id, ok: false, error: String(e) }); });
+                            }
+                          }, _sendingId === r.id ? "\u23F3 Sending\u2026" : "\u{1F4AC} Send"),
+                          React.createElement("button", {
+                            className: "btn btn-sm btn-ghost",
+                            id: "cancel-btn-" + r.id,
+                            onClick: function() { setConfirmCancel(r.id); },
+                            style: { color: "var(--red)", fontSize: 11 }
+                          }, "\u2715 Cancel")
+                        )
                       : React.createElement("span", { style: { color: "var(--text4)", fontSize: 10 } }, "\u2014")
                   )
                 );
@@ -27227,7 +27263,7 @@ setOrders(function (prev) {
     // Phase 6 — Slice 5 Stage 1: Message Templates (HQ + Office only; Driver blocked)
     if (page === "msg_templates") return /*#__PURE__*/React.createElement(MessageTemplatesPage, { roleKey: roleKey });
     if (page === "msg_provider") return /*#__PURE__*/React.createElement(ProviderConfigPage, { roleKey: roleKey, supabase: supabase });
-    if (page === "msg_queue") return /*#__PURE__*/React.createElement(MessageQueuePage, { roleKey: roleKey, currentUser: currentUser });
+    if (page === "msg_queue") return /*#__PURE__*/React.createElement(MessageQueuePage, { roleKey: roleKey, currentUser: currentUser, supabase: supabase });
     if (page === "batches") return /*#__PURE__*/React.createElement("div", {
       className: "fu"
     }, /*#__PURE__*/React.createElement("div", {

@@ -60,3 +60,20 @@ describe('Phase 6 Slice 5 Stage 3 — Message Queue', () => {
     expect(activeSQL).toMatch(/CREATE POLICY "hq_messages_update"[\s\S]*FOR UPDATE[\s\S]*WITH CHECK/);
   });
 });
+
+describe('Phase 6 Slice 5 Stage 4 — Real Send (Edge Function)', () => {
+  const efSrc = fs.readFileSync('supabase/functions/sms-send/index.ts', 'utf8');
+  test('Edge Function file exists', () => expect(fs.existsSync('supabase/functions/sms-send/index.ts')).toBe(true));
+  test('EF reads Twilio secrets from Deno.env only', () => expect(efSrc).toContain('Deno.env.get("TWILIO_ACCOUNT_SID")'));
+  test('EF calls api.twilio.com server-side', () => expect(efSrc).toContain('api.twilio.com'));
+  test('EF uses caller JWT for RLS', () => expect(efSrc).toContain('Authorization: authHeader'));
+  test('EF guards queued-only sends', () => expect(efSrc).toContain('msg.status !== "queued"'));
+  test('EF marks failed on Twilio error', () => expect(efSrc).toContain('status: "failed"'));
+  test('EF marks sent + stores provider_message_id', () => expect(efSrc).toContain('provider_message_id: twilioData.sid'));
+  test('EF no hardcoded Twilio credential', () => { expect(efSrc).not.toMatch(/AC[a-f0-9]{32}/); });
+  test('UI: no direct api.twilio.com call in browser bundle', () => expect(src).not.toContain('api.twilio.com'));
+  test('UI: no Twilio credential in browser bundle', () => expect(src).not.toMatch(/AC[a-f0-9]{32}/));
+  test('UI: send invokes Edge Function (not Twilio directly)', () => expect(src).toContain('functions.invoke("sms-send"'));
+  test('UI: Send Now button is HQ-only', () => expect(src).toContain('roleKey === "hq"'));
+  test('UI: in-flight disabled state (no double-send)', () => expect(src).toContain('_sendingId === r.id'));
+});
