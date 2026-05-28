@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════════════════════════
 -- PHASE 6 — SLICE 5 STAGE 3: Outbound Message Queue / Log
--- STATUS: PENDING — do NOT apply without Jefe/Delta review
+-- STATUS: APPLIED — live on Supabase after Delta review + Codex schema hardening
 -- Written by: Iris (main session)
 -- Date: 2026-05-28
 -- Project: Casabe Konnect R4 (Supabase: exayifxbqduhsxmmsnxr)
@@ -12,8 +12,8 @@
 
 CREATE TABLE IF NOT EXISTS messages (
   id                  UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id           UUID          NOT NULL,
-  order_id            TEXT          REFERENCES orders(id),        -- nullable; orders.id is TEXT
+  tenant_id           TEXT          NOT NULL DEFAULT current_tenant_id(),
+  order_id            TEXT,                                        -- nullable; FK is composite with tenant_id
   customer_id         UUID,                                        -- nullable; FK to customers if exists
   recipient_phone     TEXT          NOT NULL,
   channel             TEXT          NOT NULL CHECK (channel IN ('sms', 'whatsapp')),
@@ -26,7 +26,10 @@ CREATE TABLE IF NOT EXISTS messages (
   created_by          TEXT          NOT NULL,                      -- user email or uid
   created_at          TIMESTAMPTZ   NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ   NOT NULL DEFAULT now(),
-  sent_at             TIMESTAMPTZ
+  sent_at             TIMESTAMPTZ,
+
+  CONSTRAINT fk_messages_order
+    FOREIGN KEY (order_id, tenant_id) REFERENCES orders(id, tenant_id) ON DELETE SET NULL
 );
 
 -- ─────────────────────────────────────────────────────────
@@ -78,6 +81,8 @@ CREATE POLICY "hq_messages_select" ON messages
     AND tenant_id = (
       SELECT tenant_id FROM public.members
       WHERE user_id = auth.uid()
+        AND active = true
+      ORDER BY created_at
       LIMIT 1
     )
   );
@@ -89,6 +94,8 @@ CREATE POLICY "hq_messages_insert" ON messages
     AND tenant_id = (
       SELECT tenant_id FROM public.members
       WHERE user_id = auth.uid()
+        AND active = true
+      ORDER BY created_at
       LIMIT 1
     )
   );
@@ -100,6 +107,18 @@ CREATE POLICY "hq_messages_update" ON messages
     AND tenant_id = (
       SELECT tenant_id FROM public.members
       WHERE user_id = auth.uid()
+        AND active = true
+      ORDER BY created_at
+      LIMIT 1
+    )
+  )
+  WITH CHECK (
+    public.get_user_role() = 'hq'
+    AND tenant_id = (
+      SELECT tenant_id FROM public.members
+      WHERE user_id = auth.uid()
+        AND active = true
+      ORDER BY created_at
       LIMIT 1
     )
   );
@@ -113,7 +132,8 @@ CREATE POLICY "deny_delete_messages" ON messages
 CREATE POLICY "office_messages_select" ON messages
   FOR SELECT
   USING (
-    public.get_user_role() = 'office'
+    tenant_id = current_tenant_id()
+    AND public.get_user_role() = 'office'
     AND order_id IN (
       SELECT id FROM public.orders
       WHERE office_id = ANY(public.get_user_office_ids())
@@ -127,6 +147,8 @@ CREATE POLICY "office_messages_insert" ON messages
     AND tenant_id = (
       SELECT tenant_id FROM public.members
       WHERE user_id = auth.uid()
+        AND active = true
+      ORDER BY created_at
       LIMIT 1
     )
     AND order_id IN (

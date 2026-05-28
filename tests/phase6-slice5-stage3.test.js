@@ -50,5 +50,13 @@ describe('Phase 6 Slice 5 Stage 3 — Message Queue', () => {
   test('Schema has no USING (TRUE)', () => expect(schemaSrc).not.toMatch(/USING\s*\(\s*TRUE\s*\)/i));
   test('Schema has no user_profiles reference', () => expect(schemaSrc).not.toContain('user_profiles'));
   test('SECURITY DEFINER function sets search_path', () => expect(schemaSrc).toContain("SET search_path = ''"));
-  test('Schema marked PENDING (do not apply)', () => expect(schemaSrc).toContain('PENDING'));
+  test('Schema marked APPLIED after review', () => expect(schemaSrc).toContain('STATUS: APPLIED'));
+  test('Schema uses text tenant ids', () => expect(schemaSrc).toMatch(/tenant_id\s+TEXT\s+NOT NULL/));
+  test('Schema uses composite order FK', () => {
+    expect(schemaSrc).toContain('FOREIGN KEY (order_id, tenant_id) REFERENCES orders(id, tenant_id)');
+  });
+  test('HQ update has WITH CHECK', () => {
+    const activeSQL = schemaSrc.split('\n').filter(l => !l.trim().startsWith('--')).join('\n');
+    expect(activeSQL).toMatch(/CREATE POLICY "hq_messages_update"[\s\S]*FOR UPDATE[\s\S]*WITH CHECK/);
+  });
 });
