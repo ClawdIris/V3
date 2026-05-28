@@ -22,7 +22,8 @@
 CREATE TABLE IF NOT EXISTS payments (
   -- Identifiers
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id              UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  order_id              TEXT NOT NULL,  -- FK: orders.id is TEXT (e.g. "TEST-003"), not UUID
+  tenant_id             TEXT NOT NULL DEFAULT current_tenant_id(),  -- Multi-tenant isolation
   
   -- Payment Details
   amount_cents          INTEGER NOT NULL,  -- Amount in cents (e.g., 2500 = $25.00)
@@ -56,7 +57,9 @@ CREATE TABLE IF NOT EXISTS payments (
   processed_by          UUID,  -- User who confirmed/processed
   
   CONSTRAINT payment_amount_positive CHECK (amount_cents > 0),
-  CONSTRAINT valid_payment_status CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled'))
+  CONSTRAINT valid_payment_status CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'refunded', 'cancelled')),
+  CONSTRAINT fk_payments_order
+    FOREIGN KEY (order_id, tenant_id) REFERENCES orders(id, tenant_id) ON DELETE CASCADE
 );
 
 -- Indexes
@@ -82,7 +85,7 @@ CREATE TABLE IF NOT EXISTS payment_receipts (
   -- Identifiers
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   payment_id            UUID NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
-  order_id              UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  order_id              TEXT NOT NULL,  -- FK: orders.id is TEXT (e.g. "TEST-003"), not UUID
   
   -- Receipt Content
   receipt_number        TEXT NOT NULL UNIQUE,  -- Format: "RCP-2026-05-00001"
@@ -141,7 +144,8 @@ COMMENT ON COLUMN payment_receipts.sent_via IS 'Array of delivery channels: sms,
 CREATE TABLE IF NOT EXISTS invoices (
   -- Identifiers
   id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id              UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  order_id              TEXT NOT NULL,  -- FK: orders.id is TEXT (e.g. "TEST-003"), not UUID
+  tenant_id             TEXT NOT NULL DEFAULT current_tenant_id(),  -- Multi-tenant isolation
   
   -- Invoice Number & Date
   invoice_number        TEXT NOT NULL UNIQUE,  -- Format: "INV-2026-05-001"
@@ -196,7 +200,9 @@ CREATE TABLE IF NOT EXISTS invoices (
   updated_by            UUID,
   
   CONSTRAINT invoice_total_consistency CHECK (total_cents >= 0),
-  CONSTRAINT valid_invoice_status CHECK (status IN ('draft', 'sent', 'viewed', 'paid', 'archived', 'cancelled'))
+  CONSTRAINT valid_invoice_status CHECK (status IN ('draft', 'sent', 'viewed', 'paid', 'archived', 'cancelled')),
+  CONSTRAINT fk_invoices_order
+    FOREIGN KEY (order_id, tenant_id) REFERENCES orders(id, tenant_id) ON DELETE CASCADE
 );
 
 -- Indexes

@@ -38,6 +38,8 @@
 <body>
   <div id="root"></div>
   <!-- Build: v1.0.0-2026-03-06-df1777d -->
+  <!-- Phase 5: Receipts & Invoices components -->
+  <script src="phase5-receipts-components.js"></script>
   <script type="text/javascript">
 "use strict";
 
@@ -21826,6 +21828,11 @@ var ROLES = {
         ls: "Pagos",
         i: "💳"
       }, {
+        k: "receipts_invoices",
+        l: "Receipts & Invoices",
+        ls: "Recibos y Facturas",
+        i: "🧾"
+      }, {
         k: "campaigns",
         l: "Campaigns",
         ls: "Campañas",
@@ -21892,7 +21899,8 @@ var ROLES = {
       payments: "Payments",
       campaigns: "Marketing & Campaigns",
       pricing: "Pricing & Commissions",
-      notifications: "Notifications"
+      notifications: "Notifications",
+      receipts_invoices: "Receipts & Invoices"
     }
   },
   office: {
@@ -21951,6 +21959,11 @@ var ROLES = {
         ls: "Pagos",
         i: "💳"
       }, {
+        k: "receipts_invoices",
+        l: "Receipts & Invoices",
+        ls: "Recibos y Facturas",
+        i: "🧾"
+      }, {
         k: "campaigns",
         l: "Campaigns",
         ls: "Campañas",
@@ -21965,7 +21978,8 @@ var ROLES = {
       routes: "Route Builder",
       bulk: "Bulk Status Update",
       payments: "Payments",
-      campaigns: "Campaigns"
+      campaigns: "Campaigns",
+      receipts_invoices: "Receipts & Invoices"
     }
   },
   driver: {
@@ -23746,6 +23760,157 @@ var LoginScreen = function LoginScreen(_ref126) {
 };
 
 /* ════════════════════════════════════════════
+   PHASE 5: RECEIPTS & INVOICES APP COMPONENT
+════════════════════════════════════════════ */
+var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
+  var orders = _ref_ri.orders;
+  var notify = _ref_ri.notify;
+  var _stRITab = useState('shipment_invoice'), _stRITab2 = _slicedToArray(_stRITab, 2),
+      riTab = _stRITab2[0], setRITab = _stRITab2[1];
+  var _stRIOrder = useState(''), _stRIOrder2 = _slicedToArray(_stRIOrder, 2),
+      riOrderId = _stRIOrder2[0], setRIOrderId = _stRIOrder2[1];
+  var _stRIPayUrl = useState(''), _stRIPayUrl2 = _slicedToArray(_stRIPayUrl, 2),
+      riPaymentUrl = _stRIPayUrl2[0], setRIPaymentUrl = _stRIPayUrl2[1];
+  var _stRIPreview = useState(null), _stRIPreview2 = _slicedToArray(_stRIPreview, 2),
+      riPreview = _stRIPreview2[0], setRIPreview = _stRIPreview2[1];
+  var _stRIWA = useState(null), _stRIWA2 = _slicedToArray(_stRIWA, 2),
+      riWhatsApp = _stRIWA2[0], setRIWhatsApp = _stRIWA2[1];
+
+  var selectedOrder = (orders || []).find(function(o) { return o.id === riOrderId; }) || null;
+
+  var generateInvoice = function generateInvoice() {
+    var boxes = (selectedOrder && selectedOrder.boxes) ? selectedOrder.boxes : [];
+    var BOX_PRICES = { 'Dish/Small': 200, 'Medium 74': 260, 'Large 88': 360, 'Barrel': 340 };
+    var items = boxes.length ? boxes.map(function(box, idx) {
+      var unitPrice = BOX_PRICES[box.boxType] || 200;
+      return { itemSequence: idx + 1, description: 'Box ' + (idx + 1) + ' - ' + (box.boxType || 'Standard'), boxType: box.boxType, unitPriceCents: unitPrice * 100, quantity: 1, lineTotalCents: unitPrice * 100 };
+    }) : [{ itemSequence: 1, description: 'Cargo Shipment', unitPriceCents: 20000, quantity: 1, lineTotalCents: 20000 }];
+    var subtotal = items.reduce(function(s, it) { return s + it.lineTotalCents; }, 0);
+    var invoiceData = {
+      invoiceNumber: 'INV-' + Date.now(),
+      invoiceDate: new Date().toLocaleDateString(),
+      shipperName: 'Casabe Konnect', shipperAddress: 'Miami, FL', shipperPhone: '+1 (305) 555-0100', shipperEmail: 'info@casabe.example.com',
+      recipientName: selectedOrder ? (selectedOrder.recipient || selectedOrder.customer || 'Recipient') : 'Recipient',
+      recipientAddress: selectedOrder ? (selectedOrder.destination || '') : '',
+      numBoxes: items.length, items: items,
+      subtotalCents: subtotal, shippingCostCents: 0, taxCents: 0, totalCents: subtotal,
+      subtotalDisplay: '$' + (subtotal / 100).toFixed(2), totalDisplay: '$' + (subtotal / 100).toFixed(2),
+      serviceType: 'Cargo Shipment', stripe_payment_url: riPaymentUrl
+    };
+    var html = (typeof ShipmentInvoiceTemplate !== 'undefined') ? ShipmentInvoiceTemplate.generateHTML(invoiceData) : '<div style="padding:20px">Invoice generated for order: ' + riOrderId + '<br>Total: ' + invoiceData.totalDisplay + '</div>';
+    setRIPreview({ type: 'invoice', html: html, data: invoiceData });
+  };
+
+  var generateDriverReceipt = function generateDriverReceipt() {
+    var receiptData = {
+      receiptNumber: 'RCT-' + Date.now(),
+      receiptDate: new Date().toLocaleDateString(),
+      receiptTime: new Date().toLocaleTimeString(),
+      orderId: riOrderId,
+      amountDisplay: selectedOrder ? ('$' + (selectedOrder.amount || '0.00')) : '$0.00',
+      paymentMethod: 'cash',
+      payerName: selectedOrder ? (selectedOrder.customer || selectedOrder.recipient || 'Customer') : 'Customer',
+      stripe_payment_url: riPaymentUrl
+    };
+    var html = (typeof PaymentReceiptTemplate !== 'undefined') ? PaymentReceiptTemplate.generateHTML(receiptData) : '<div style="padding:20px">Receipt generated for order: ' + riOrderId + '</div>';
+    setRIPreview({ type: 'receipt', html: html, data: receiptData });
+  };
+
+  var printInvoice = function printInvoice() {
+    if (!riPreview || !riPreview.html) return;
+    if (typeof PDFGenerators !== 'undefined') { PDFGenerators.printHTML(riPreview.html); } else { window.print(); }
+  };
+
+  var copyPaymentLink = function copyPaymentLink() {
+    if (!riPaymentUrl) { notify && notify('No payment link to copy'); return; }
+    if (navigator && navigator.clipboard) {
+      navigator.clipboard.writeText(riPaymentUrl).then(function() { notify && notify('\u2705 Payment link copied!'); });
+    } else { notify && notify('Clipboard not available'); }
+  };
+
+  var showWhatsAppText = function showWhatsAppText() {
+    var text;
+    if (riPreview && riPreview.type === 'receipt') {
+      text = (typeof PaymentReceiptTemplate !== 'undefined') ? PaymentReceiptTemplate.generatePlainText(riPreview.data) : 'Receipt for order: ' + riOrderId;
+    } else if (riPreview && riPreview.type === 'invoice') {
+      text = (typeof ShipmentInvoiceTemplate !== 'undefined') ? ShipmentInvoiceTemplate.generatePlainText(riPreview.data) : 'Invoice for order: ' + riOrderId;
+    } else {
+      text = 'Order: ' + riOrderId;
+    }
+    if (riPaymentUrl) text += '\n\nPayment Link: ' + riPaymentUrl;
+    setRIWhatsApp(text);
+  };
+
+  var RI_TABS = [
+    { k: 'shipment_invoice', l: 'Shipment Invoice' },
+    { k: 'driver_receipt', l: 'Driver Receipt' },
+    { k: 'box_invoice', l: 'Box Invoice' }
+  ];
+
+  var doGenerate = riTab === 'driver_receipt' ? generateDriverReceipt : generateInvoice;
+  var genLabel = riTab === 'driver_receipt' ? '\uD83D\uDCE4 Generate Receipt' : '\uD83D\uDCCB Generate Invoice';
+
+  return /*#__PURE__*/React.createElement('div', { className: 'fu' },
+    /*#__PURE__*/React.createElement('h2', { style: { marginBottom: 20 } }, '\uD83E\uDDF3 Receipts & Invoices'),
+    /*#__PURE__*/React.createElement('div', { className: 'tabs' },
+      RI_TABS.map(function(tab) {
+        return /*#__PURE__*/React.createElement('div', { key: tab.k, className: 'tab ' + (riTab === tab.k ? 'on' : ''), onClick: function() { setRITab(tab.k); setRIPreview(null); } }, tab.l);
+      })
+    ),
+    /*#__PURE__*/React.createElement('div', { className: 'g21' },
+      /*#__PURE__*/React.createElement('div', null,
+        /*#__PURE__*/React.createElement('div', { className: 'card mb12' },
+          /*#__PURE__*/React.createElement('div', { className: 'card-hd' },
+            /*#__PURE__*/React.createElement('div', { className: 'card-title' }, riTab === 'driver_receipt' ? 'Generate Driver Receipt' : riTab === 'box_invoice' ? 'Generate Box Invoice' : 'Generate Shipment Invoice')
+          ),
+          /*#__PURE__*/React.createElement('div', { className: 'card-bd' },
+            /*#__PURE__*/React.createElement('div', { className: 'fg' },
+              /*#__PURE__*/React.createElement('label', { className: 'fl' }, 'Order ID'),
+              /*#__PURE__*/React.createElement('select', { className: 'fi', value: riOrderId, onChange: function(e) { var opt = e.target.options[e.target.selectedIndex]; setRIOrderId(e.target.value); setRIPaymentUrl(opt.getAttribute('data-url') || ''); } },
+                /*#__PURE__*/React.createElement('option', { value: '' }, '\u2014 Select Order \u2014'),
+                (orders || []).slice(0, 30).map(function(o) {
+                  return /*#__PURE__*/React.createElement('option', { key: o.id, value: o.id, 'data-url': o.stripe_payment_url || '' }, o.id + (o.recipient ? ' \u2013 ' + o.recipient : ''));
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement('div', { className: 'fg' },
+              /*#__PURE__*/React.createElement('label', { className: 'fl' }, 'Stripe Payment URL (stripe_payment_url)'),
+              /*#__PURE__*/React.createElement('input', { className: 'fi', type: 'text', placeholder: 'https://buy.stripe.com/...', value: riPaymentUrl, onChange: function(e) { setRIPaymentUrl(e.target.value); } })
+            ),
+            /*#__PURE__*/React.createElement('div', { className: 'row g6', style: { flexWrap: 'wrap' } },
+              /*#__PURE__*/React.createElement('button', { className: 'btn btn-primary', onClick: doGenerate }, genLabel),
+              /*#__PURE__*/React.createElement('button', { className: 'btn btn-ghost', onClick: copyPaymentLink, title: 'Copy Stripe payment link to clipboard' }, '\uD83D\uDD17 Copy Payment Link'),
+              /*#__PURE__*/React.createElement('button', { className: 'btn btn-ghost', onClick: showWhatsAppText }, '\uD83D\uDCAC WhatsApp Text')
+            )
+          )
+        )
+      ),
+      /*#__PURE__*/React.createElement('div', null,
+        riPreview ? /*#__PURE__*/React.createElement('div', { className: 'card' },
+          /*#__PURE__*/React.createElement('div', { className: 'card-hd' },
+            /*#__PURE__*/React.createElement('div', { className: 'card-title' }, riPreview.type === 'receipt' ? 'Receipt Preview' : 'Invoice Preview'),
+            /*#__PURE__*/React.createElement('button', { className: 'btn btn-ghost btn-sm', onClick: printInvoice }, '\uD83D\uDDA8\uFE0F Print')
+          ),
+          /*#__PURE__*/React.createElement('div', { className: 'card-bd', style: { maxHeight: 400, overflowY: 'auto' } },
+            /*#__PURE__*/React.createElement('div', { dangerouslySetInnerHTML: { __html: riPreview.html } })
+          )
+        ) : null
+      )
+    ),
+    riWhatsApp ? /*#__PURE__*/React.createElement('div', { className: 'overlay', onClick: function() { setRIWhatsApp(null); } },
+      /*#__PURE__*/React.createElement('div', { className: 'modal', onClick: function(e) { e.stopPropagation(); } },
+        /*#__PURE__*/React.createElement('div', { className: 'modal-title' }, '\uD83D\uDCAC WhatsApp Message'),
+        /*#__PURE__*/React.createElement('pre', { style: { whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12, background: 'var(--bg)', padding: 12, borderRadius: 8, marginBottom: 12 } }, riWhatsApp),
+        /*#__PURE__*/React.createElement('div', { className: 'row g6' },
+          /*#__PURE__*/React.createElement('button', { className: 'btn btn-primary btn-sm', onClick: function() { if (navigator && navigator.clipboard) navigator.clipboard.writeText(riWhatsApp); notify && notify('\u2705 Copied!'); } }, 'Copy'),
+          /*#__PURE__*/React.createElement('button', { className: 'btn btn-ghost btn-sm', onClick: function() { setRIWhatsApp(null); } }, 'Close')
+        )
+      )
+    ) : null
+  );
+};
+
+/* ════════════════════════════════════════════
    APP ROOT
 ════════════════════════════════════════════ */
 function App() {
@@ -24514,7 +24679,7 @@ setOrders(function (prev) {
     setRoleKey(r);
     // Validate page for new role and reset if invalid
     var newPage = r === "hq" ? "overview" : r === "office" ? "ow_dash" : "driver_route";
-    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import"] : ["driver_route", "driver_proof"];
+    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices"] : ["driver_route", "driver_proof"];
     var shouldResetPage = !validPages.includes(page);
     setPage(shouldResetPage ? newPage : page);
   };
@@ -24537,6 +24702,7 @@ setOrders(function (prev) {
       tenant: tenant
     });
     if (page === "hq_ops") return renderHQOpsPage();
+    if (page === "receipts_invoices") return /*#__PURE__*/React.createElement(ReceiptsInvoicesApp, { orders: orders, notify: notify });
     if (page === "customers") return /*#__PURE__*/React.createElement(CustomerProfilePage, {
       orders: orders,
       onImportCustomers: function onImportCustomers(imported) {

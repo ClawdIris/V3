@@ -358,7 +358,11 @@ test("Schema integrates with Phase 1 box_orders table", function() {
 
 test("Schema integrates with orders table", function() {
   var schema = fs.readFileSync(path.join(__dirname, 'phase5-receipts-schema.sql'), 'utf8');
-  assert.ok(schema.includes('REFERENCES orders(id)'), "orders foreign key missing");
+  // Accepts single-column FK or composite FK (orders.id is TEXT, so composite is correct)
+  assert.ok(
+    schema.includes('REFERENCES orders(id)') || schema.includes('REFERENCES orders(id, tenant_id)'),
+    "orders foreign key missing (neither single-column nor composite FK found)"
+  );
 });
 
 test("Schema supports Stripe payment intent tracking", function() {
@@ -430,6 +434,100 @@ test("Components file has documentation", function() {
 test("QR code generator has usage documentation", function() {
   var source = fs.readFileSync(path.join(__dirname, 'qrcode-generator.js'), 'utf8');
   assert.ok(source.includes('Usage:'), "usage documentation present");
+});
+
+// ─────────────────────────────────────────────────────────
+// BEHAVIORAL TESTS: UI WIRING IN INDEX.HTML
+// ─────────────────────────────────────────────────────────
+
+test("index.html contains ReceiptsInvoicesApp function definition", function() {
+  var indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  assert.ok(indexHtml.includes('ReceiptsInvoicesApp'), "ReceiptsInvoicesApp not defined in index.html");
+});
+
+test("index.html contains receipts_invoices page handler in renderPage", function() {
+  var indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  assert.ok(indexHtml.includes('page === "receipts_invoices"'), "receipts_invoices page handler missing in renderPage");
+});
+
+test("index.html contains receipts_invoices nav item for HQ", function() {
+  var indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  // The HQ nav should contain receipts_invoices before the Office nav
+  var hqNavSection = indexHtml.substring(0, indexHtml.indexOf('office: {'));
+  assert.ok(hqNavSection.includes('receipts_invoices'), "receipts_invoices nav item missing from HQ nav");
+});
+
+test("index.html contains receipts_invoices nav item for Office", function() {
+  var indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  // The Office nav section contains receipts_invoices
+  var officeSection = indexHtml.substring(indexHtml.indexOf('office: {'));
+  assert.ok(officeSection.includes('receipts_invoices'), "receipts_invoices nav item missing from Office nav");
+});
+
+test("index.html includes phase5-receipts-components.js or inline receipt logic", function() {
+  var indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  assert.ok(
+    indexHtml.includes('phase5-receipts-components.js') || indexHtml.includes('PaymentReceiptTemplate'),
+    "phase5-receipts-components.js not referenced and no inline receipt logic"
+  );
+});
+
+test("index.html contains generateInvoice or invoice generation call", function() {
+  var indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  assert.ok(
+    indexHtml.includes('generateInvoice') || indexHtml.includes('Generate Invoice'),
+    "generateInvoice function or invoice generation call missing"
+  );
+});
+
+test("index.html contains printInvoice or window.print call", function() {
+  var indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  assert.ok(
+    indexHtml.includes('printInvoice') || indexHtml.includes('window.print'),
+    "printInvoice function or window.print call missing"
+  );
+});
+
+test("index.html contains copyPaymentLink or clipboard copy logic", function() {
+  var indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  assert.ok(
+    indexHtml.includes('copyPaymentLink') || indexHtml.includes('navigator.clipboard'),
+    "copyPaymentLink or clipboard copy logic missing"
+  );
+});
+
+test("index.html contains WhatsApp text generation", function() {
+  var indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  assert.ok(
+    indexHtml.includes('WhatsApp') && (indexHtml.includes('generatePlainText') || indexHtml.includes('whatsappMessage') || indexHtml.includes('showWhatsAppText')),
+    "WhatsApp text generation missing"
+  );
+});
+
+test("index.html contains stripe_payment_url field", function() {
+  var indexHtml = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  assert.ok(indexHtml.includes('stripe_payment_url'), "stripe_payment_url field missing from index.html");
+});
+
+test("Schema file has correct TEXT FK for orders (not UUID)", function() {
+  var schema = fs.readFileSync(path.join(__dirname, 'phase5-receipts-schema.sql'), 'utf8');
+  assert.ok(schema.includes('order_id              TEXT NOT NULL'), "order_id should be TEXT NOT NULL, not UUID");
+  assert.ok(!schema.includes('order_id              UUID NOT NULL REFERENCES orders(id)'), "order_id must not reference orders(id) as UUID FK");
+});
+
+test("Schema file uses composite FK (order_id, tenant_id) referencing orders", function() {
+  var schema = fs.readFileSync(path.join(__dirname, 'phase5-receipts-schema.sql'), 'utf8');
+  assert.ok(
+    schema.includes('FOREIGN KEY (order_id, tenant_id) REFERENCES orders(id, tenant_id)'),
+    "Composite FK (order_id, tenant_id) -> orders(id, tenant_id) missing"
+  );
+});
+
+test("phase5-receipts-schema.sql contains all 5 required tables", function() {
+  var schema = fs.readFileSync(path.join(__dirname, 'phase5-receipts-schema.sql'), 'utf8');
+  ['payments', 'payment_receipts', 'invoices', 'invoice_items', 'box_order_invoices'].forEach(function(tbl) {
+    assert.ok(schema.includes('CREATE TABLE IF NOT EXISTS ' + tbl), tbl + ' table definition missing');
+  });
 });
 
 // ─────────────────────────────────────────────────────────
