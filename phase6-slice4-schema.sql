@@ -338,7 +338,8 @@ GRANT ALL ON box_sale_records    TO service_role;
 -- This view is used by the Margin Summary page. RLS on base tables
 -- enforces access control; this view just aggregates.
 
-CREATE OR REPLACE VIEW margin_summary_view AS
+CREATE OR REPLACE VIEW margin_summary_view
+WITH (security_invoker = true) AS
 SELECT
   'box_sale'                          AS record_type,
   bsr.office_id,
@@ -354,6 +355,8 @@ WHERE bsr.status = 'active';
 
 COMMENT ON VIEW margin_summary_view IS
   'Convenience aggregate view for Margin Summary page. Access is controlled by RLS on box_sale_records.';
+
+GRANT SELECT ON margin_summary_view TO authenticated;
 
 
 -- ═══════════════════════════════════════════════════════════════════
