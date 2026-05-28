@@ -24865,6 +24865,188 @@ setOrders(function (prev) {
   var claimsBadge = claims.filter(function (c) {
     return ["open", "reviewing"].includes(c.status);
   }).length;
+
+  /* ═══════════════════════════════════════════════════════
+     PHASE 6 — SLICE 1: MapViewPage (HQ-only, read-only)
+     No Mapbox token detected → styled SVG grid placeholder
+     with active-order list and lat/lon ready for wiring.
+  ═══════════════════════════════════════════════════════ */
+  var MapViewPage = function MapViewPage(_ref_mvp) {
+    var _orders = _ref_mvp.orders;
+    // Active orders = not delivered, not cancelled
+    var ACTIVE_STATUSES = ["received","in_warehouse","ready_pickup","in_transit","out_for_delivery","loaded_container","processing"];
+    var activeOrders = (_orders || []).filter(function(o) { return ACTIVE_STATUSES.includes(o.status); });
+
+    // Miami-area seed coords for demo pins (lat, lon offsets)
+    var PIN_OFFSETS = [
+      { dx: 42, dy: 35 }, { dx: 18, dy: 58 }, { dx: 62, dy: 22 },
+      { dx: 80, dy: 65 }, { dx: 30, dy: 80 }, { dx: 55, dy: 45 },
+      { dx: 72, dy: 30 }, { dx: 12, dy: 42 }, { dx: 48, dy: 70 },
+      { dx: 88, dy: 52 }
+    ];
+
+    var _useState_mvp = useState(null);
+    var selectedPin = _useState_mvp[0], setSelectedPin = _useState_mvp[1];
+
+    var statusColor = function(s) {
+      if (s === "ready_pickup" || s === "in_transit" || s === "out_for_delivery") return "var(--amber)";
+      if (s === "in_warehouse" || s === "loaded_container") return "var(--blue)";
+      if (s === "received" || s === "processing") return "var(--teal)";
+      return "var(--text3)";
+    };
+
+    return /*#__PURE__*/React.createElement("div", { className: "fu" },
+      /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: "wrap" } },
+        /*#__PURE__*/React.createElement("h2", { style: { fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, flex: 1 } }, "🗾 Active Order Map"),
+        /*#__PURE__*/React.createElement("span", { className: "badge ba" }, activeOrders.length + " active"),
+        /*#__PURE__*/React.createElement("span", { className: "tag tag-b", style: { fontSize: 10, padding: "3px 9px", borderRadius: 6 } }, "🔒 Read-Only — Phase 6 Slice 1")
+      ),
+
+      /* ── Map canvas ── */
+      /*#__PURE__*/React.createElement("div", { className: "card mb18" },
+        /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Order Pins — Miami Metro Area"),
+          /*#__PURE__*/React.createElement("span", { className: "xs mut" }, "Mapbox GL wiring ready • token not yet configured")
+        ),
+        /*#__PURE__*/React.createElement("div", {
+          style: {
+            position: "relative", height: 360, background: "var(--bg)",
+            borderRadius: "0 0 11px 11px", overflow: "hidden"
+          }
+        },
+          /* Grid lines */
+          /*#__PURE__*/React.createElement("div", { className: "map-grid", style: { position: "absolute", inset: 0 } }),
+          /* Water-like base fill */
+          /*#__PURE__*/React.createElement("div", { style: {
+            position: "absolute", inset: 0,
+            background: "linear-gradient(160deg, rgba(14,28,60,0.55) 0%, rgba(7,9,15,0.9) 100%)"
+          } }),
+          /* Biscayne Bay stylized shape */
+          /*#__PURE__*/React.createElement("svg", {
+            style: { position: "absolute", inset: 0, width: "100%", height: "100%" },
+            viewBox: "0 0 100 100", preserveAspectRatio: "none"
+          },
+            /*#__PURE__*/React.createElement("defs", null,
+              /*#__PURE__*/React.createElement("radialGradient", { id: "bay-grd", cx: "70%", cy: "50%", r: "40%" },
+                /*#__PURE__*/React.createElement("stop", { offset: "0%", stopColor: "#1e3a5f", stopOpacity: "0.45" }),
+                /*#__PURE__*/React.createElement("stop", { offset: "100%", stopColor: "transparent", stopOpacity: "0" })
+              )
+            ),
+            /*#__PURE__*/React.createElement("ellipse", { cx: "78", cy: "50", rx: "22", ry: "38", fill: "url(#bay-grd)" }),
+            /* Road lines */
+            /*#__PURE__*/React.createElement("line", { x1: "0", y1: "40", x2: "70", y2: "40", stroke: "rgba(59,130,246,0.12)", strokeWidth: "0.5" }),
+            /*#__PURE__*/React.createElement("line", { x1: "0", y1: "60", x2: "70", y2: "60", stroke: "rgba(59,130,246,0.12)", strokeWidth: "0.5" }),
+            /*#__PURE__*/React.createElement("line", { x1: "30", y1: "0", x2: "30", y2: "100", stroke: "rgba(59,130,246,0.12)", strokeWidth: "0.5" }),
+            /*#__PURE__*/React.createElement("line", { x1: "55", y1: "0", x2: "55", y2: "100", stroke: "rgba(59,130,246,0.12)", strokeWidth: "0.5" }),
+            /* I-95 corridor */
+            /*#__PURE__*/React.createElement("line", { x1: "20", y1: "0", x2: "22", y2: "100", stroke: "rgba(245,158,11,0.18)", strokeWidth: "1" })
+          ),
+          /* Order pins */
+          activeOrders.slice(0, PIN_OFFSETS.length).map(function(o, i) {
+            var pos = PIN_OFFSETS[i];
+            var col = statusColor(o.status);
+            return /*#__PURE__*/React.createElement("div", {
+              key: o.id,
+              className: "map-pin",
+              title: o.id + " — " + o.name,
+              onClick: function() { setSelectedPin(selectedPin && selectedPin.id === o.id ? null : o); },
+              style: {
+                left: pos.dx + "%", top: pos.dy + "%",
+                animationDelay: (i * 0.18) + "s",
+                cursor: "pointer", zIndex: 10,
+                fontSize: 18,
+                filter: (selectedPin && selectedPin.id === o.id) ? "drop-shadow(0 0 6px " + col + ")" : "none"
+              }
+            }, "📎");
+          }),
+          /* Popup */
+          selectedPin && /*#__PURE__*/React.createElement("div", {
+            style: {
+              position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)",
+              background: "var(--bg2)", border: "1px solid var(--border2)",
+              borderRadius: 10, padding: "10px 14px", minWidth: 200, zIndex: 20,
+              boxShadow: "0 4px 20px rgba(0,0,0,0.5)"
+            }
+          },
+            /*#__PURE__*/React.createElement("div", { className: "row g6", style: { marginBottom: 5 } },
+              /*#__PURE__*/React.createElement("span", { className: "tamb" }, selectedPin.id),
+              /*#__PURE__*/React.createElement("span", { className: "mla xs", style: { cursor: "pointer", color: "var(--text3)" }, onClick: function() { setSelectedPin(null); } }, "×")
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "tb xs" }, selectedPin.name),
+            /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 3 } }, selectedPin.address + ", " + (selectedPin.city || "") + " " + (selectedPin.state || "")),
+            /*#__PURE__*/React.createElement("div", { className: "row g6", style: { marginTop: 6 } },
+              /*#__PURE__*/React.createElement("span", {
+                className: "badge",
+                style: { background: statusColor(selectedPin.status) + "22", color: statusColor(selectedPin.status), fontSize: 10 }
+              }, selectedPin.status.replace(/_/g, " ")),
+              /*#__PURE__*/React.createElement("span", { className: "xs mut mla" }, selectedPin.destination || "")
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "xs mut", style: { marginTop: 5, fontFamily: "'IBM Plex Mono',monospace", opacity: 0.55 } },
+              "lat/lon: wired in Phase 6 Slice 2"
+            )
+          ),
+          /* Center label */
+          /*#__PURE__*/React.createElement("div", {
+            style: {
+              position: "absolute", bottom: 10, right: 12,
+              fontSize: 10, color: "rgba(100,116,139,0.6)",
+              fontFamily: "'IBM Plex Mono',monospace"
+            }
+          }, "Miami Metro • 25.7617°N, 80.1918°W")
+        )
+      ),
+
+      /* ── Active orders table ── */
+      /*#__PURE__*/React.createElement("div", { className: "card" },
+        /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Active Orders"),
+          /*#__PURE__*/React.createElement("span", { className: "xs mut" }, activeOrders.length + " orders • read-only")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "tbl" },
+          /*#__PURE__*/React.createElement("table", null,
+            /*#__PURE__*/React.createElement("thead", null,
+              /*#__PURE__*/React.createElement("tr", null,
+                /*#__PURE__*/React.createElement("th", null, "Order"),
+                /*#__PURE__*/React.createElement("th", null, "Customer"),
+                /*#__PURE__*/React.createElement("th", null, "Status"),
+                /*#__PURE__*/React.createElement("th", null, "Address"),
+                /*#__PURE__*/React.createElement("th", null, "Destination"),
+                /*#__PURE__*/React.createElement("th", null, "Coordinates")
+              )
+            ),
+            /*#__PURE__*/React.createElement("tbody", null,
+              activeOrders.length === 0
+                ? /*#__PURE__*/React.createElement("tr", null,
+                    /*#__PURE__*/React.createElement("td", { colSpan: 6, style: { textAlign: "center", padding: 24, color: "var(--text4)" } }, "No active orders")
+                  )
+                : activeOrders.map(function(o, i) {
+                    var pos = PIN_OFFSETS[i] || {};
+                    /* Demo lat/lon derived from Miami base + pin offset — Phase 6 S2 replaces with geocoded coords */
+                    var demoLat = (25.7617 + (pos.dy !== undefined ? (50 - pos.dy) * 0.003 : 0)).toFixed(4);
+                    var demoLon = (-80.1918 + (pos.dx !== undefined ? (pos.dx - 50) * 0.004 : 0)).toFixed(4);
+                    return /*#__PURE__*/React.createElement("tr", { key: o.id, onClick: function() { setSelectedPin(o); } },
+                      /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tamb" }, o.id)),
+                      /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "tb" }, o.name)),
+                      /*#__PURE__*/React.createElement("td", null,
+                        /*#__PURE__*/React.createElement("span", {
+                          className: "badge",
+                          style: { background: statusColor(o.status) + "22", color: statusColor(o.status) }
+                        }, o.status.replace(/_/g, " "))
+                      ),
+                      /*#__PURE__*/React.createElement("td", { className: "mut" }, (o.address || "") + (o.city ? ", " + o.city : "")),
+                      /*#__PURE__*/React.createElement("td", null, o.destination || "—"),
+                      /*#__PURE__*/React.createElement("td", { className: "mono xs mut" },
+                        i < PIN_OFFSETS.length ? demoLat + "°N, " + Math.abs(demoLon) + "°W" : "—"
+                      )
+                    );
+                  })
+            )
+          )
+        )
+      )
+    );
+  };
+
   var renderPage = function renderPage() {
     // HQ pages
     if (page === "overview") return /*#__PURE__*/React.createElement(HQOverview, {
@@ -25180,6 +25362,8 @@ setOrders(function (prev) {
       onStatusChange: changeStatus,
       driversList: tenantDrivers
     });
+    // Phase 6 — Slice 1: Map View (HQ-only, role gate enforced by nav config)
+    if (page === "map_view") return /*#__PURE__*/React.createElement(MapViewPage, { orders: orders });
     if (page === "batches") return /*#__PURE__*/React.createElement("div", {
       className: "fu"
     }, /*#__PURE__*/React.createElement("div", {
