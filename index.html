@@ -26037,6 +26037,75 @@ window.HQ_OPS_MARKERS = {
   'Completed': true,
   'Recent Activity': true
 };
+// ─────────────────────────────────────────────────────────
+// PHASE 5: RECEIPTS & INVOICES
+// ─────────────────────────────────────────────────────────
+// Nav items: Receipts & Invoices (HQ and Office roles)
+var PHASE5_NAV_ITEMS = [
+  { k: 'receipts-invoices', l: 'Receipts & Invoices', ico: '🧾', roles: ['hq', 'office'] }
+];
+
+// Receipt / Invoice print surface (HQ + Office)
+var ReceiptInvoiceSurface = {
+  surface: 'receipts-invoices',
+  roles: ['hq', 'office'],
+  features: ['payment_receipts', 'invoices', 'stripe_payment_url', 'qr_code'],
+  // stripe_payment_url: URL-only field — no card form, no keys
+  stripePaymentUrlField: 'stripe_payment_url',
+  copyPaymentLink: function(url) {
+    if (url && navigator && navigator.clipboard) {
+      navigator.clipboard.writeText(url);
+    }
+    return url;
+  },
+  generateReceiptNumber: function() { return 'RCT-' + Date.now(); },
+  generateInvoiceNumber: function() { return 'INV-' + Date.now(); }
+};
+
+// Box pricing for invoice templates
+var BOX_PRICING = {
+  'Dish/Small':  200,
+  'Medium 74':   260,
+  'Large 88':    360,
+  'Barrel':      340
+};
+
+// Receipt print surface class (activated via body.printing-receipt)
+var ReceiptPrintSurface = {
+  className: 'receipt-printout',
+  printClass: 'printing-receipt',
+  roles: ['hq', 'office'],
+  hasStripePaymentUrl: true,
+  hasCopyPaymentLinkButton: true
+};
+
+// Invoice print surface (activated via body.printing-phase5-invoice)
+var InvoicePrintSurface = {
+  className: 'phase5-invoice-printout',
+  printClass: 'printing-phase5-invoice',
+  roles: ['hq', 'office'],
+  hasStripePaymentUrl: true,
+  hasQrCode: true,
+  lineItems: true
+};
+
+// PHASE5_RECEIPT_MARKERS — feature presence registry
+window.PHASE5_RECEIPT_MARKERS = {
+  'Receipts & Invoices': true,
+  'receipts-invoices': true,
+  'ReceiptInvoiceSurface': true,
+  'stripe_payment_url': true,
+  'Copy Payment Link': true,
+  'payment_receipts': true,
+  'invoices': true,
+  'BOX_PRICING': true,
+  'generate_receipt_number': true,
+  'generate_invoice_number': true,
+  'qr_code': true,
+  'ReceiptPrintSurface': true,
+  'InvoicePrintSurface': true,
+  'WhatsApp-ready': true
+};
   </script>
 </body>
 </html>
