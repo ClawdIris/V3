@@ -21957,6 +21957,21 @@ var ROLES = {
         ls: "Recibos y Facturas",
         i: "🧾"
       }, {
+        k: "tape_direct",
+        l: "Tape Direct",
+        ls: "Tape Directo",
+        i: "📦"
+      }, {
+        k: "box_sale",
+        l: "Box Sale Tracking",
+        ls: "Ventas de Cajas",
+        i: "🗃️"
+      }, {
+        k: "margin_summary",
+        l: "Margin Summary",
+        ls: "Resumen de Margen",
+        i: "📊"
+      }, {
         k: "campaigns",
         l: "Campaigns",
         ls: "Campañas",
@@ -22025,7 +22040,10 @@ var ROLES = {
       campaigns: "Marketing & Campaigns",
       pricing: "Pricing & Commissions",
       notifications: "Notifications",
-      receipts_invoices: "Receipts & Invoices"
+      receipts_invoices: "Receipts & Invoices",
+      tape_direct: "Tape Direct",
+      box_sale: "Box Sale Tracking",
+      margin_summary: "Margin Summary"
     }
   },
   office: {
@@ -22089,6 +22107,16 @@ var ROLES = {
         ls: "Recibos y Facturas",
         i: "🧾"
       }, {
+        k: "tape_direct",
+        l: "Tape Direct",
+        ls: "Tape Directo",
+        i: "📦"
+      }, {
+        k: "box_sale",
+        l: "Box Sale Tracking",
+        ls: "Ventas de Cajas",
+        i: "🗃️"
+      }, {
         k: "campaigns",
         l: "Campaigns",
         ls: "Campañas",
@@ -22104,7 +22132,9 @@ var ROLES = {
       bulk: "Bulk Status Update",
       payments: "Payments",
       campaigns: "Campaigns",
-      receipts_invoices: "Receipts & Invoices"
+      receipts_invoices: "Receipts & Invoices",
+      tape_direct: "Tape Direct",
+      box_sale: "Box Sale Tracking"
     }
   },
   driver: {
@@ -24858,7 +24888,7 @@ setOrders(function (prev) {
     setRoleKey(r);
     // Validate page for new role and reset if invalid
     var newPage = r === "hq" ? "overview" : r === "office" ? "ow_dash" : "driver_route";
-    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices"] : ["driver_route", "driver_proof"];
+    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view", "tape_direct", "box_sale", "margin_summary"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices", "tape_direct", "box_sale"] : ["driver_route", "driver_proof"];
     var shouldResetPage = !validPages.includes(page);
     setPage(shouldResetPage ? newPage : page);
   };
@@ -25569,6 +25599,509 @@ setOrders(function (prev) {
     );
   };
 
+  /* ══════════════════════════════════════════════════════════════
+     PHASE 6 — SLICE 4: Tape Direct + Box Sale Cost/Margin Foundation
+     Components: TapeDirectPage, BoxSaleTrackingPage, MarginSummaryPage
+     Role gates enforced at component level.
+  ══════════════════════════════════════════════════════════════ */
+
+  /* ── Tape Direct Page ─────────────────────────────────────────── */
+  var TapeDirectPage = function TapeDirectPage(_ref_tdp) {
+    var session = _ref_tdp.session, notify = _ref_tdp.notify, roleKey = _ref_tdp.roleKey;
+    var _useState_td = useState({
+      enabled: true, vendor: '', cost: '', quantity: '', notes: '', office: '', orderRef: ''
+    });
+    var tdForm = _useState_td[0], setTdForm = _useState_td[1];
+    var _useState_td2 = useState(false);
+    var showForm = _useState_td2[0], setShowForm = _useState_td2[1];
+    // Local state records (persisted to localStorage for demo; real app uses Supabase)
+    var TD_KEY = 'casabe_tape_direct_v1';
+    function loadTDRecords() {
+      try { return JSON.parse(localStorage.getItem(TD_KEY) || '[]'); } catch(e) { return []; }
+    }
+    var _useState_td3 = useState(loadTDRecords);
+    var tdRecords = _useState_td3[0], setTdRecords = _useState_td3[1];
+    function saveTDRecord(e) {
+      e.preventDefault();
+      var rec = {
+        id: 'td-' + Date.now(),
+        enabled: tdForm.enabled,
+        vendor: tdForm.vendor,
+        cost: parseFloat(tdForm.cost) || 0,
+        quantity: parseInt(tdForm.quantity) || null,
+        notes: tdForm.notes,
+        office: tdForm.office,
+        orderRef: tdForm.orderRef,
+        staff: (session && (session.displayName || session.email)) || 'HQ User',
+        timestamp: new Date().toISOString(),
+        status: 'active'
+      };
+      var updated = [rec].concat(tdRecords);
+      setTdRecords(updated);
+      try { localStorage.setItem(TD_KEY, JSON.stringify(updated)); } catch(e) {}
+      setTdForm({ enabled: true, vendor: '', cost: '', quantity: '', notes: '', office: '', orderRef: '' });
+      setShowForm(false);
+      if (notify) notify('Tape Direct record saved.', 'green');
+    }
+    function voidRecord(id) {
+      var updated = tdRecords.map(function(r) {
+        return r.id === id ? Object.assign({}, r, { status: 'voided', voided_at: new Date().toISOString() }) : r;
+      });
+      setTdRecords(updated);
+      try { localStorage.setItem(TD_KEY, JSON.stringify(updated)); } catch(e) {}
+      if (notify) notify('Record voided (archived).', 'amber');
+    }
+    var activeRecords = tdRecords.filter(function(r) { return r.status === 'active'; });
+    var voidedRecords = tdRecords.filter(function(r) { return r.status !== 'active'; });
+    return /*#__PURE__*/React.createElement("div", { className: "fu", id: "tape-direct-panel" },
+      /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: 'wrap' } },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\ud83d\udce6 Tape Direct"),
+          /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 2 } }, "Mark orders/boxes as Tape Direct. HQ & Office only. Costs hidden from drivers.")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "mla", style: { display: 'flex', gap: 8, alignItems: 'center' } },
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary", id: "td-new-record-btn", onClick: function() { setShowForm(!showForm); } }, "+ New Tape Direct Record")
+        )
+      ),
+      showForm && /*#__PURE__*/React.createElement("div", { className: "card mb18", id: "tape-direct-form" },
+        /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+          /*#__PURE__*/React.createElement("div", { className: "card-title" }, "New Tape Direct Record"),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: function() { setShowForm(false); } }, "Cancel")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+          /*#__PURE__*/React.createElement("form", { onSubmit: saveTDRecord, id: "tape-direct-record-form" },
+            /*#__PURE__*/React.createElement("div", { className: "fr mb12" },
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Status"),
+                /*#__PURE__*/React.createElement("select", { className: "fi", id: "td-enabled", value: tdForm.enabled ? 'enabled' : 'disabled',
+                  onChange: function(e) { setTdForm(Object.assign({}, tdForm, { enabled: e.target.value === 'enabled' })); }
+                },
+                  /*#__PURE__*/React.createElement("option", { value: "enabled" }, "Enabled (Active)"),
+                  /*#__PURE__*/React.createElement("option", { value: "disabled" }, "Disabled")
+                )
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Vendor / Source"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", id: "td-vendor", type: "text", placeholder: "e.g. Uline, Amazon, Local",
+                  value: tdForm.vendor, onChange: function(e) { setTdForm(Object.assign({}, tdForm, { vendor: e.target.value })); }
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fr mb12" },
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Cost ($)"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", id: "td-cost", type: "number", min: "0", step: "0.01", placeholder: "0.00",
+                  value: tdForm.cost, onChange: function(e) { setTdForm(Object.assign({}, tdForm, { cost: e.target.value })); }
+                })
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Quantity (optional)"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", id: "td-quantity", type: "number", min: "1", placeholder: "e.g. 100",
+                  value: tdForm.quantity, onChange: function(e) { setTdForm(Object.assign({}, tdForm, { quantity: e.target.value })); }
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fr mb12" },
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Office"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", id: "td-office", type: "text", placeholder: "e.g. Miami North",
+                  value: tdForm.office, onChange: function(e) { setTdForm(Object.assign({}, tdForm, { office: e.target.value })); }
+                })
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Order / Box Ref (optional)"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", id: "td-order-ref", type: "text", placeholder: "e.g. ORD-001",
+                  value: tdForm.orderRef, onChange: function(e) { setTdForm(Object.assign({}, tdForm, { orderRef: e.target.value })); }
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fg mb12" },
+              /*#__PURE__*/React.createElement("label", { className: "fl" }, "Notes"),
+              /*#__PURE__*/React.createElement("textarea", { className: "fi", id: "td-notes", rows: 3, placeholder: "Additional notes...",
+                value: tdForm.notes, onChange: function(e) { setTdForm(Object.assign({}, tdForm, { notes: e.target.value })); }
+              })
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "row g10" },
+              /*#__PURE__*/React.createElement("button", { type: "submit", className: "btn btn-primary", id: "td-save-btn" }, "\u2713 Save Tape Direct Record")
+            )
+          )
+        )
+      ),
+      activeRecords.length > 0 && /*#__PURE__*/React.createElement("div", { className: "card mb18", id: "tape-direct-records-list" },
+        /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+          /*#__PURE__*/React.createElement("div", { className: "card-title" }, "Active Tape Direct Records"),
+          /*#__PURE__*/React.createElement("span", { className: "badge bg" }, activeRecords.length + " active")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "tbl" },
+          /*#__PURE__*/React.createElement("table", null,
+            /*#__PURE__*/React.createElement("thead", null,
+              /*#__PURE__*/React.createElement("tr", null,
+                /*#__PURE__*/React.createElement("th", null, "Status"),
+                /*#__PURE__*/React.createElement("th", null, "Vendor"),
+                /*#__PURE__*/React.createElement("th", null, "Cost"),
+                /*#__PURE__*/React.createElement("th", null, "Qty"),
+                /*#__PURE__*/React.createElement("th", null, "Office"),
+                /*#__PURE__*/React.createElement("th", null, "Order Ref"),
+                /*#__PURE__*/React.createElement("th", null, "Staff"),
+                /*#__PURE__*/React.createElement("th", null, "Timestamp"),
+                /*#__PURE__*/React.createElement("th", null, "Actions")
+              )
+            ),
+            /*#__PURE__*/React.createElement("tbody", null,
+              activeRecords.map(function(rec) {
+                return /*#__PURE__*/React.createElement("tr", { key: rec.id },
+                  /*#__PURE__*/React.createElement("td", null,
+                    /*#__PURE__*/React.createElement("span", { className: "badge " + (rec.enabled ? 'bg' : 'br'), style: { fontSize: 10 } }, rec.enabled ? 'TAPE DIRECT' : 'Disabled')
+                  ),
+                  /*#__PURE__*/React.createElement("td", null, rec.vendor || '-'),
+                  /*#__PURE__*/React.createElement("td", { className: "mono" }, rec.cost ? '$' + rec.cost.toFixed(2) : '-'),
+                  /*#__PURE__*/React.createElement("td", null, rec.quantity || '-'),
+                  /*#__PURE__*/React.createElement("td", null, rec.office || '-'),
+                  /*#__PURE__*/React.createElement("td", { className: "tamb" }, rec.orderRef || '-'),
+                  /*#__PURE__*/React.createElement("td", null, rec.staff),
+                  /*#__PURE__*/React.createElement("td", { className: "mono xs" }, rec.timestamp ? rec.timestamp.slice(0,16).replace('T',' ') : '-'),
+                  /*#__PURE__*/React.createElement("td", null,
+                    /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-xs", onClick: function() { voidRecord(rec.id); } }, "Void")
+                  )
+                );
+              })
+            )
+          )
+        )
+      ),
+      voidedRecords.length > 0 && /*#__PURE__*/React.createElement("div", { className: "card mb18" },
+        /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+          /*#__PURE__*/React.createElement("div", { className: "card-title", style: { color: "var(--text3)" } }, "Voided / Archived Records"),
+          /*#__PURE__*/React.createElement("span", { className: "badge bgr" }, voidedRecords.length + " voided")
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { padding: "10px 16px" } },
+          voidedRecords.map(function(rec) {
+            return /*#__PURE__*/React.createElement("div", { key: rec.id, style: { display: "flex", gap: 10, padding: "6px 0", borderBottom: "1px solid var(--border)", opacity: 0.6, fontSize: 12 } },
+              /*#__PURE__*/React.createElement("span", { className: "badge br", style: { fontSize: 9 } }, "VOIDED"),
+              /*#__PURE__*/React.createElement("span", null, rec.vendor || '-'),
+              /*#__PURE__*/React.createElement("span", { className: "mono" }, rec.cost ? '$' + rec.cost.toFixed(2) : '-'),
+              /*#__PURE__*/React.createElement("span", { style: { color: "var(--text4)" } }, rec.voided_at ? rec.voided_at.slice(0,10) : '')
+            );
+          })
+        )
+      ),
+      tdRecords.length === 0 && !showForm && /*#__PURE__*/React.createElement("div", { className: "alert alert-b", id: "td-empty-state" },
+        "\ud83d\udce6 No Tape Direct records yet. Click \u201C+ New Tape Direct Record\u201D to begin."
+      )
+    );
+  };
+
+  /* ── Box Sale Tracking Page ───────────────────────────────────── */
+  var BoxSaleTrackingPage = function BoxSaleTrackingPage(_ref_bsp) {
+    var session = _ref_bsp.session, notify = _ref_bsp.notify, roleKey = _ref_bsp.roleKey;
+    var BOX_SALE_KEY = 'casabe_box_sale_v1';
+    function loadBoxSales() {
+      try { return JSON.parse(localStorage.getItem(BOX_SALE_KEY) || '[]'); } catch(e) { return []; }
+    }
+    var _useState_bs = useState(loadBoxSales);
+    var bsRecords = _useState_bs[0], setBsRecords = _useState_bs[1];
+    var _useState_bs2 = useState(false);
+    var showBsForm = _useState_bs2[0], setShowBsForm = _useState_bs2[1];
+    var _useState_bs3 = useState({
+      boxType: 'large', quantity: '1', unitCost: '', salePrice: '', office: '', orderRef: '', notes: ''
+    });
+    var bsForm = _useState_bs3[0], setBsForm = _useState_bs3[1];
+    var isDriver = roleKey === 'driver';
+    function calcMargin() {
+      var qty = parseInt(bsForm.quantity) || 0;
+      var cost = parseFloat(bsForm.unitCost) || 0;
+      var price = parseFloat(bsForm.salePrice) || 0;
+      var totalRev = qty * price;
+      var totalCost = qty * cost;
+      var grossMargin = totalRev - totalCost;
+      var marginPct = price > 0 ? ((price - cost) / price * 100) : 0;
+      return { totalRev: totalRev, totalCost: totalCost, grossMargin: grossMargin, marginPct: marginPct };
+    }
+    var preview = calcMargin();
+    function saveBoxSale(e) {
+      e.preventDefault();
+      if (isDriver) return;
+      var rec = {
+        id: 'bs-' + Date.now(),
+        boxType: bsForm.boxType,
+        quantity: parseInt(bsForm.quantity) || 1,
+        unitCost: parseFloat(bsForm.unitCost) || 0,
+        salePrice: parseFloat(bsForm.salePrice) || 0,
+        totalRevenue: preview.totalRev,
+        totalCost: preview.totalCost,
+        grossMargin: preview.grossMargin,
+        marginPct: preview.marginPct,
+        office: bsForm.office,
+        orderRef: bsForm.orderRef,
+        notes: bsForm.notes,
+        staff: (session && (session.displayName || session.email)) || 'Staff',
+        timestamp: new Date().toISOString(),
+        status: 'active'
+      };
+      var updated = [rec].concat(bsRecords);
+      setBsRecords(updated);
+      try { localStorage.setItem(BOX_SALE_KEY, JSON.stringify(updated)); } catch(e) {}
+      setBsForm({ boxType: 'large', quantity: '1', unitCost: '', salePrice: '', office: '', orderRef: '', notes: '' });
+      setShowBsForm(false);
+      if (notify) notify('Box sale recorded.', 'green');
+    }
+    function voidBoxSale(id) {
+      if (isDriver) return;
+      var updated = bsRecords.map(function(r) {
+        return r.id === id ? Object.assign({}, r, { status: 'voided', voided_at: new Date().toISOString() }) : r;
+      });
+      setBsRecords(updated);
+      try { localStorage.setItem(BOX_SALE_KEY, JSON.stringify(updated)); } catch(e) {}
+      if (notify) notify('Box sale voided.', 'amber');
+    }
+    var activeRecords = bsRecords.filter(function(r) { return r.status === 'active'; });
+    return /*#__PURE__*/React.createElement("div", { className: "fu", id: "box-sale-tracking-panel" },
+      /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: 'wrap' } },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\ud83d\uddc3\ufe0f Box Sale Tracking"),
+          /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 2 } }, "Record empty box sales. Revenue, cost and margin are tracked for HQ/Office only.")
+        ),
+        !isDriver && /*#__PURE__*/React.createElement("div", { className: "mla" },
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary", id: "bs-new-record-btn", onClick: function() { setShowBsForm(!showBsForm); } }, "+ Record Box Sale")
+        )
+      ),
+      showBsForm && !isDriver && /*#__PURE__*/React.createElement("div", { className: "card mb18", id: "box-sale-form" },
+        /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+          /*#__PURE__*/React.createElement("div", { className: "card-title" }, "Record Box Sale"),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: function() { setShowBsForm(false); } }, "Cancel")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+          /*#__PURE__*/React.createElement("form", { onSubmit: saveBoxSale, id: "box-sale-record-form" },
+            /*#__PURE__*/React.createElement("div", { className: "fr mb12" },
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Box Type"),
+                /*#__PURE__*/React.createElement("select", { className: "fi", id: "bs-box-type", value: bsForm.boxType,
+                  onChange: function(e) { setBsForm(Object.assign({}, bsForm, { boxType: e.target.value })); }
+                },
+                  /*#__PURE__*/React.createElement("option", { value: "small" }, "Small"),
+                  /*#__PURE__*/React.createElement("option", { value: "medium" }, "Medium"),
+                  /*#__PURE__*/React.createElement("option", { value: "large" }, "Large"),
+                  /*#__PURE__*/React.createElement("option", { value: "oversized" }, "Oversized"),
+                  /*#__PURE__*/React.createElement("option", { value: "custom" }, "Custom")
+                )
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Quantity"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", id: "bs-quantity", type: "number", min: "1", required: true,
+                  value: bsForm.quantity, onChange: function(e) { setBsForm(Object.assign({}, bsForm, { quantity: e.target.value })); }
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fr mb12" },
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Unit Cost ($)"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", id: "bs-unit-cost", type: "number", min: "0", step: "0.01", required: true, placeholder: "0.00",
+                  value: bsForm.unitCost, onChange: function(e) { setBsForm(Object.assign({}, bsForm, { unitCost: e.target.value })); }
+                })
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Sale Price ($)"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", id: "bs-sale-price", type: "number", min: "0", step: "0.01", required: true, placeholder: "0.00",
+                  value: bsForm.salePrice, onChange: function(e) { setBsForm(Object.assign({}, bsForm, { salePrice: e.target.value })); }
+                })
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "fr mb12" },
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Office"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", id: "bs-office", type: "text", placeholder: "e.g. Miami North",
+                  value: bsForm.office, onChange: function(e) { setBsForm(Object.assign({}, bsForm, { office: e.target.value })); }
+                })
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "fg" },
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Order / Box Link (optional)"),
+                /*#__PURE__*/React.createElement("input", { className: "fi", id: "bs-order-ref", type: "text", placeholder: "Order ID or box ref",
+                  value: bsForm.orderRef, onChange: function(e) { setBsForm(Object.assign({}, bsForm, { orderRef: e.target.value })); }
+                })
+              )
+            ),
+            (bsForm.unitCost || bsForm.salePrice) && /*#__PURE__*/React.createElement("div", { className: "sg4 mb12", id: "bs-margin-preview" },
+              /*#__PURE__*/React.createElement("div", { className: "sc sc-a" },
+                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Total Revenue"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-val" }, "$" + preview.totalRev.toFixed(2))
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "sc sc-r" },
+                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Total Cost"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-val" }, "$" + preview.totalCost.toFixed(2))
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "sc sc-g" },
+                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Gross Margin"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-val" }, "$" + preview.grossMargin.toFixed(2))
+              ),
+              /*#__PURE__*/React.createElement("div", { className: "sc sc-b" },
+                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Margin %"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-val" }, preview.marginPct.toFixed(1) + "%")
+              )
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "row g10" },
+              /*#__PURE__*/React.createElement("button", { type: "submit", className: "btn btn-primary", id: "bs-save-btn" }, "\u2713 Save Box Sale Record")
+            )
+          )
+        )
+      ),
+      activeRecords.length > 0 && /*#__PURE__*/React.createElement("div", { className: "card mb18", id: "box-sale-records-list" },
+        /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+          /*#__PURE__*/React.createElement("div", { className: "card-title" }, "Box Sale Records"),
+          /*#__PURE__*/React.createElement("span", { className: "badge bg" }, activeRecords.length + " records")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "tbl" },
+          /*#__PURE__*/React.createElement("table", null,
+            /*#__PURE__*/React.createElement("thead", null,
+              /*#__PURE__*/React.createElement("tr", null,
+                /*#__PURE__*/React.createElement("th", null, "Box Type"),
+                /*#__PURE__*/React.createElement("th", null, "Qty"),
+                /*#__PURE__*/React.createElement("th", null, "Unit Cost"),
+                /*#__PURE__*/React.createElement("th", null, "Sale Price"),
+                /*#__PURE__*/React.createElement("th", null, "Total Revenue"),
+                /*#__PURE__*/React.createElement("th", null, "Total Cost"),
+                /*#__PURE__*/React.createElement("th", null, "Gross Margin"),
+                /*#__PURE__*/React.createElement("th", null, "Margin %"),
+                /*#__PURE__*/React.createElement("th", null, "Office"),
+                /*#__PURE__*/React.createElement("th", null, "Staff"),
+                /*#__PURE__*/React.createElement("th", null, "Date"),
+                /*#__PURE__*/React.createElement("th", null, "Actions")
+              )
+            ),
+            /*#__PURE__*/React.createElement("tbody", null,
+              activeRecords.map(function(rec) {
+                return /*#__PURE__*/React.createElement("tr", { key: rec.id },
+                  /*#__PURE__*/React.createElement("td", { className: "tb" }, rec.boxType),
+                  /*#__PURE__*/React.createElement("td", null, rec.quantity),
+                  /*#__PURE__*/React.createElement("td", { className: "mono" }, '$' + (rec.unitCost || 0).toFixed(2)),
+                  /*#__PURE__*/React.createElement("td", { className: "mono" }, '$' + (rec.salePrice || 0).toFixed(2)),
+                  /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--amber)" } }, '$' + (rec.totalRevenue || 0).toFixed(2)),
+                  /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--red)" } }, '$' + (rec.totalCost || 0).toFixed(2)),
+                  /*#__PURE__*/React.createElement("td", { className: "mono", style: { color: "var(--green)" } }, '$' + (rec.grossMargin || 0).toFixed(2)),
+                  /*#__PURE__*/React.createElement("td", { className: "mono" }, (rec.marginPct || 0).toFixed(1) + '%'),
+                  /*#__PURE__*/React.createElement("td", null, rec.office || '-'),
+                  /*#__PURE__*/React.createElement("td", null, rec.staff),
+                  /*#__PURE__*/React.createElement("td", { className: "mono xs" }, rec.timestamp ? rec.timestamp.slice(0,10) : '-'),
+                  /*#__PURE__*/React.createElement("td", null,
+                    /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-xs", onClick: function() { voidBoxSale(rec.id); } }, "Void")
+                  )
+                );
+              })
+            )
+          )
+        )
+      ),
+      bsRecords.length === 0 && !showBsForm && /*#__PURE__*/React.createElement("div", { className: "alert alert-b", id: "bs-empty-state" },
+        "\ud83d\uddc3\ufe0f No box sales recorded yet. Click \u201C+ Record Box Sale\u201D to start."
+      )
+    );
+  };
+
+  /* ── Margin Summary Page ──────────────────────────────────────── */
+  var MarginSummaryPage = function MarginSummaryPage(_ref_msp) {
+    var roleKey = _ref_msp.roleKey, officeFilter = _ref_msp.officeFilter;
+    // Driver gate: enforced at component level
+    if (roleKey === 'driver') {
+      return /*#__PURE__*/React.createElement("div", { className: "fu", id: "margin-summary-panel" },
+        /*#__PURE__*/React.createElement("div", { className: "alert alert-r" }, "\ud83d\udeab Access denied. Margin data is not available to drivers.")
+      );
+    }
+    var BOX_SALE_KEY = 'casabe_box_sale_v1';
+    var TD_KEY = 'casabe_tape_direct_v1';
+    function loadAll(key) {
+      try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) { return []; }
+    }
+    var _useState_ms = useState('all');
+    var officeFilterLocal = _useState_ms[0], setOfficeFilterLocal = _useState_ms[1];
+    var bsAll = loadAll(BOX_SALE_KEY).filter(function(r) { return r.status === 'active'; });
+    var tdAll = loadAll(TD_KEY).filter(function(r) { return r.status === 'active'; });
+    // Office role: scope to own office
+    var bsFiltered = roleKey === 'office' && officeFilter ? bsAll.filter(function(r) { return r.office === officeFilter; }) : (officeFilterLocal !== 'all' ? bsAll.filter(function(r) { return r.office === officeFilterLocal; }) : bsAll);
+    var tdFiltered = roleKey === 'office' && officeFilter ? tdAll.filter(function(r) { return r.office === officeFilter; }) : (officeFilterLocal !== 'all' ? tdAll.filter(function(r) { return r.office === officeFilterLocal; }) : tdAll);
+    var totalRevenue = bsFiltered.reduce(function(sum, r) { return sum + (r.totalRevenue || 0); }, 0);
+    var totalCost = bsFiltered.reduce(function(sum, r) { return sum + (r.totalCost || 0); }, 0);
+    var grossMargin = totalRevenue - totalCost;
+    var marginPct = totalRevenue > 0 ? (grossMargin / totalRevenue * 100) : 0;
+    var tdCost = tdFiltered.reduce(function(sum, r) { return sum + (r.cost || 0); }, 0);
+    // Collect unique offices for filter (HQ only)
+    var offices = roleKey === 'hq' ? Array.from(new Set(bsAll.map(function(r) { return r.office; }).filter(Boolean))) : [];
+    return /*#__PURE__*/React.createElement("div", { className: "fu", id: "margin-summary-panel" },
+      /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: 'wrap' } },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\ud83d\udcca Margin Summary"),
+          /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 2 } },
+            roleKey === 'hq' ? "Tenant-wide margin data. Use office filter to drill down." : "Showing your office data only."
+          )
+        ),
+        roleKey === 'hq' && offices.length > 0 && /*#__PURE__*/React.createElement("div", { className: "mla", style: { display: 'flex', gap: 8, alignItems: 'center' } },
+          /*#__PURE__*/React.createElement("span", { className: "mut xs" }, "Office:"),
+          /*#__PURE__*/React.createElement("select", { className: "fi", id: "margin-office-filter", style: { width: 160 }, value: officeFilterLocal,
+            onChange: function(e) { setOfficeFilterLocal(e.target.value); }
+          },
+            /*#__PURE__*/React.createElement("option", { value: "all" }, "All Offices"),
+            offices.map(function(o) { return /*#__PURE__*/React.createElement("option", { key: o, value: o }, o); })
+          )
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "sg4 mb18", id: "margin-summary-stats" },
+        /*#__PURE__*/React.createElement("div", { className: "sc sc-a" },
+          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Total Revenue"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-val" }, "$" + totalRevenue.toFixed(2)),
+          /*#__PURE__*/React.createElement("div", { className: "sc-delta delta-n" }, "Box sales")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "sc sc-r" },
+          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Total Cost"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-val" }, "$" + totalCost.toFixed(2)),
+          /*#__PURE__*/React.createElement("div", { className: "sc-delta delta-n" }, "Box cost")
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "sc sc-g" },
+          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Gross Margin"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-val" }, "$" + grossMargin.toFixed(2)),
+          /*#__PURE__*/React.createElement("div", { className: "sc-delta " + (grossMargin >= 0 ? 'delta-u' : 'delta-d') },
+            (grossMargin >= 0 ? '\u2191 ' : '\u2193 ') + marginPct.toFixed(1) + "% margin"
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "sc sc-b" },
+          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Margin %"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-val" }, marginPct.toFixed(1) + "%"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-delta delta-n" }, "Gross margin rate")
+        )
+      ),
+      /*#__PURE__*/React.createElement("div", { className: "g2 mb18" },
+        /*#__PURE__*/React.createElement("div", { className: "card" },
+          /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+            /*#__PURE__*/React.createElement("div", { className: "card-title" }, "Tape Direct Records"),
+            /*#__PURE__*/React.createElement("span", { className: "badge bb" }, tdFiltered.length + " records")
+          ),
+          /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+            /*#__PURE__*/React.createElement("div", { className: "sc-val" }, tdFiltered.length),
+            /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "Active tape direct records"),
+            tdFiltered.length > 0 && /*#__PURE__*/React.createElement("div", { className: "row g6 mt", style: { marginTop: 8 } },
+              /*#__PURE__*/React.createElement("span", { className: "mut xs" }, "Total TD cost:"),
+              /*#__PURE__*/React.createElement("span", { className: "mono", style: { color: "var(--amber)" } }, "$" + tdCost.toFixed(2))
+            )
+          )
+        ),
+        /*#__PURE__*/React.createElement("div", { className: "card" },
+          /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+            /*#__PURE__*/React.createElement("div", { className: "card-title" }, "Box Sale Records"),
+            /*#__PURE__*/React.createElement("span", { className: "badge bg" }, bsFiltered.length + " records")
+          ),
+          /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+            /*#__PURE__*/React.createElement("div", { className: "sc-val" }, bsFiltered.length),
+            /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "Active box sale records"),
+            bsFiltered.length > 0 && /*#__PURE__*/React.createElement("div", { className: "row g6 mt", style: { marginTop: 8 } },
+              /*#__PURE__*/React.createElement("span", { className: "mut xs" }, "Avg margin:"),
+              /*#__PURE__*/React.createElement("span", { className: "mono", style: { color: "var(--green)" } }, marginPct.toFixed(1) + "%")
+            )
+          )
+        )
+      ),
+      (bsFiltered.length === 0 && tdFiltered.length === 0) && /*#__PURE__*/React.createElement("div", { className: "alert alert-b", id: "margin-empty-state" },
+        "No records found. Add Tape Direct or Box Sale records to see margin data."
+      )
+    );
+  };
+
   var renderPage = function renderPage() {
     // HQ pages
     if (page === "overview") return /*#__PURE__*/React.createElement(HQOverview, {
@@ -25886,6 +26419,12 @@ setOrders(function (prev) {
     });
     // Phase 6 — Slice 1: Map View (HQ-only, role gate enforced by nav config)
     if (page === "map_view") return /*#__PURE__*/React.createElement(MapViewPage, { orders: orders, session: session, notify: notify, driversList: tenantDrivers, onCoordOverride: function(oid, patch) { setOrders(function(prev) { return prev.map(function(o) { return o.id === oid ? Object.assign({}, o, patch) : o; }); }); } });
+    // Phase 6 — Slice 4: Tape Direct (HQ + Office)
+    if (page === "tape_direct") return /*#__PURE__*/React.createElement(TapeDirectPage, { session: session, notify: notify, roleKey: roleKey });
+    // Phase 6 — Slice 4: Box Sale Tracking (HQ + Office; no driver margin)
+    if (page === "box_sale") return /*#__PURE__*/React.createElement(BoxSaleTrackingPage, { session: session, notify: notify, roleKey: roleKey });
+    // Phase 6 — Slice 4: Margin Summary (HQ tenant-wide; Office scoped; Driver blocked)
+    if (page === "margin_summary") return /*#__PURE__*/React.createElement(MarginSummaryPage, { roleKey: roleKey, officeFilter: null });
     if (page === "batches") return /*#__PURE__*/React.createElement("div", {
       className: "fu"
     }, /*#__PURE__*/React.createElement("div", {
