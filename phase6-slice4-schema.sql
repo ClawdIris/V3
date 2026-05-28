@@ -3,7 +3,7 @@
 -- Schema: tape_direct_records + box_sale_records
 -- ═══════════════════════════════════════════════════════════════════
 --
--- STATUS: PENDING — DO NOT APPLY without Forge + Delta review
+-- STATUS: APPLIED — live on Supabase, verified by Jefe/Codex. DO NOT RE-RUN.
 -- Written by: Bolt (subagent)
 -- Date: 2026-05-28
 -- Project: Casabe Konnect R4 (Supabase: exayifxbqduhsxmmsnxr)

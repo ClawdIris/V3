@@ -3,7 +3,7 @@
 -- Migration: Add lat/lon + coordinate_status to orders table
 -- ═══════════════════════════════════════════════════════════════════
 --
--- STATUS: PENDING — do NOT apply without Jefe review
+-- STATUS: APPLIED — live on Supabase, verified by Jefe/Codex. DO NOT RE-RUN.
 -- Written by: Bolt (subagent)
 -- Date: 2026-05-28
 -- Project: Casabe Konnect R4 (Supabase: exayifxbqduhsxmmsnxr)
