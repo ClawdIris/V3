@@ -21982,6 +21982,11 @@ var ROLES = {
         ls: "Config. Proveedor",
         i: "⚙️"
       }, {
+        k: "msg_queue",
+        l: "Message Queue",
+        ls: "Cola de Mensajes",
+        i: "📬"
+      }, {
         k: "campaigns",
         l: "Campaigns",
         ls: "Campañas",
@@ -22054,7 +22059,7 @@ var ROLES = {
       tape_direct: "Tape Direct",
       box_sale: "Box Sale Tracking",
       margin_summary: "Margin Summary",
-      msg_templates: "Message Templates", msg_provider: "Provider Config"
+      msg_templates: "Message Templates", msg_queue: "Message Queue", msg_provider: "Provider Config", msg_queue: "Message Queue"
     }
   },
   office: {
@@ -24911,7 +24916,7 @@ setOrders(function (prev) {
     setRoleKey(r);
     // Validate page for new role and reset if invalid
     var newPage = r === "hq" ? "overview" : r === "office" ? "ow_dash" : "driver_route";
-    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view", "tape_direct", "box_sale", "margin_summary", "msg_templates", "msg_provider"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices", "tape_direct", "box_sale", "margin_summary", "msg_templates"] : ["driver_route", "driver_proof"];
+    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view", "tape_direct", "box_sale", "margin_summary", "msg_templates", "msg_provider", "msg_queue"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices", "tape_direct", "box_sale", "margin_summary", "msg_templates", "msg_queue"] : ["driver_route", "driver_proof"];
     var shouldResetPage = !validPages.includes(page);
     setPage(shouldResetPage ? newPage : page);
   };
@@ -26291,6 +26296,8 @@ setOrders(function (prev) {
     var channelMode = _useState_mtp3[0], setChannelMode = _useState_mtp3[1];
     var _useState_mtp4 = useState("en");
     var langMode = _useState_mtp4[0], setLangMode = _useState_mtp4[1];
+    var _useState_mtp5 = useState(null);
+    var _queuedId = _useState_mtp5[0], setQueuedId = _useState_mtp5[1];
 
     /* Fill placeholders with sample data */
     function fillTemplate(body, data) {
@@ -26531,15 +26538,36 @@ setOrders(function (prev) {
                     )
                   ),
 
-                  /* SEND BUTTON — permanently disabled in Stage 1 */
-                  /*#__PURE__*/React.createElement("div", { style: { marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border)" } },
-                    /*#__PURE__*/React.createElement("button", {
-                      className: "btn btn-ghost",
-                      id: "send-disabled-btn",
-                      disabled: true,
-                      title: "Sending is disabled in Stage 1. Real send logic arrives in Stage 2.",
-                      style: { opacity: 0.45, cursor: "not-allowed", width: "100%", justifyContent: "center" }
-                    }, "\ud83d\udd12 Sending disabled \u2014 Stage 2")
+                  /* STAGE 3: Queue Message (no send) */
+                  React.createElement("div", { style: { marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--border)" } },
+                    _queuedId
+                      ? React.createElement("div", { className: "alert alert-b", style: { marginBottom: 0, fontSize: 12 }, id: "queue-success-banner" },
+                          "\u2705 Queued only \u2014 no message sent. Record ID: " + _queuedId.slice(-8) + ". View in Message Queue."
+                        )
+                      : React.createElement(React.Fragment, null,
+                          React.createElement("button", {
+                            className: "btn btn-primary",
+                            id: "queue-message-btn",
+                            onClick: function() {
+                              if (!tpl || !filledBody) return;
+                              var rec = mqAdd({
+                                tenant_id: "local",
+                                order_id: null,
+                                recipient_phone: "+13055550000",
+                                channel: channelMode,
+                                template_key: tpl.id,
+                                rendered_body: filledBody,
+                                status: "queued",
+                                created_by: "hq-preview"
+                              });
+                              setQueuedId(rec.id);
+                            },
+                            style: { width: "100%", justifyContent: "center" }
+                          }, "\uD83D\uDCEC Queue Message \u2014 No Send"),
+                          React.createElement("div", { className: "mut xs", style: { marginTop: 6, textAlign: "center", fontSize: 11 } },
+                            "\uD83D\uDEAB Queued only \u2014 no message will be sent. Real delivery: Stage 4."
+                          )
+                        )
                   )
                 )
               )
@@ -26681,6 +26709,196 @@ setOrders(function (prev) {
     );
   };
   /* END Phase 6 Slice 5 Stage 2: ProviderConfigPage */
+
+  /* ══════════════════════════════════════════════════════════════
+     Phase 6 — Slice 5 Stage 3: MessageQueuePage + queue helpers
+     No real Twilio sends. Records = intended sends only.
+     Actual delivery: Edge Function sms-send (Stage 4).
+  ══════════════════════════════════════════════════════════════ */
+
+  /* In-session queue store (pre-schema apply; swapped for Supabase in Stage 4) */
+  var _msgQueueStore = [];
+  var _msgQueueListeners = [];
+  function _mqNotify() { _msgQueueListeners.forEach(function(fn) { fn([].concat(_msgQueueStore)); }); }
+  function mqAdd(record) {
+    var rec = Object.assign({ id: "local-" + Date.now() + "-" + Math.random().toString(36).slice(2), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), sent_at: null, provider_message_id: null, error_message: null }, record);
+    _msgQueueStore.unshift(rec);
+    _mqNotify();
+    return rec;
+  }
+  function mqCancel(id) {
+    var rec = _msgQueueStore.find(function(r) { return r.id === id; });
+    if (rec && (rec.status === "draft" || rec.status === "queued")) {
+      rec.status = "cancelled";
+      rec.updated_at = new Date().toISOString();
+      _mqNotify();
+      return true;
+    }
+    return false;
+  }
+  function mqUseStore() {
+    var _s = useState([].concat(_msgQueueStore));
+    var records = _s[0], setRecords = _s[1];
+    useEffect(function() {
+      var fn = function(r) { setRecords(r); };
+      _msgQueueListeners.push(fn);
+      setRecords([].concat(_msgQueueStore));
+      return function() { _msgQueueListeners = _msgQueueListeners.filter(function(f) { return f !== fn; }); };
+    }, []);
+    return records;
+  }
+
+  /* Status badge helper */
+  function mqStatusBadge(status) {
+    var map = {
+      draft:     { cls: "ba", label: "Draft" },
+      queued:    { cls: "bp", label: "Queued" },
+      blocked:   { cls: "br", label: "Blocked" },
+      sent:      { cls: "bg", label: "Sent" },
+      failed:    { cls: "br", label: "Failed" },
+      cancelled: { cls: "bgr", label: "Cancelled" }
+    };
+    var s = map[status] || { cls: "ba", label: status };
+    return React.createElement("span", { className: "badge " + s.cls }, s.label);
+  }
+
+  var MessageQueuePage = function MessageQueuePage(_ref_mqp) {
+    var roleKey = _ref_mqp.roleKey, currentUser = _ref_mqp.currentUser;
+
+    if (!roleKey || roleKey === "driver") {
+      return React.createElement("div", { className: "fu", style: { textAlign: "center", padding: "60px 20px" } },
+        React.createElement("div", { style: { fontSize: 40, marginBottom: 12 } }, "\uD83D\uDEAB"),
+        React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 16, color: "var(--red)" } }, "Access Denied"),
+        React.createElement("div", { className: "mut xs", style: { marginTop: 6 } }, "Message queue is not available for drivers.")
+      );
+    }
+
+    var records = mqUseStore();
+    var _sf = useState("all"), filterStatus = _sf[0], setFilterStatus = _sf[1];
+    var _sc = useState(null), confirmCancel = _sc[0], setConfirmCancel = _sc[1];
+
+    /* Office scoping: only show records linked to their orders.
+       Since this is pre-Supabase, office filter is advisory only (enforced by RLS post-schema). */
+    var visible = records.filter(function(r) {
+      if (filterStatus !== "all" && r.status !== filterStatus) return false;
+      return true; /* RLS handles real scoping; local store is HQ-seeded only */
+    });
+
+    var statusCounts = records.reduce(function(acc, r) {
+      acc[r.status] = (acc[r.status] || 0) + 1; return acc;
+    }, {});
+
+    return React.createElement("div", { className: "fu", id: "msg-queue-panel" },
+
+      /* Header */
+      React.createElement("div", { className: "row g10 mb18", style: { flexWrap: "wrap" } },
+        React.createElement("div", null,
+          React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\uD83D\uDCEC Message Queue"),
+          React.createElement("div", { className: "mut xs", style: { marginTop: 2 } },
+            roleKey === "hq"
+              ? "All outbound message records \u2014 tenant-wide."
+              : "Outbound message records for your office orders."
+          )
+        ),
+        React.createElement("div", { className: "mla" },
+          React.createElement("div", { className: "alert alert-b", style: { marginBottom: 0, fontSize: 11 } },
+            "\uD83D\uDEAB Stage 3 \u2014 Queued only. No message is sent."
+          )
+        )
+      ),
+
+      /* Stat cards */
+      React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }, id: "queue-stat-cards" },
+        [["draft","Draft","-"],["queued","Queued","bp"],["sent","Sent","bg"],["failed","Failed","br"],["cancelled","Cancelled","bgr"]].map(function(row) {
+          return React.createElement("div", { key: row[0], className: "card", style: { minWidth: 110, flex: "1 1 110px", padding: "10px 14px", cursor: "pointer", borderBottom: filterStatus === row[0] ? "2px solid var(--amber)" : "2px solid transparent" },
+            onClick: function() { setFilterStatus(filterStatus === row[0] ? "all" : row[0]); } },
+            React.createElement("div", { style: { fontSize: 20, fontWeight: 800 } }, statusCounts[row[0]] || 0),
+            React.createElement("div", { className: "mut xs" }, row[1])
+          );
+        })
+      ),
+
+      /* Filter chips */
+      React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }, id: "queue-filter-chips" },
+        React.createElement("button", { className: "btn btn-sm" + (filterStatus === "all" ? " btn-primary" : " btn-ghost"), onClick: function() { setFilterStatus("all"); } }, "All (" + records.length + ")"),
+        ["queued","draft","sent","failed","blocked","cancelled"].map(function(s) {
+          return React.createElement("button", { key: s, className: "btn btn-sm" + (filterStatus === s ? " btn-primary" : " btn-ghost"), onClick: function() { setFilterStatus(s); } }, s.charAt(0).toUpperCase() + s.slice(1) + " (" + (statusCounts[s] || 0) + ")");
+        })
+      ),
+
+      /* Empty state */
+      visible.length === 0 && React.createElement("div", { className: "card", id: "queue-empty-state" },
+        React.createElement("div", { className: "card-bd", style: { textAlign: "center", padding: "40px 20px", color: "var(--text3)" } },
+          React.createElement("div", { style: { fontSize: 32, marginBottom: 8 } }, "\uD83D\uDCEC"),
+          React.createElement("div", { style: { fontWeight: 700 } }, filterStatus === "all" ? "No messages queued yet." : "No " + filterStatus + " messages."),
+          React.createElement("div", { className: "mut xs", style: { marginTop: 4 } }, "Queue a message from the Message Templates page.")
+        )
+      ),
+
+      /* Records table */
+      visible.length > 0 && React.createElement("div", { className: "card", id: "queue-records-table" },
+        React.createElement("div", { className: "card-hd" },
+          React.createElement("div", { className: "card-title" }, "Records"),
+          React.createElement("span", { className: "badge ba" }, visible.length)
+        ),
+        React.createElement("div", { style: { overflowX: "auto" } },
+          React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
+            React.createElement("thead", null,
+              React.createElement("tr", { style: { borderBottom: "1px solid var(--border)" } },
+                ["Status","Channel","Template","Recipient","Order","Created","Actions"].map(function(h) {
+                  return React.createElement("th", { key: h, style: { padding: "8px 12px", textAlign: "left", color: "var(--text4)", fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em" } }, h);
+                })
+              )
+            ),
+            React.createElement("tbody", null,
+              visible.map(function(r, i) {
+                return React.createElement("tr", { key: r.id, id: "queue-row-" + r.id, style: { borderBottom: "1px solid var(--border2)", background: i % 2 === 0 ? "transparent" : "var(--bg3)" } },
+                  React.createElement("td", { style: { padding: "8px 12px" } }, mqStatusBadge(r.status)),
+                  React.createElement("td", { style: { padding: "8px 12px" } }, React.createElement("span", { className: "badge bt" }, r.channel.toUpperCase())),
+                  React.createElement("td", { style: { padding: "8px 12px", color: "var(--text2)", fontSize: 11 } }, r.template_key),
+                  React.createElement("td", { style: { padding: "8px 12px", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "var(--text3)" } }, r.recipient_phone),
+                  React.createElement("td", { style: { padding: "8px 12px", color: "var(--text3)", fontSize: 11 } }, r.order_id || "\u2014"),
+                  React.createElement("td", { style: { padding: "8px 12px", color: "var(--text4)", fontSize: 10 } }, r.created_at ? r.created_at.slice(0,16).replace("T"," ") : ""),
+                  React.createElement("td", { style: { padding: "8px 12px" } },
+                    (r.status === "draft" || r.status === "queued")
+                      ? React.createElement("button", {
+                          className: "btn btn-sm btn-ghost",
+                          id: "cancel-btn-" + r.id,
+                          onClick: function() { setConfirmCancel(r.id); },
+                          style: { color: "var(--red)", fontSize: 11 }
+                        }, "\u2715 Cancel")
+                      : React.createElement("span", { style: { color: "var(--text4)", fontSize: 10 } }, "\u2014")
+                  )
+                );
+              })
+            )
+          )
+        )
+      ),
+
+      /* Cancel confirmation modal */
+      confirmCancel && React.createElement("div", {
+        style: { position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" },
+        id: "cancel-confirm-modal"
+      },
+        React.createElement("div", { className: "card", style: { maxWidth: 380, width: "90%", padding: 24 } },
+          React.createElement("div", { style: { fontWeight: 800, fontSize: 15, marginBottom: 8 } }, "Cancel this message?"),
+          React.createElement("div", { className: "mut xs", style: { marginBottom: 16 } }, "This will archive the record with status \u2018cancelled\u2019. No message has been sent."),
+          React.createElement("div", { style: { display: "flex", gap: 10, justifyContent: "flex-end" } },
+            React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: function() { setConfirmCancel(null); } }, "Keep"),
+            React.createElement("button", {
+              className: "btn btn-sm",
+              id: "confirm-cancel-btn",
+              style: { background: "var(--red)", color: "#fff" },
+              onClick: function() { mqCancel(confirmCancel); setConfirmCancel(null); }
+            }, "Cancel Message")
+          )
+        )
+      )
+    );
+  };
+  /* END Phase 6 Slice 5 Stage 3: MessageQueuePage */
+
 
 
   var renderPage = function renderPage() {
@@ -27009,6 +27227,7 @@ setOrders(function (prev) {
     // Phase 6 — Slice 5 Stage 1: Message Templates (HQ + Office only; Driver blocked)
     if (page === "msg_templates") return /*#__PURE__*/React.createElement(MessageTemplatesPage, { roleKey: roleKey });
     if (page === "msg_provider") return /*#__PURE__*/React.createElement(ProviderConfigPage, { roleKey: roleKey, supabase: supabase });
+    if (page === "msg_queue") return /*#__PURE__*/React.createElement(MessageQueuePage, { roleKey: roleKey, currentUser: currentUser });
     if (page === "batches") return /*#__PURE__*/React.createElement("div", {
       className: "fu"
     }, /*#__PURE__*/React.createElement("div", {
