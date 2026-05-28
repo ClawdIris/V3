@@ -22117,6 +22117,11 @@ var ROLES = {
         ls: "Ventas de Cajas",
         i: "🗃️"
       }, {
+        k: "margin_summary",
+        l: "Margin Summary",
+        ls: "Resumen de Margen",
+        i: "📊"
+      }, {
         k: "campaigns",
         l: "Campaigns",
         ls: "Campañas",
@@ -22134,7 +22139,8 @@ var ROLES = {
       campaigns: "Campaigns",
       receipts_invoices: "Receipts & Invoices",
       tape_direct: "Tape Direct",
-      box_sale: "Box Sale Tracking"
+      box_sale: "Box Sale Tracking",
+      margin_summary: "Margin Summary"
     }
   },
   driver: {
@@ -24888,7 +24894,7 @@ setOrders(function (prev) {
     setRoleKey(r);
     // Validate page for new role and reset if invalid
     var newPage = r === "hq" ? "overview" : r === "office" ? "ow_dash" : "driver_route";
-    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view", "tape_direct", "box_sale", "margin_summary"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices", "tape_direct", "box_sale"] : ["driver_route", "driver_proof"];
+    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view", "tape_direct", "box_sale", "margin_summary"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices", "tape_direct", "box_sale", "margin_summary"] : ["driver_route", "driver_proof"];
     var shouldResetPage = !validPages.includes(page);
     setPage(shouldResetPage ? newPage : page);
   };
@@ -25614,14 +25620,13 @@ setOrders(function (prev) {
     var tdForm = _useState_td[0], setTdForm = _useState_td[1];
     var _useState_td2 = useState(false);
     var showForm = _useState_td2[0], setShowForm = _useState_td2[1];
-    // Local state records (persisted to localStorage for demo; real app uses Supabase)
     var TD_KEY = 'casabe_tape_direct_v1';
     function loadTDRecords() {
       try { return JSON.parse(localStorage.getItem(TD_KEY) || '[]'); } catch(e) { return []; }
     }
     var _useState_td3 = useState(loadTDRecords);
     var tdRecords = _useState_td3[0], setTdRecords = _useState_td3[1];
-    function saveTDRecord(e) {
+    async function saveTDRecord(e) {
       e.preventDefault();
       var rec = {
         id: 'td-' + Date.now(),
@@ -25636,6 +25641,22 @@ setOrders(function (prev) {
         timestamp: new Date().toISOString(),
         status: 'active'
       };
+      var sbPayload = {
+        enabled: rec.enabled,
+        vendor_name: rec.vendor,
+        cost: rec.cost,
+        quantity: rec.quantity,
+        notes: rec.notes,
+        office_id: rec.office || null,
+        order_id: rec.orderRef || null,
+        staff_email: rec.staff,
+        status: rec.status
+      };
+      var _sbTD = await _supabase.from('tape_direct_records').insert([sbPayload]);
+      if (_sbTD.error) {
+        if (notify) notify('Save failed: ' + _sbTD.error.message, 'red');
+        return;
+      }
       var updated = [rec].concat(tdRecords);
       setTdRecords(updated);
       try { localStorage.setItem(TD_KEY, JSON.stringify(updated)); } catch(e) {}
@@ -25653,6 +25674,13 @@ setOrders(function (prev) {
     }
     var activeRecords = tdRecords.filter(function(r) { return r.status === 'active'; });
     var voidedRecords = tdRecords.filter(function(r) { return r.status !== 'active'; });
+    if (!roleKey || roleKey === 'driver') {
+      return React.createElement('div', { className: 'p-8 text-center text-red-400' },
+        React.createElement('div', { className: 'text-4xl mb-4' }, '🚫'),
+        React.createElement('p', { className: 'text-lg font-semibold' }, 'Access Denied'),
+        React.createElement('p', { className: 'text-sm text-gray-500 mt-2' }, 'Tape Direct is not available for your role.')
+      );
+    }
     return /*#__PURE__*/React.createElement("div", { className: "fu", id: "tape-direct-panel" },
       /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: 'wrap' } },
         /*#__PURE__*/React.createElement("div", null,
@@ -25818,7 +25846,7 @@ setOrders(function (prev) {
       return { totalRev: totalRev, totalCost: totalCost, grossMargin: grossMargin, marginPct: marginPct };
     }
     var preview = calcMargin();
-    function saveBoxSale(e) {
+    async function saveBoxSale(e) {
       e.preventDefault();
       if (isDriver) return;
       var rec = {
@@ -25838,6 +25866,22 @@ setOrders(function (prev) {
         timestamp: new Date().toISOString(),
         status: 'active'
       };
+      var sbPayload = {
+        box_type: rec.boxType,
+        quantity: rec.quantity,
+        unit_cost: rec.unitCost,
+        sale_price: rec.salePrice,
+        office_id: rec.office || null,
+        order_id: rec.orderRef || null,
+        notes: rec.notes,
+        staff_email: rec.staff,
+        status: rec.status
+      };
+      var _sbBS = await _supabase.from('box_sale_records').insert([sbPayload]);
+      if (_sbBS.error) {
+        if (notify) notify('Save failed: ' + _sbBS.error.message, 'red');
+        return;
+      }
       var updated = [rec].concat(bsRecords);
       setBsRecords(updated);
       try { localStorage.setItem(BOX_SALE_KEY, JSON.stringify(updated)); } catch(e) {}
@@ -25855,6 +25899,13 @@ setOrders(function (prev) {
       if (notify) notify('Box sale voided.', 'amber');
     }
     var activeRecords = bsRecords.filter(function(r) { return r.status === 'active'; });
+    if (!roleKey || roleKey === 'driver') {
+      return React.createElement('div', { className: 'p-8 text-center text-red-400' },
+        React.createElement('div', { className: 'text-4xl mb-4' }, '🚫'),
+        React.createElement('p', { className: 'text-lg font-semibold' }, 'Access Denied'),
+        React.createElement('p', { className: 'text-sm text-gray-500 mt-2' }, 'Box sale data is not available for your role.')
+      );
+    }
     return /*#__PURE__*/React.createElement("div", { className: "fu", id: "box-sale-tracking-panel" },
       /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: 'wrap' } },
         /*#__PURE__*/React.createElement("div", null,
@@ -26424,7 +26475,7 @@ setOrders(function (prev) {
     // Phase 6 — Slice 4: Box Sale Tracking (HQ + Office; no driver margin)
     if (page === "box_sale") return /*#__PURE__*/React.createElement(BoxSaleTrackingPage, { session: session, notify: notify, roleKey: roleKey });
     // Phase 6 — Slice 4: Margin Summary (HQ tenant-wide; Office scoped; Driver blocked)
-    if (page === "margin_summary") return /*#__PURE__*/React.createElement(MarginSummaryPage, { roleKey: roleKey, officeFilter: null });
+    if (page === "margin_summary") return /*#__PURE__*/React.createElement(MarginSummaryPage, { roleKey: roleKey, officeFilter: (function(){ if (roleKey !== 'office') return null; var _off = (tenant && tenant.__dbOffices) || []; var _firstOff = _off.find(function(o){ return o.slug === 'casabe-xpress-ny'; }) || _off[0]; return _firstOff ? _firstOff.id : null; })() });
     if (page === "batches") return /*#__PURE__*/React.createElement("div", {
       className: "fu"
     }, /*#__PURE__*/React.createElement("div", {
