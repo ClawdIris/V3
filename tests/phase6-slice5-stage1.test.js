@@ -33,3 +33,25 @@ describe('Phase 6 Slice 5 Stage 1 — Message Templates', () => {
     scriptRefs.forEach(ref => expect(fs.existsSync(ref)).toBe(true));
   });
 });
+
+describe('Phase 6 Slice 5 Stage 2 — Provider Config', () => {
+  test('ProviderConfigPage component exists', () => expect(src).toContain('var ProviderConfigPage'));
+  test('msg_provider in HQ validPages', () => expect(src).toMatch(/"msg_provider"/));
+  test('msg_provider NOT in Office validPages', () => {
+    const m = src.match(/validPages\s*=.*?\[([^\]]+)\].*?\[([^\]]+)\].*?\[([^\]]+)\]/);
+    expect(m ? m[2] : '').not.toContain('msg_provider');
+  });
+  test('msg_provider NOT in Driver validPages', () => {
+    const m = src.match(/validPages\s*=.*?\[([^\]]+)\].*?\[([^\]]+)\].*?\[([^\]]+)\]/);
+    expect(m ? m[3] : '').not.toContain('msg_provider');
+  });
+  test('HQ-only gate enforced at render level', () => expect(src).toContain('roleKey !== "hq"'));
+  test('Status sourced from Edge Function only (no client secret)', () => expect(src).toContain('functions.invoke("sms-status")'));
+  test('No Twilio AccountSID pattern in bundle', () => expect(src).not.toMatch(/AC[a-f0-9]{32}/));
+  test('No Twilio Auth Token pattern in bundle', () => expect(src).not.toMatch(/SK[a-f0-9]{32}/));
+  test('No direct twilio.com API call', () => { expect(src).not.toContain('api.twilio.com'); expect(src).not.toContain('twilio.com/2010'); });
+  test('Test/send button disabled until Stage 4', () => { expect(src).toContain('run-test-btn'); expect(src).toContain('Stage 4'); });
+  test('Security notice rendered', () => expect(src).toContain('provider-security-notice'));
+  test('Variables shown as masked (server-side only)', () => expect(src).toContain('server-side only'));
+  test('renderPage wired for msg_provider', () => expect(src).toContain('page === "msg_provider"'));
+});

@@ -21977,6 +21977,11 @@ var ROLES = {
         ls: "Plantillas de Mensajes",
         i: "📨"
       }, {
+        k: "msg_provider",
+        l: "Provider Config",
+        ls: "Config. Proveedor",
+        i: "⚙️"
+      }, {
         k: "campaigns",
         l: "Campaigns",
         ls: "Campañas",
@@ -22049,7 +22054,7 @@ var ROLES = {
       tape_direct: "Tape Direct",
       box_sale: "Box Sale Tracking",
       margin_summary: "Margin Summary",
-      msg_templates: "Message Templates"
+      msg_templates: "Message Templates", msg_provider: "Provider Config"
     }
   },
   office: {
@@ -24906,7 +24911,7 @@ setOrders(function (prev) {
     setRoleKey(r);
     // Validate page for new role and reset if invalid
     var newPage = r === "hq" ? "overview" : r === "office" ? "ow_dash" : "driver_route";
-    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view", "tape_direct", "box_sale", "margin_summary", "msg_templates"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices", "tape_direct", "box_sale", "margin_summary", "msg_templates"] : ["driver_route", "driver_proof"];
+    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view", "tape_direct", "box_sale", "margin_summary", "msg_templates", "msg_provider"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices", "tape_direct", "box_sale", "margin_summary", "msg_templates"] : ["driver_route", "driver_proof"];
     var shouldResetPage = !validPages.includes(page);
     setPage(shouldResetPage ? newPage : page);
   };
@@ -26544,6 +26549,140 @@ setOrders(function (prev) {
   };
   /* END Phase 6 Slice 5 Stage 1: MessageTemplatesPage */
 
+  /* ══════════════════════════════════════════════════════════════
+     Phase 6 — Slice 5 Stage 2: ProviderConfigPage
+     Server-side only. No Twilio credentials in client bundle.
+     Status read from Supabase Edge Function /functions/v1/sms-status.
+     Real sends: Stage 4 only.
+  ══════════════════════════════════════════════════════════════ */
+  var ProviderConfigPage = function ProviderConfigPage(_ref_pcp) {
+    var roleKey = _ref_pcp.roleKey, supabase = _ref_pcp.supabase;
+
+    if (!roleKey || roleKey !== "hq") {
+      return React.createElement("div", { className: "fu", style: { textAlign: "center", padding: "60px 20px" } },
+        React.createElement("div", { style: { fontSize: 40, marginBottom: 12 } }, "\uD83D\uDEAB"),
+        React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 16, color: "var(--red)" } }, "Access Denied"),
+        React.createElement("div", { className: "mut xs", style: { marginTop: 6 } }, "Provider configuration is HQ-only.")
+      );
+    }
+
+    var _s1 = useState("loading"), providerStatus = _s1[0], setProviderStatus = _s1[1];
+    var _s2 = useState(null), lastTested = _s2[0], setLastTested = _s2[1];
+    var _s3 = useState(false), testing = _s3[0], setTesting = _s3[1];
+
+    useEffect(function() {
+      // Call Edge Function to check if server-side secrets are present.
+      // The function returns {configured: bool, lastTest: string|null} only — no secrets.
+      if (!supabase) { setProviderStatus("unconfigured"); return; }
+      supabase.functions.invoke("sms-status")
+        .then(function(r) {
+          if (r.error || !r.data) { setProviderStatus("unconfigured"); return; }
+          setProviderStatus(r.data.configured ? (r.data.lastTestPassed ? "ok" : "error") : "unconfigured");
+          setLastTested(r.data.lastTestedAt || null);
+        })
+        .catch(function() { setProviderStatus("unconfigured"); });
+    }, []);
+
+    var STATUS_MAP = {
+      loading:       { icon: "\u23F3", label: "Checking\u2026",         color: "var(--text3)",  badge: "ba" },
+      unconfigured:  { icon: "\u26A0\uFE0F", label: "Not Configured",  color: "var(--amber)",  badge: "ba" },
+      ok:            { icon: "\u2705",  label: "Configured \u2014 Last test passed", color: "var(--green)", badge: "bg" },
+      error:         { icon: "\u274C",  label: "Configured \u2014 Last test failed", color: "var(--red)",   badge: "br" }
+    };
+    var st = STATUS_MAP[providerStatus] || STATUS_MAP.unconfigured;
+
+    var providers = [
+      { id: "twilio_sms",      name: "Twilio SMS",      ch: "SMS",      vars: ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_FROM_NUMBER"] },
+      { id: "twilio_whatsapp", name: "Twilio WhatsApp", ch: "WhatsApp", vars: ["TWILIO_ACCOUNT_SID","TWILIO_AUTH_TOKEN","TWILIO_WHATSAPP_FROM"] }
+    ];
+
+    return React.createElement("div", { className: "fu", id: "provider-config-panel" },
+
+      /* Header */
+      React.createElement("div", { className: "row g10 mb18", style: { flexWrap: "wrap" } },
+        React.createElement("div", null,
+          React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\u2699\uFE0F Provider Config"),
+          React.createElement("div", { className: "mut xs", style: { marginTop: 2 } }, "SMS & WhatsApp provider status. Secrets are server-side only \u2014 never exposed to the browser.")
+        ),
+        React.createElement("div", { className: "mla" },
+          React.createElement("div", { className: "alert alert-b", style: { marginBottom: 0, fontSize: 11, id: "provider-readonly-badge" } },
+            "\uD83D\uDD12 Stage 2 \u2014 Config status only. Real sends arrive in Stage 4."
+          )
+        )
+      ),
+
+      /* Status card */
+      React.createElement("div", { className: "card mb16", id: "provider-status-card" },
+        React.createElement("div", { className: "card-hd" },
+          React.createElement("div", { className: "card-title" }, "Connection Status"),
+          React.createElement("span", { className: "badge " + st.badge, id: "provider-status-badge" }, st.icon + " " + st.label)
+        ),
+        React.createElement("div", { className: "card-bd" },
+          lastTested && React.createElement("div", { className: "mut xs", id: "last-tested-label" }, "Last tested: " + lastTested),
+          React.createElement("div", { style: { marginTop: 10, display: "flex", gap: 10 } },
+            React.createElement("button", {
+              className: "btn btn-ghost btn-sm",
+              id: "run-test-btn",
+              disabled: true,
+              title: "Server-side test available after Edge Function is deployed.",
+              style: { opacity: 0.45, cursor: "not-allowed" }
+            }, "\uD83E\uDDEA Run Connection Test \u2014 Stage 4"),
+            React.createElement("button", {
+              className: "btn btn-ghost btn-sm",
+              onClick: function() {
+                setProviderStatus("loading");
+                if (!supabase) { setTimeout(function() { setProviderStatus("unconfigured"); }, 600); return; }
+                supabase.functions.invoke("sms-status")
+                  .then(function(r) {
+                    setProviderStatus(!r.error && r.data && r.data.configured ? (r.data.lastTestPassed ? "ok" : "error") : "unconfigured");
+                    setLastTested(r.data && r.data.lastTestedAt || null);
+                  })
+                  .catch(function() { setProviderStatus("unconfigured"); });
+              },
+              id: "refresh-status-btn"
+            }, "\u21BB Refresh Status")
+          )
+        )
+      ),
+
+      /* Provider rows */
+      providers.map(function(p) {
+        return React.createElement("div", { key: p.id, className: "card mb12", id: "provider-row-" + p.id },
+          React.createElement("div", { className: "card-hd" },
+            React.createElement("div", { className: "card-title" }, p.name),
+            React.createElement("span", { className: "badge bt" }, p.ch)
+          ),
+          React.createElement("div", { className: "card-bd" },
+            React.createElement("div", { className: "mut xs mb10" }, "Required secrets \u2014 set in Supabase Edge Function environment:"),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } },
+              p.vars.map(function(v) {
+                return React.createElement("div", {
+                  key: v,
+                  style: { display: "flex", alignItems: "center", gap: 10, background: "var(--bg)", border: "1px solid var(--border2)", borderRadius: 6, padding: "7px 12px", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11 }
+                },
+                  React.createElement("span", { style: { color: "var(--amber)", fontWeight: 700, minWidth: 240 } }, v),
+                  React.createElement("span", { style: { color: "var(--text4)", letterSpacing: 2 } }, "\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"),
+                  React.createElement("span", { className: "badge ba", style: { fontSize: 9, marginLeft: "auto" } }, "server-side only")
+                );
+              })
+            ),
+            React.createElement("div", { className: "mut xs", style: { marginTop: 12, padding: "8px 10px", background: "var(--bg3)", borderRadius: 6, fontSize: 11 } },
+              "\uD83D\uDCCB Set via: Supabase Dashboard \u2192 Edge Functions \u2192 sms-send \u2192 Secrets. Never paste into this UI."
+            )
+          )
+        );
+      }),
+
+      /* Security notice */
+      React.createElement("div", { className: "alert alert-b", style: { marginTop: 8 }, id: "provider-security-notice" },
+        React.createElement("strong", null, "\uD83D\uDD12 Security: "),
+        "Twilio Account SID, Auth Token, and phone numbers are stored exclusively as Supabase Edge Function secrets. They are never sent to the browser, never stored in index.html, and never logged. This UI displays masked status only."
+      )
+    );
+  };
+  /* END Phase 6 Slice 5 Stage 2: ProviderConfigPage */
+
+
   var renderPage = function renderPage() {
     // HQ pages
     if (page === "overview") return /*#__PURE__*/React.createElement(HQOverview, {
@@ -26869,6 +27008,7 @@ setOrders(function (prev) {
     if (page === "margin_summary") return /*#__PURE__*/React.createElement(MarginSummaryPage, { roleKey: roleKey, officeFilter: (function(){ if (roleKey !== 'office') return null; var _off = (tenant && tenant.__dbOffices) || []; var _firstOff = _off.find(function(o){ return o.slug === 'casabe-xpress-ny'; }) || _off[0]; return _firstOff ? _firstOff.id : null; })() });
     // Phase 6 — Slice 5 Stage 1: Message Templates (HQ + Office only; Driver blocked)
     if (page === "msg_templates") return /*#__PURE__*/React.createElement(MessageTemplatesPage, { roleKey: roleKey });
+    if (page === "msg_provider") return /*#__PURE__*/React.createElement(ProviderConfigPage, { roleKey: roleKey, supabase: supabase });
     if (page === "batches") return /*#__PURE__*/React.createElement("div", {
       className: "fu"
     }, /*#__PURE__*/React.createElement("div", {
