@@ -27265,7 +27265,7 @@ setOrders(function (prev) {
     // Phase 6 — Slice 5 Stage 1: Message Templates (HQ + Office only; Driver blocked)
     if (page === "msg_templates") return /*#__PURE__*/React.createElement(MessageTemplatesPage, { roleKey: roleKey });
     if (page === "msg_provider") return /*#__PURE__*/React.createElement(ProviderConfigPage, { roleKey: roleKey, supabase: supabase });
-    if (page === "msg_queue") return /*#__PURE__*/React.createElement(MessageQueuePage, { roleKey: roleKey, currentUser: currentUser, supabase: supabase });
+    if (page === "msg_queue") return /*#__PURE__*/React.createElement(MessageQueuePage, { roleKey: roleKey, currentUser: session, supabase: supabase });
     if (page === "batches") return /*#__PURE__*/React.createElement("div", {
       className: "fu"
     }, /*#__PURE__*/React.createElement("div", {
