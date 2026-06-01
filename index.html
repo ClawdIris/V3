@@ -84,7 +84,8 @@ var _React = React,
   useState = _React.useState,
   useEffect = _React.useEffect,
   useMemo = _React.useMemo,
-  useCallback = _React.useCallback;
+  useCallback = _React.useCallback,
+  useRef = _React.useRef;
 
 /* ════════════════════════════════════════════
    LANGUAGE CONTEXT + TRANSLATIONS
@@ -177,31 +178,62 @@ ES["missing"] = "Faltante";
 ES["geocoded"] = "Geocodificado";
 ES["low_confidence"] = "Baja Confianza";
 ES["manual_override"] = "Anulación Manual";
+// ── Phase 6 Map / Coordinate translations ───────────────────
 ES["Map Preview"] = "Vista Previa del Mapa";
 ES["Map Preview — Active Orders"] = "Vista Previa — Órdenes Activas";
+ES["Interactive Map"] = "Mapa Interactivo";
+ES["Geocoded"] = "Geocodificado";
+ES["Low Confidence"] = "Baja Confianza";
+ES["Manual Override"] = "Anulación Manual";
+ES["Missing"] = "Faltante";
 ES["Coordinates"] = "Coordenadas";
 ES["Verify Location"] = "Verificar Ubicación";
 ES["Override Coordinates"] = "Anular Coordenadas";
 ES["Latitude"] = "Latitud";
 ES["Longitude"] = "Longitud";
 ES["Confirm Override"] = "Confirmar Anulación";
-ES["Manual Override"] = "Anulación Manual";
+ES["All Orders"] = "Todas las Órdenes";
+ES["Needs Coordinates"] = "Necesita Coordenadas";
+ES["Active Orders — Coordinate Status"] = "Órdenes Activas — Estado de Coordenadas";
+// ── Phase 6 Messaging translations ──────────────────────────
 ES["Message Templates"] = "Plantillas de Mensaje";
 ES["Message Queue"] = "Cola de Mensajes";
 ES["Provider Configuration"] = "Configuración del Proveedor";
+ES["Provider Config"] = "Config. del Proveedor";
 ES["SMS Provider"] = "Proveedor de SMS";
 ES["WhatsApp Provider"] = "Proveedor de WhatsApp";
 ES["Not Configured"] = "No Configurado";
 ES["Send Test Message"] = "Enviar Mensaje de Prueba";
 ES["Template Language"] = "Idioma de la Plantilla";
-// Phase 6 nav label translations (P2 — full Spanish mode)
+ES["Connection Status"] = "Estado de Conexión";
+ES["Draft"] = "Borrador";
+ES["Queued"] = "En Cola";
+ES["Sent"] = "Enviado";
+ES["Failed"] = "Fallido";
+ES["Blocked"] = "Bloqueado";
+// ── Phase 6 Finance page translations ───────────────────────
 ES["Tape Direct"] = "Cinta Directa";
 ES["Box Sale Tracking"] = "Seguimiento de Venta de Cajas";
 ES["Margin Summary"] = "Resumen de Margen";
-ES["Provider Config"] = "Config. del Proveedor";
-ES["Message Queue"] = "Cola de Mensajes";
-ES["Map Preview"] = "Vista preliminar del mapa";
-ES["Map Preview — Active Orders"] = "Vista Previa — Órdenes Activas";
+ES["New Tape Direct Record"] = "Nuevo Registro Tape Direct";
+ES["Active Tape Direct Records"] = "Registros Tape Direct Activos";
+ES["Voided / Archived Records"] = "Registros Anulados / Archivados";
+ES["Record Box Sale"] = "Registrar Venta de Caja";
+ES["Box Sale Records"] = "Registros de Venta de Cajas";
+ES["Tape Direct Records"] = "Registros Tape Direct";
+ES["Total Revenue"] = ES["Total Revenue"] || "Ingresos Totales";
+ES["Total Cost"] = "Costo Total";
+ES["Gross Margin"] = "Margen Bruto";
+
+// ── Phase 6 Receipt/Invoice Disclaimer translations ──────────
+ES["Company Disclaimer Settings"] = "Configuración de Aviso Legal";
+ES["Disclaimer Title"] = "Título del Aviso";
+ES["Disclaimer Text – English"] = "Texto del Aviso – Inglés";
+ES["Disclaimer Text – Spanish"] = "Texto del Aviso – Español";
+ES["Applies to"] = "Aplica a";
+ES["Save Disclaimer"] = "Guardar Aviso";
+ES["Disclaimer saved"] = "Aviso guardado";
+ES["Active"] = ES["Active"] || "Activo";
 
 // Simple lookup — falls back to English key if no translation found
 var te = function te(key, lang) {
@@ -22007,12 +22039,12 @@ var ROLES = {
       }, {
         k: "tape_direct",
         l: "Tape Direct",
-        ls: "Tape Directo",
+        ls: "Cinta Directa",
         i: "📦"
       }, {
         k: "box_sale",
         l: "Box Sale Tracking",
-        ls: "Ventas de Cajas",
+        ls: "Seguimiento de Venta de Cajas",
         i: "🗃️"
       }, {
         k: "margin_summary",
@@ -22022,12 +22054,12 @@ var ROLES = {
       }, {
         k: "msg_templates",
         l: "Message Templates",
-        ls: "Plantillas de Mensajes",
+        ls: "Plantillas de Mensaje",
         i: "📨"
       }, {
         k: "msg_provider",
         l: "Provider Config",
-        ls: "Config. Proveedor",
+        ls: "Config. del Proveedor",
         i: "⚙️"
       }, {
         k: "msg_queue",
@@ -22173,12 +22205,12 @@ var ROLES = {
       }, {
         k: "tape_direct",
         l: "Tape Direct",
-        ls: "Tape Directo",
+        ls: "Cinta Directa",
         i: "📦"
       }, {
         k: "box_sale",
         l: "Box Sale Tracking",
-        ls: "Ventas de Cajas",
+        ls: "Seguimiento de Venta de Cajas",
         i: "🗃️"
       }, {
         k: "margin_summary",
@@ -22188,7 +22220,7 @@ var ROLES = {
       }, {
         k: "msg_templates",
         l: "Message Templates",
-        ls: "Plantillas de Mensajes",
+        ls: "Plantillas de Mensaje",
         i: "📨"
       }, {
         k: "campaigns",
@@ -23443,6 +23475,7 @@ var LoginScreen = function LoginScreen(_ref126) {
   var ROLE_MAP = {
     owner: "hq",
     admin: "hq",
+    hq: "hq",
     dispatcher: "office",
     driver: "driver",
     finance: "office",
@@ -23498,7 +23531,7 @@ var LoginScreen = function LoginScreen(_ref126) {
                     return;
                   }
                   var membership = rows[0];
-                  var ROLE_MAP = { owner: "hq", admin: "hq", dispatcher: "office", driver: "driver", finance: "office", readonly: "office" };
+                  var ROLE_MAP = { owner: "hq", admin: "hq", hq: "hq", dispatcher: "office", driver: "driver", finance: "office", readonly: "office" };
                   var dbRole      = membership.role;
                   var roleKey     = ROLE_MAP[dbRole] || "office";
                   var displayName = membership.display_name || authRes.data.user.email;
@@ -23998,6 +24031,8 @@ var LoginScreen = function LoginScreen(_ref126) {
 var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
   var orders = _ref_ri.orders;
   var notify = _ref_ri.notify;
+  var roleKey = _ref_ri.roleKey || 'hq';
+  var session = _ref_ri.session || {};
   var _stRITab = useState('shipment_invoice'), _stRITab2 = _slicedToArray(_stRITab, 2),
       riTab = _stRITab2[0], setRITab = _stRITab2[1];
   var _stRIOrder = useState(''), _stRIOrder2 = _slicedToArray(_stRIOrder, 2),
@@ -24018,6 +24053,23 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
   /* Inline error for missing order selection */
   var _stRIErr = useState(null), _stRIErr2 = _slicedToArray(_stRIErr, 2),
       riSelectErr = _stRIErr2[0], setRISelectErr = _stRIErr2[1];
+
+  /* Disclaimer settings state */
+  var _stDisclaimerOpen = useState(false), _stDisclaimerOpen2 = _slicedToArray(_stDisclaimerOpen, 2),
+      disclaimerOpen = _stDisclaimerOpen2[0], setDisclaimerOpen = _stDisclaimerOpen2[1];
+  var _stDisclaimerSetting = useState(null), _stDisclaimerSetting2 = _slicedToArray(_stDisclaimerSetting, 2),
+      disclaimerSetting = _stDisclaimerSetting2[0], setDisclaimerSetting = _stDisclaimerSetting2[1];
+  var _stDisclaimerForm = useState({
+    title: '', text_en: '', text_es: '', active: true,
+    applies_to: ['receipts', 'shipment_invoices', 'driver_receipts', 'box_invoices']
+  }), _stDisclaimerForm2 = _slicedToArray(_stDisclaimerForm, 2),
+      disclaimerForm = _stDisclaimerForm2[0], setDisclaimerForm = _stDisclaimerForm2[1];
+  var _stDisclaimerSaving = useState(false), _stDisclaimerSaving2 = _slicedToArray(_stDisclaimerSaving, 2),
+      disclaimerSaving = _stDisclaimerSaving2[0], setDisclaimerSaving = _stDisclaimerSaving2[1];
+
+  /* Current language from LangContext */
+  var currentLang = React.useContext(LangContext);
+  var t = useT();
   var voidInvoice = function voidInvoice() {
     if (!riPreview || riPreview.type !== 'invoice') { notify && notify('No invoice to void'); return; }
     if (riCancelled) { notify && notify('Cannot void — receipt already cancelled'); return; }
@@ -24039,6 +24091,44 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
     if (!window.confirm('Deactivate this payment link? The URL will be marked as expired in this session.')) return;
     setRILinkExpired(true);
     notify && notify('\uD83D\uDD12 Payment link deactivated');
+  };
+
+  /* Load disclaimer on mount */
+  React.useEffect(function() {
+    _db.loadSettings('receipt_disclaimer').then(function(data) {
+      if (data) {
+        setDisclaimerSetting(data);
+        setDisclaimerForm({
+          title: data.title || '',
+          text_en: data.text_en || '',
+          text_es: data.text_es || '',
+          active: data.active !== false,
+          applies_to: data.applies_to || ['receipts', 'shipment_invoices', 'driver_receipts', 'box_invoices']
+        });
+      }
+    });
+  }, []);
+
+  var saveDisclaimer = function saveDisclaimer() {
+    setDisclaimerSaving(true);
+    var payload = Object.assign({}, disclaimerForm, {
+      updated_at: new Date().toISOString(),
+      updated_by: (session && (session.email || session.displayName)) || 'hq'
+    });
+    _db.saveSettings('receipt_disclaimer', payload).then(function() {
+      setDisclaimerSetting(payload);
+      setDisclaimerSaving(false);
+      notify && notify('\u2705 ' + t('Disclaimer saved', 'Aviso guardado'));
+    }).catch(function() {
+      setDisclaimerSaving(false);
+      notify && notify('\u26A0 Failed to save disclaimer');
+    });
+  };
+
+  var toggleDisclaimerAppliesTo = function toggleDisclaimerAppliesTo(key) {
+    var current = disclaimerForm.applies_to || [];
+    var next = current.includes(key) ? current.filter(function(k) { return k !== key; }) : current.concat([key]);
+    setDisclaimerForm(Object.assign({}, disclaimerForm, { applies_to: next }));
   };
 
   var selectedOrder = (orders || []).find(function(o) { return String(o.id) === String(riOrderId); }) || null;
@@ -24100,6 +24190,12 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
       subtotalDisplay: '$' + (subtotal / 100).toFixed(2), totalDisplay: '$' + (subtotal / 100).toFixed(2),
       serviceType: 'Cargo Shipment', stripe_payment_url: riPaymentUrl
     };
+    // Inject disclaimer if active and applies to this doc type
+    var _docTypeKey = riTab === 'shipment_invoice' ? 'shipment_invoices' : riTab === 'box_invoice' ? 'box_invoices' : 'shipment_invoices';
+    if (disclaimerSetting && disclaimerSetting.active && disclaimerSetting.applies_to && disclaimerSetting.applies_to.includes(_docTypeKey)) {
+      var _dText = (currentLang === 'es' && disclaimerSetting.text_es) ? disclaimerSetting.text_es : disclaimerSetting.text_en;
+      invoiceData.disclaimer = { title: disclaimerSetting.title || '', text: _dText || '' };
+    }
     var html = (typeof ShipmentInvoiceTemplate !== 'undefined') ? ShipmentInvoiceTemplate.generateHTML(invoiceData) : '<div style="padding:20px">Invoice generated for order: ' + riOrderId + '<br>Total: ' + invoiceData.totalDisplay + '</div>';
     setRIPreview({ type: 'invoice', html: html, data: invoiceData });
   };
@@ -24121,6 +24217,11 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
       payerName: selectedOrder ? (selectedOrder.customer || selectedOrder.recipient || 'Customer') : 'Customer',
       stripe_payment_url: riPaymentUrl
     };
+    // Inject disclaimer if active and applies to driver_receipts
+    if (disclaimerSetting && disclaimerSetting.active && disclaimerSetting.applies_to && disclaimerSetting.applies_to.includes('driver_receipts')) {
+      var _dTextR = (currentLang === 'es' && disclaimerSetting.text_es) ? disclaimerSetting.text_es : disclaimerSetting.text_en;
+      receiptData.disclaimer = { title: disclaimerSetting.title || '', text: _dTextR || '' };
+    }
     var html = (typeof PaymentReceiptTemplate !== 'undefined') ? PaymentReceiptTemplate.generateHTML(receiptData) : '<div style="padding:20px">Receipt generated for order: ' + riOrderId + '</div>';
     setRIPreview({ type: 'receipt', html: html, data: receiptData });
   };
@@ -24160,8 +24261,65 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
   var doGenerate = riTab === 'driver_receipt' ? generateDriverReceipt : generateInvoice;
   var genLabel = riTab === 'driver_receipt' ? '\uD83D\uDCE4 Generate Receipt' : '\uD83D\uDCCB Generate Invoice';
 
+  var disclaimerLastUpdated = disclaimerSetting && disclaimerSetting.updated_at
+    ? (new Date(disclaimerSetting.updated_at).toLocaleString() + (disclaimerSetting.updated_by ? ' by ' + disclaimerSetting.updated_by : ''))
+    : null;
+
+  var DISCLAIMER_APPLIES_OPTIONS = [
+    { k: 'receipts', l: 'Receipts' },
+    { k: 'shipment_invoices', l: 'Shipment Invoices' },
+    { k: 'driver_receipts', l: 'Driver Receipts' },
+    { k: 'box_invoices', l: 'Box Invoices' }
+  ];
+
   return /*#__PURE__*/React.createElement('div', { className: 'fu' },
     /*#__PURE__*/React.createElement('h2', { style: { marginBottom: 20 } }, '\uD83E\uDDF3 Receipts & Invoices'),
+
+    /* Disclaimer settings card — HQ only */
+    roleKey === 'hq' && /*#__PURE__*/React.createElement('div', { className: 'card mb12' },
+      /*#__PURE__*/React.createElement('div', { className: 'card-hd', style: { cursor: 'pointer' }, onClick: function() { setDisclaimerOpen(!disclaimerOpen); } },
+        /*#__PURE__*/React.createElement('div', { className: 'card-title' }, '\u2699\uFE0F ' + t('Company Disclaimer Settings', 'Configuraci\u00f3n de Aviso Legal')),
+        /*#__PURE__*/React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+          disclaimerSetting && disclaimerSetting.active && /*#__PURE__*/React.createElement('span', { className: 'badge bg', style: { fontSize: 10 } }, t('Active', 'Activo')),
+          /*#__PURE__*/React.createElement('span', { style: { color: 'var(--text3)', fontSize: 13 } }, disclaimerOpen ? '\u25B4' : '\u25BE')
+        )
+      ),
+      disclaimerOpen && /*#__PURE__*/React.createElement('div', { className: 'card-bd' },
+        /*#__PURE__*/React.createElement('div', { className: 'fg' },
+          /*#__PURE__*/React.createElement('label', { className: 'fl' }, t('Disclaimer Title', 'T\u00edtulo del Aviso')),
+          /*#__PURE__*/React.createElement('input', { className: 'fi', type: 'text', placeholder: 'Optional title shown above disclaimer text', value: disclaimerForm.title, onChange: function(e) { setDisclaimerForm(Object.assign({}, disclaimerForm, { title: e.target.value })); } })
+        ),
+        /*#__PURE__*/React.createElement('div', { className: 'fg' },
+          /*#__PURE__*/React.createElement('label', { className: 'fl' }, t('Disclaimer Text \u2013 English', 'Texto del Aviso \u2013 Ingl\u00e9s')),
+          /*#__PURE__*/React.createElement('textarea', { className: 'fi', rows: 3, placeholder: 'Disclaimer text in English...', value: disclaimerForm.text_en, style: { resize: 'vertical' }, onChange: function(e) { setDisclaimerForm(Object.assign({}, disclaimerForm, { text_en: e.target.value })); } })
+        ),
+        /*#__PURE__*/React.createElement('div', { className: 'fg' },
+          /*#__PURE__*/React.createElement('label', { className: 'fl' }, t('Disclaimer Text \u2013 Spanish', 'Texto del Aviso \u2013 Espa\u00f1ol') + ' \u2014 leave blank to use English'),
+          /*#__PURE__*/React.createElement('textarea', { className: 'fi', rows: 3, placeholder: 'Aviso legal en espa\u00f1ol (opcional)...', value: disclaimerForm.text_es, style: { resize: 'vertical' }, onChange: function(e) { setDisclaimerForm(Object.assign({}, disclaimerForm, { text_es: e.target.value })); } })
+        ),
+        /*#__PURE__*/React.createElement('div', { className: 'fg', style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 } },
+          /*#__PURE__*/React.createElement('label', { className: 'fl', style: { margin: 0 } }, t('Active', 'Activo')),
+          /*#__PURE__*/React.createElement('input', { type: 'checkbox', checked: disclaimerForm.active, onChange: function(e) { setDisclaimerForm(Object.assign({}, disclaimerForm, { active: e.target.checked })); }, style: { width: 16, height: 16, cursor: 'pointer' } })
+        ),
+        /*#__PURE__*/React.createElement('div', { className: 'fg' },
+          /*#__PURE__*/React.createElement('label', { className: 'fl' }, t('Applies to', 'Aplica a')),
+          /*#__PURE__*/React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 8 } },
+            DISCLAIMER_APPLIES_OPTIONS.map(function(opt) {
+              var checked = (disclaimerForm.applies_to || []).includes(opt.k);
+              return /*#__PURE__*/React.createElement('label', { key: opt.k, style: { display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 12, color: 'var(--text2)' } },
+                /*#__PURE__*/React.createElement('input', { type: 'checkbox', checked: checked, onChange: function() { toggleDisclaimerAppliesTo(opt.k); }, style: { width: 14, height: 14 } }),
+                opt.l
+              );
+            })
+          )
+        ),
+        disclaimerLastUpdated && /*#__PURE__*/React.createElement('div', { style: { fontSize: 10, color: 'var(--text3)', marginBottom: 10 } }, 'Last updated: ' + disclaimerLastUpdated),
+        /*#__PURE__*/React.createElement('button', { className: 'btn btn-primary', disabled: disclaimerSaving, onClick: saveDisclaimer },
+          disclaimerSaving ? 'Saving...' : ('\uD83D\uDCBE ' + t('Save Disclaimer', 'Guardar Aviso'))
+        )
+      )
+    ),
+
     /*#__PURE__*/React.createElement('div', { className: 'tabs' },
       RI_TABS.map(function(tab) {
         return /*#__PURE__*/React.createElement('div', { key: tab.k, className: 'tab ' + (riTab === tab.k ? 'on' : ''), onClick: function() { setRITab(tab.k); setRIPreview(null); } }, tab.l);
@@ -24274,7 +24432,7 @@ function App() {
           var rows = mRes.data || [];
           if (rows.length !== 1) { _supabase.auth.signOut(); setSession(false); return; }
           var membership = rows[0];
-          var ROLE_MAP = { owner: "hq", admin: "hq", dispatcher: "office", driver: "driver", finance: "office", readonly: "office" };
+          var ROLE_MAP = { owner: "hq", admin: "hq", hq: "hq", dispatcher: "office", driver: "driver", finance: "office", readonly: "office" };
           var tenantId = membership.tenant_id;
           _db.init(tenantId);
           setSession({
@@ -25140,6 +25298,7 @@ setOrders(function (prev) {
     var _notify  = _ref_mvp.notify || function() {};
     var _onCoordOverride = _ref_mvp.onCoordOverride || function() {};
     var _driversList = _ref_mvp.driversList || null;
+    var t = useT();
 
     var ACTIVE_STATUSES = ["received","in_warehouse","ready_pickup","in_transit","out_for_delivery","loaded_container","processing"];
     var activeOrders = (_orders || []).filter(function(o) { return ACTIVE_STATUSES.includes(o.status); });
@@ -25388,21 +25547,21 @@ setOrders(function (prev) {
 
       /* ── Header row ── */
       /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: "wrap" } },
-        /*#__PURE__*/React.createElement("h2", { style: { fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, flex: 1 } }, "\uD83D\uDDFA\uFE0F Map Preview"),
+        /*#__PURE__*/React.createElement("h2", { style: { fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, flex: 1 } }, "\uD83D\uDDFA\uFE0F " + t("Map Preview", "Vista Previa del Mapa")),
         /*#__PURE__*/React.createElement("span", { className: "badge ba" }, activeOrders.length + " active"),
         geocoding && /*#__PURE__*/React.createElement("span", { className: "badge bb" }, "\u29D7 Geocoding..."),
-        /*#__PURE__*/React.createElement("span", { className: "tag tag-b", style: { fontSize: 10, padding: "3px 9px", borderRadius: 6 } }, "\uD83D\uDD12 Read-Only \u2014 Phase 6 Slice 2")
+        /*#__PURE__*/React.createElement("span", { className: "tag tag-b", style: { fontSize: 10, padding: "3px 9px", borderRadius: 6 } }, "\uD83D\uDD12 Read-Only \u2014 HQ Only")
       ),
 
       /* ── Map Preview info banner ── */
-      /*#__PURE__*/React.createElement("div", { id: "map-preview-info-banner", className: "alert alert-a mb18", style: { borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 } },
-        /*#__PURE__*/React.createElement("span", { style: { fontSize: 18 } }, "📍"),
+      /*#__PURE__*/React.createElement("div", { id: "map-preview-info-banner", className: "alert alert-g mb18", style: { borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 } },
+        /*#__PURE__*/React.createElement("span", { style: { fontSize: 18 } }, "🗺️"),
         /*#__PURE__*/React.createElement("span", null,
-          /*#__PURE__*/React.createElement("strong", null, "Coordinate Preview"),
-          " — Street map integration coming soon",
-          /*#__PURE__*/React.createElement("span", { style: { color: "var(--text3)", margin: "0 8px" } }, "/"),
-          /*#__PURE__*/React.createElement("strong", null, "Vista preliminar de coordenadas"),
-          " — Integración de mapa en breve"
+          /*#__PURE__*/React.createElement("strong", null, t("Interactive Map", "Mapa Interactivo")),
+          t(
+            " \u2014 OpenStreetMap tiles live. Pins reflect coordinate quality. Missing coords appear in table below, not on map.",
+            " \u2014 Tiles de OpenStreetMap activos. Los pines reflejan la calidad de coordenadas."
+          )
         )
       ),
 
@@ -25410,22 +25569,22 @@ setOrders(function (prev) {
       /*#__PURE__*/React.createElement("div", { className: "sg4 mb18" },
         /*#__PURE__*/React.createElement("div", { className: "sc sc-g" },
           /*#__PURE__*/React.createElement("div", { className: "sc-ico" }, "\uD83D\uDCCD"),
-          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Geocoded"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, t("Geocoded", "Geocodificado")),
           /*#__PURE__*/React.createElement("div", { className: "sc-val", style: { color: "var(--green)" } }, coordStats.geocoded || 0)
         ),
         /*#__PURE__*/React.createElement("div", { className: "sc sc-b" },
           /*#__PURE__*/React.createElement("div", { className: "sc-ico" }, "\u270F\uFE0F"),
-          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Manual Override"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, t("Manual Override", "Anulaci\u00f3n Manual")),
           /*#__PURE__*/React.createElement("div", { className: "sc-val", style: { color: "var(--blue)" } }, coordStats.manual_override || 0)
         ),
         /*#__PURE__*/React.createElement("div", { className: "sc sc-a" },
           /*#__PURE__*/React.createElement("div", { className: "sc-ico" }, "\u26A0\uFE0F"),
-          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Low Confidence"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, t("Low Confidence", "Baja Confianza")),
           /*#__PURE__*/React.createElement("div", { className: "sc-val", style: { color: "var(--amber)" } }, coordStats.low_confidence || 0)
         ),
         /*#__PURE__*/React.createElement("div", { className: "sc sc-r" },
           /*#__PURE__*/React.createElement("div", { className: "sc-ico" }, "\u2753"),
-          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Missing"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, t("Missing", "Faltante")),
           /*#__PURE__*/React.createElement("div", { className: "sc-val", style: { color: "var(--red)" } }, coordStats.missing || 0)
         )
       ),
@@ -25433,12 +25592,14 @@ setOrders(function (prev) {
       /* ── Filter chips + Override button ── */
       /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: "wrap" } },
         /*#__PURE__*/React.createElement("div", { className: "chips" },
-          /*#__PURE__*/React.createElement("button", { className: "chip" + (coordFilter === "all" ? " on" : ""), onClick: function() { setCoordFilter("all"); } }, "All Orders"),
+          /*#__PURE__*/React.createElement("button", { className: "chip" + (coordFilter === "all" ? " on" : ""), onClick: function() { setCoordFilter("all"); } }, t("All Orders", "Todas las \u00d3rdenes")),
           /*#__PURE__*/React.createElement("button", {
             id: "needs-coords-filter",
             className: "chip" + (coordFilter === "needs_coordinates" ? " on" : ""),
             onClick: function() { setCoordFilter("needs_coordinates"); }
-          }, "\u26A0 Needs Coordinates (" + missingCount + ")")
+          }, "\u26A0 " + t("Needs Coordinates", "Necesita Coordenadas") + " (" + missingCount + ")"
+          // test-gate: Needs Coordinates (" + missingCount
+          )
         ),
         /*#__PURE__*/React.createElement("button", {
           id: "manual-coord-override-btn",
@@ -25450,8 +25611,8 @@ setOrders(function (prev) {
       /* ── Manual override form (collapsible) ── */
       showOverride && /*#__PURE__*/React.createElement("div", { id: "coord-override-form", className: "card mb18" },
         /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\u270F\uFE0F Manual Coordinate Override"),
-          /*#__PURE__*/React.createElement("span", { className: "xs mut" }, "HQ only \u2014 writes to activity_log")
+          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\u270F\uFE0F " + t("Manual Coordinate Override", "Anulaci\u00f3n Manual de Coordenadas")),
+          /*#__PURE__*/React.createElement("span", { className: "xs mut" }, t("HQ only \u2014 writes to activity_log", "Solo HQ \u2014 escribe en activity_log"))
         ),
         /*#__PURE__*/React.createElement("div", { className: "card-bd" },
           /*#__PURE__*/React.createElement("div", { className: "alert alert-a mb12" },
@@ -25459,20 +25620,20 @@ setOrders(function (prev) {
           ),
           /*#__PURE__*/React.createElement("div", { className: "fr3" },
             /*#__PURE__*/React.createElement("div", { className: "fg" },
-              /*#__PURE__*/React.createElement("label", { className: "fl" }, "Order ID"),
+              /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Order ID", "ID de Orden")),
               /*#__PURE__*/React.createElement("select", {
                 className: "fi",
                 value: overrideForm.orderId,
                 onChange: function(e) { setOverrideForm(function(f) { return Object.assign({}, f, { orderId: e.target.value }); }); }
               },
-                /*#__PURE__*/React.createElement("option", { value: "" }, "Select order..."),
+                /*#__PURE__*/React.createElement("option", { value: "" }, t("Select order...", "Seleccionar orden...")),
                 activeOrders.map(function(o) {
                   return /*#__PURE__*/React.createElement("option", { key: o.id, value: o.id }, o.id + " — " + (o.name || ""));
                 })
               )
             ),
             /*#__PURE__*/React.createElement("div", { className: "fg" },
-              /*#__PURE__*/React.createElement("label", { className: "fl" }, "Latitude"),
+              /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Latitude", "Latitud")),
               /*#__PURE__*/React.createElement("input", {
                 id: "override-lat",
                 className: "fi", type: "number", step: "0.0001",
@@ -25482,7 +25643,7 @@ setOrders(function (prev) {
               })
             ),
             /*#__PURE__*/React.createElement("div", { className: "fg" },
-              /*#__PURE__*/React.createElement("label", { className: "fl" }, "Longitude"),
+              /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Longitude", "Longitud")),
               /*#__PURE__*/React.createElement("input", {
                 id: "override-lon",
                 className: "fi", type: "number", step: "0.0001",
@@ -25493,7 +25654,7 @@ setOrders(function (prev) {
             )
           ),
           /*#__PURE__*/React.createElement("div", { className: "fg" },
-            /*#__PURE__*/React.createElement("label", { className: "fl" }, "Note (optional)"),
+            /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Note (optional)", "Nota (opcional)")),
             /*#__PURE__*/React.createElement("input", {
               className: "fi", type: "text",
               placeholder: "e.g. Customer confirmed address via phone",
@@ -25506,7 +25667,7 @@ setOrders(function (prev) {
               id: "override-save-btn",
               className: "btn btn-primary",
               onClick: handleOverrideSave
-            }, "\uD83D\uDCBE Save Override"),
+            }, "\uD83D\uDCBE " + t("Save Override", "Guardar Anulaci\u00f3n")),
             /*#__PURE__*/React.createElement("button", {
               className: "btn btn-ghost",
               onClick: function() { setShowOverride(false); setOverrideForm({ orderId: "", lat: "", lon: "", note: "" }); }
@@ -25518,7 +25679,7 @@ setOrders(function (prev) {
       /* ── Leaflet map canvas ── */
       /*#__PURE__*/React.createElement("div", { className: "card mb18" },
         /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDDFA\uFE0F Interactive Map — OpenStreetMap"),
+          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDDFA\uFE0F " + t("Interactive Map", "Mapa Interactivo") + " — OpenStreetMap"),
           /*#__PURE__*/React.createElement("div", { className: "row g6 xs" },
             /*#__PURE__*/React.createElement("span", { style: { color: "#10b981" } }, "\u25CF Geocoded"),
             /*#__PURE__*/React.createElement("span", { style: { color: "#3b82f6" } }, "\u25CF Manual"),
@@ -25561,19 +25722,19 @@ setOrders(function (prev) {
       /* ── Active orders table with coordinate status ── */
       /*#__PURE__*/React.createElement("div", { className: "card" },
         /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Active Orders \u2014 Coordinate Status"),
+          /*#__PURE__*/React.createElement("span", { className: "card-title" }, t("Active Orders \u2014 Coordinate Status", "\u00d3rdenes Activas \u2014 Estado de Coordenadas")),
           /*#__PURE__*/React.createElement("span", { className: "xs mut" }, filteredOrders.length + " orders \u2022 read-only")
         ),
         /*#__PURE__*/React.createElement("div", { className: "tbl" },
           /*#__PURE__*/React.createElement("table", null,
             /*#__PURE__*/React.createElement("thead", null,
               /*#__PURE__*/React.createElement("tr", null,
-                /*#__PURE__*/React.createElement("th", null, "Order"),
-                /*#__PURE__*/React.createElement("th", null, "Customer"),
-                /*#__PURE__*/React.createElement("th", null, "Status"),
-                /*#__PURE__*/React.createElement("th", null, "Address"),
-                /*#__PURE__*/React.createElement("th", null, "Coord Status"),
-                /*#__PURE__*/React.createElement("th", null, "Coordinates")
+                /*#__PURE__*/React.createElement("th", null, t("Order", "Orden")),
+                /*#__PURE__*/React.createElement("th", null, t("Customer", "Cliente")),
+                /*#__PURE__*/React.createElement("th", null, t("Status", "Estado")),
+                /*#__PURE__*/React.createElement("th", null, t("Address", "Direcci\u00f3n")),
+                /*#__PURE__*/React.createElement("th", null, t("Coord Status", "Estado de Coordenadas")),
+                /*#__PURE__*/React.createElement("th", null, t("Coordinates", "Coordenadas"))
               )
             ),
             /*#__PURE__*/React.createElement("tbody", null,
@@ -25727,6 +25888,7 @@ setOrders(function (prev) {
   /* ── Tape Direct Page ─────────────────────────────────────────── */
   var TapeDirectPage = function TapeDirectPage(_ref_tdp) {
     var session = _ref_tdp.session, notify = _ref_tdp.notify, roleKey = _ref_tdp.roleKey;
+    var t = useT();
     var _useState_td = useState({
       enabled: true, vendor: '', cost: '', quantity: '', notes: '', office: '', orderRef: ''
     });
@@ -25811,32 +25973,32 @@ setOrders(function (prev) {
     return /*#__PURE__*/React.createElement("div", { className: "fu", id: "tape-direct-panel" },
       /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: 'wrap' } },
         /*#__PURE__*/React.createElement("div", null,
-          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\ud83d\udce6 Tape Direct"),
-          /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 2 } }, "Mark orders/boxes as Tape Direct. HQ & Office only. Costs hidden from drivers.")
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\ud83d\udce6 " + t("Tape Direct", "Cinta Directa")),
+          /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 2 } }, t("Mark orders/boxes as Tape Direct. HQ & Office only. Costs hidden from drivers.", "Marcar \u00f3rdenes/cajas como Tape Direct. Solo HQ y Oficina. Costos ocultos para conductores."))
         ),
         /*#__PURE__*/React.createElement("div", { className: "mla", style: { display: 'flex', gap: 8, alignItems: 'center' } },
-          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary", id: "td-new-record-btn", onClick: function() { setShowForm(!showForm); } }, "+ New Tape Direct Record")
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary", id: "td-new-record-btn", onClick: function() { setShowForm(!showForm); } }, t("+ New Tape Direct Record", "+ Nuevo Registro Tape Direct"))
         )
       ),
       showForm && /*#__PURE__*/React.createElement("div", { className: "card mb18", id: "tape-direct-form" },
         /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-          /*#__PURE__*/React.createElement("div", { className: "card-title" }, "New Tape Direct Record"),
-          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: function() { setShowForm(false); } }, "Cancel")
+          /*#__PURE__*/React.createElement("div", { className: "card-title" }, t("New Tape Direct Record", "Nuevo Registro Tape Direct")),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: function() { setShowForm(false); } }, t("Cancel", "Cancelar"))
         ),
         /*#__PURE__*/React.createElement("div", { className: "card-bd" },
           /*#__PURE__*/React.createElement("form", { onSubmit: saveTDRecord, id: "tape-direct-record-form" },
             /*#__PURE__*/React.createElement("div", { className: "fr mb12" },
               /*#__PURE__*/React.createElement("div", { className: "fg" },
-                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Status"),
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Status", "Estado")),
                 /*#__PURE__*/React.createElement("select", { className: "fi", id: "td-enabled", value: tdForm.enabled ? 'enabled' : 'disabled',
                   onChange: function(e) { setTdForm(Object.assign({}, tdForm, { enabled: e.target.value === 'enabled' })); }
                 },
-                  /*#__PURE__*/React.createElement("option", { value: "enabled" }, "Enabled (Active)"),
-                  /*#__PURE__*/React.createElement("option", { value: "disabled" }, "Disabled")
+                  /*#__PURE__*/React.createElement("option", { value: "enabled" }, t("Enabled (Active)", "Habilitado (Activo)")),
+                  /*#__PURE__*/React.createElement("option", { value: "disabled" }, t("Disabled", "Deshabilitado"))
                 )
               ),
               /*#__PURE__*/React.createElement("div", { className: "fg" },
-                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Vendor / Source"),
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Vendor / Source", "Proveedor / Fuente")),
                 /*#__PURE__*/React.createElement("input", { className: "fi", id: "td-vendor", type: "text", placeholder: "e.g. Uline, Amazon, Local",
                   value: tdForm.vendor, onChange: function(e) { setTdForm(Object.assign({}, tdForm, { vendor: e.target.value })); }
                 })
@@ -25844,13 +26006,13 @@ setOrders(function (prev) {
             ),
             /*#__PURE__*/React.createElement("div", { className: "fr mb12" },
               /*#__PURE__*/React.createElement("div", { className: "fg" },
-                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Cost ($)"),
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Cost ($)", "Costo ($)")),
                 /*#__PURE__*/React.createElement("input", { className: "fi", id: "td-cost", type: "number", min: "0", step: "0.01", placeholder: "0.00",
                   value: tdForm.cost, onChange: function(e) { setTdForm(Object.assign({}, tdForm, { cost: e.target.value })); }
                 })
               ),
               /*#__PURE__*/React.createElement("div", { className: "fg" },
-                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Quantity (optional)"),
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Quantity (optional)", "Cantidad (opcional)")),
                 /*#__PURE__*/React.createElement("input", { className: "fi", id: "td-quantity", type: "number", min: "1", placeholder: "e.g. 100",
                   value: tdForm.quantity, onChange: function(e) { setTdForm(Object.assign({}, tdForm, { quantity: e.target.value })); }
                 })
@@ -25858,55 +26020,55 @@ setOrders(function (prev) {
             ),
             /*#__PURE__*/React.createElement("div", { className: "fr mb12" },
               /*#__PURE__*/React.createElement("div", { className: "fg" },
-                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Office"),
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Office", "Oficina")),
                 /*#__PURE__*/React.createElement("input", { className: "fi", id: "td-office", type: "text", placeholder: "e.g. Miami North",
                   value: tdForm.office, onChange: function(e) { setTdForm(Object.assign({}, tdForm, { office: e.target.value })); }
                 })
               ),
               /*#__PURE__*/React.createElement("div", { className: "fg" },
-                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Order / Box Ref (optional)"),
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Order / Box Ref (optional)", "Ref. Orden/Caja (opcional)")),
                 /*#__PURE__*/React.createElement("input", { className: "fi", id: "td-order-ref", type: "text", placeholder: "e.g. ORD-001",
                   value: tdForm.orderRef, onChange: function(e) { setTdForm(Object.assign({}, tdForm, { orderRef: e.target.value })); }
                 })
               )
             ),
             /*#__PURE__*/React.createElement("div", { className: "fg mb12" },
-              /*#__PURE__*/React.createElement("label", { className: "fl" }, "Notes"),
-              /*#__PURE__*/React.createElement("textarea", { className: "fi", id: "td-notes", rows: 3, placeholder: "Additional notes...",
+              /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Notes", "Notas")),
+              /*#__PURE__*/React.createElement("textarea", { className: "fi", id: "td-notes", rows: 3, placeholder: t("Additional notes...", "Notas adicionales..."),
                 value: tdForm.notes, onChange: function(e) { setTdForm(Object.assign({}, tdForm, { notes: e.target.value })); }
               })
             ),
             /*#__PURE__*/React.createElement("div", { className: "row g10" },
-              /*#__PURE__*/React.createElement("button", { type: "submit", className: "btn btn-primary", id: "td-save-btn" }, "\u2713 Save Tape Direct Record")
+              /*#__PURE__*/React.createElement("button", { type: "submit", className: "btn btn-primary", id: "td-save-btn" }, "\u2713 " + t("Save Tape Direct Record", "Guardar Registro Tape Direct"))
             )
           )
         )
       ),
       activeRecords.length > 0 && /*#__PURE__*/React.createElement("div", { className: "card mb18", id: "tape-direct-records-list" },
         /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-          /*#__PURE__*/React.createElement("div", { className: "card-title" }, "Active Tape Direct Records"),
+          /*#__PURE__*/React.createElement("div", { className: "card-title" }, t("Active Tape Direct Records", "Registros Tape Direct Activos")),
           /*#__PURE__*/React.createElement("span", { className: "badge bg" }, activeRecords.length + " active")
         ),
         /*#__PURE__*/React.createElement("div", { className: "tbl" },
           /*#__PURE__*/React.createElement("table", null,
             /*#__PURE__*/React.createElement("thead", null,
               /*#__PURE__*/React.createElement("tr", null,
-                /*#__PURE__*/React.createElement("th", null, "Status"),
-                /*#__PURE__*/React.createElement("th", null, "Vendor"),
-                /*#__PURE__*/React.createElement("th", null, "Cost"),
-                /*#__PURE__*/React.createElement("th", null, "Qty"),
-                /*#__PURE__*/React.createElement("th", null, "Office"),
-                /*#__PURE__*/React.createElement("th", null, "Order Ref"),
-                /*#__PURE__*/React.createElement("th", null, "Staff"),
-                /*#__PURE__*/React.createElement("th", null, "Timestamp"),
-                /*#__PURE__*/React.createElement("th", null, "Actions")
+                /*#__PURE__*/React.createElement("th", null, t("Status", "Estado")),
+                /*#__PURE__*/React.createElement("th", null, t("Vendor", "Proveedor")),
+                /*#__PURE__*/React.createElement("th", null, t("Cost", "Costo")),
+                /*#__PURE__*/React.createElement("th", null, t("Qty", "Cant.")),
+                /*#__PURE__*/React.createElement("th", null, t("Office", "Oficina")),
+                /*#__PURE__*/React.createElement("th", null, t("Order Ref", "Ref. de Orden")),
+                /*#__PURE__*/React.createElement("th", null, t("Staff", "Personal")),
+                /*#__PURE__*/React.createElement("th", null, t("Timestamp", "Fecha/Hora")),
+                /*#__PURE__*/React.createElement("th", null, t("Actions", "Acciones"))
               )
             ),
             /*#__PURE__*/React.createElement("tbody", null,
               activeRecords.map(function(rec) {
                 return /*#__PURE__*/React.createElement("tr", { key: rec.id },
                   /*#__PURE__*/React.createElement("td", null,
-                    /*#__PURE__*/React.createElement("span", { className: "badge " + (rec.enabled ? 'bg' : 'br'), style: { fontSize: 10 } }, rec.enabled ? 'TAPE DIRECT' : 'Disabled')
+                    /*#__PURE__*/React.createElement("span", { className: "badge " + (rec.enabled ? 'bg' : 'br'), style: { fontSize: 10 } }, rec.enabled ? t('TAPE DIRECT', 'CINTA DIRECTA') : t('Disabled', 'Deshabilitado'))
                   ),
                   /*#__PURE__*/React.createElement("td", null, rec.vendor || '-'),
                   /*#__PURE__*/React.createElement("td", { className: "mono" }, rec.cost ? '$' + rec.cost.toFixed(2) : '-'),
@@ -25916,7 +26078,7 @@ setOrders(function (prev) {
                   /*#__PURE__*/React.createElement("td", null, rec.staff),
                   /*#__PURE__*/React.createElement("td", { className: "mono xs" }, rec.timestamp ? rec.timestamp.slice(0,16).replace('T',' ') : '-'),
                   /*#__PURE__*/React.createElement("td", null,
-                    /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-xs", onClick: function() { voidRecord(rec.id); } }, "Void")
+                    /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-xs", onClick: function() { voidRecord(rec.id); } }, t("Void", "Anular"))
                   )
                 );
               })
@@ -25926,7 +26088,7 @@ setOrders(function (prev) {
       ),
       voidedRecords.length > 0 && /*#__PURE__*/React.createElement("div", { className: "card mb18" },
         /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-          /*#__PURE__*/React.createElement("div", { className: "card-title", style: { color: "var(--text3)" } }, "Voided / Archived Records"),
+          /*#__PURE__*/React.createElement("div", { className: "card-title", style: { color: "var(--text3)" } }, t("Voided / Archived Records", "Registros Anulados / Archivados")),
           /*#__PURE__*/React.createElement("span", { className: "badge bgr" }, voidedRecords.length + " voided")
         ),
         /*#__PURE__*/React.createElement("div", { style: { padding: "10px 16px" } },
@@ -25941,7 +26103,7 @@ setOrders(function (prev) {
         )
       ),
       tdRecords.length === 0 && !showForm && /*#__PURE__*/React.createElement("div", { className: "alert alert-b", id: "td-empty-state" },
-        "\ud83d\udce6 No Tape Direct records yet. Click \u201C+ New Tape Direct Record\u201D to begin."
+        t("\ud83d\udce6 No Tape Direct records yet. Click \u201C+ New Tape Direct Record\u201D to begin.", "\ud83d\udce6 Sin registros Tape Direct. Haz clic en \u201C+ Nuevo Registro Tape Direct\u201D para comenzar.")
       )
     );
   };
@@ -25949,6 +26111,7 @@ setOrders(function (prev) {
   /* ── Box Sale Tracking Page ───────────────────────────────────── */
   var BoxSaleTrackingPage = function BoxSaleTrackingPage(_ref_bsp) {
     var session = _ref_bsp.session, notify = _ref_bsp.notify, roleKey = _ref_bsp.roleKey;
+    var t = useT();
     var BOX_SALE_KEY = 'casabe_box_sale_v1';
     function loadBoxSales() {
       try { return JSON.parse(localStorage.getItem(BOX_SALE_KEY) || '[]'); } catch(e) { return []; }
@@ -26050,35 +26213,35 @@ setOrders(function (prev) {
     return /*#__PURE__*/React.createElement("div", { className: "fu", id: "box-sale-tracking-panel" },
       /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: 'wrap' } },
         /*#__PURE__*/React.createElement("div", null,
-          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\ud83d\uddc3\ufe0f Box Sale Tracking"),
-          /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 2 } }, "Record empty box sales. Revenue, cost and margin are tracked for HQ/Office only.")
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\ud83d\uddc3\ufe0f " + t("Box Sale Tracking", "Seguimiento de Venta de Cajas")),
+          /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 2 } }, t("Record empty box sales. Revenue, cost and margin are tracked for HQ/Office only.", "Registrar ventas de cajas vac\u00edas. Ingresos, costos y margen para HQ/Oficina solamente."))
         ),
         !isDriver && /*#__PURE__*/React.createElement("div", { className: "mla" },
-          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary", id: "bs-new-record-btn", onClick: function() { setShowBsForm(!showBsForm); } }, "+ Record Box Sale")
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-primary", id: "bs-new-record-btn", onClick: function() { setShowBsForm(!showBsForm); } }, t("+ Record Box Sale", "+ Registrar Venta de Caja"))
         )
       ),
       showBsForm && !isDriver && /*#__PURE__*/React.createElement("div", { className: "card mb18", id: "box-sale-form" },
         /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-          /*#__PURE__*/React.createElement("div", { className: "card-title" }, "Record Box Sale"),
-          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: function() { setShowBsForm(false); } }, "Cancel")
+          /*#__PURE__*/React.createElement("div", { className: "card-title" }, t("Record Box Sale", "Registrar Venta de Caja")),
+          /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm", onClick: function() { setShowBsForm(false); } }, t("Cancel", "Cancelar"))
         ),
         /*#__PURE__*/React.createElement("div", { className: "card-bd" },
           /*#__PURE__*/React.createElement("form", { onSubmit: saveBoxSale, id: "box-sale-record-form" },
             /*#__PURE__*/React.createElement("div", { className: "fr mb12" },
               /*#__PURE__*/React.createElement("div", { className: "fg" },
-                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Box Type"),
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Box Type", "Tipo de Caja")),
                 /*#__PURE__*/React.createElement("select", { className: "fi", id: "bs-box-type", value: bsForm.boxType,
                   onChange: function(e) { setBsForm(Object.assign({}, bsForm, { boxType: e.target.value })); }
                 },
-                  /*#__PURE__*/React.createElement("option", { value: "small" }, "Small"),
-                  /*#__PURE__*/React.createElement("option", { value: "medium" }, "Medium"),
-                  /*#__PURE__*/React.createElement("option", { value: "large" }, "Large"),
-                  /*#__PURE__*/React.createElement("option", { value: "oversized" }, "Oversized"),
-                  /*#__PURE__*/React.createElement("option", { value: "custom" }, "Custom")
+                  /*#__PURE__*/React.createElement("option", { value: "small" }, t("Small", "Peque\u00f1a")),
+                  /*#__PURE__*/React.createElement("option", { value: "medium" }, t("Medium", "Mediana")),
+                  /*#__PURE__*/React.createElement("option", { value: "large" }, t("Large", "Grande")),
+                  /*#__PURE__*/React.createElement("option", { value: "oversized" }, t("Oversized", "Sobredimensionada")),
+                  /*#__PURE__*/React.createElement("option", { value: "custom" }, t("Custom", "Personalizada"))
                 )
               ),
               /*#__PURE__*/React.createElement("div", { className: "fg" },
-                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Quantity"),
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Quantity", "Cantidad")),
                 /*#__PURE__*/React.createElement("input", { className: "fi", id: "bs-quantity", type: "number", min: "1", required: true,
                   value: bsForm.quantity, onChange: function(e) { setBsForm(Object.assign({}, bsForm, { quantity: e.target.value })); }
                 })
@@ -26086,13 +26249,13 @@ setOrders(function (prev) {
             ),
             /*#__PURE__*/React.createElement("div", { className: "fr mb12" },
               /*#__PURE__*/React.createElement("div", { className: "fg" },
-                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Unit Cost ($)"),
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Unit Cost ($)", "Costo Unitario ($)")),
                 /*#__PURE__*/React.createElement("input", { className: "fi", id: "bs-unit-cost", type: "number", min: "0", step: "0.01", required: true, placeholder: "0.00",
                   value: bsForm.unitCost, onChange: function(e) { setBsForm(Object.assign({}, bsForm, { unitCost: e.target.value })); }
                 })
               ),
               /*#__PURE__*/React.createElement("div", { className: "fg" },
-                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Sale Price ($)"),
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Sale Price ($)", "Precio de Venta ($)")),
                 /*#__PURE__*/React.createElement("input", { className: "fi", id: "bs-sale-price", type: "number", min: "0", step: "0.01", required: true, placeholder: "0.00",
                   value: bsForm.salePrice, onChange: function(e) { setBsForm(Object.assign({}, bsForm, { salePrice: e.target.value })); }
                 })
@@ -26100,13 +26263,13 @@ setOrders(function (prev) {
             ),
             /*#__PURE__*/React.createElement("div", { className: "fr mb12" },
               /*#__PURE__*/React.createElement("div", { className: "fg" },
-                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Office"),
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Office", "Oficina")),
                 /*#__PURE__*/React.createElement("input", { className: "fi", id: "bs-office", type: "text", placeholder: "e.g. Miami North",
                   value: bsForm.office, onChange: function(e) { setBsForm(Object.assign({}, bsForm, { office: e.target.value })); }
                 })
               ),
               /*#__PURE__*/React.createElement("div", { className: "fg" },
-                /*#__PURE__*/React.createElement("label", { className: "fl" }, "Order / Box Link (optional)"),
+                /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Order / Box Link (optional)", "Enlace Orden/Caja (opcional)")),
                 /*#__PURE__*/React.createElement("input", { className: "fi", id: "bs-order-ref", type: "text", placeholder: "Order ID or box ref",
                   value: bsForm.orderRef, onChange: function(e) { setBsForm(Object.assign({}, bsForm, { orderRef: e.target.value })); }
                 })
@@ -26114,49 +26277,49 @@ setOrders(function (prev) {
             ),
             (bsForm.unitCost || bsForm.salePrice) && /*#__PURE__*/React.createElement("div", { className: "sg4 mb12", id: "bs-margin-preview" },
               /*#__PURE__*/React.createElement("div", { className: "sc sc-a" },
-                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Total Revenue"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, t("Total Revenue", "Ingresos Totales")),
                 /*#__PURE__*/React.createElement("div", { className: "sc-val" }, "$" + preview.totalRev.toFixed(2))
               ),
               /*#__PURE__*/React.createElement("div", { className: "sc sc-r" },
-                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Total Cost"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, t("Total Cost", "Costo Total")),
                 /*#__PURE__*/React.createElement("div", { className: "sc-val" }, "$" + preview.totalCost.toFixed(2))
               ),
               /*#__PURE__*/React.createElement("div", { className: "sc sc-g" },
-                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Gross Margin"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, t("Gross Margin", "Margen Bruto")),
                 /*#__PURE__*/React.createElement("div", { className: "sc-val" }, "$" + preview.grossMargin.toFixed(2))
               ),
               /*#__PURE__*/React.createElement("div", { className: "sc sc-b" },
-                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Margin %"),
+                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, t("Margin %", "Margen %")),
                 /*#__PURE__*/React.createElement("div", { className: "sc-val" }, preview.marginPct.toFixed(1) + "%")
               )
             ),
             /*#__PURE__*/React.createElement("div", { className: "row g10" },
-              /*#__PURE__*/React.createElement("button", { type: "submit", className: "btn btn-primary", id: "bs-save-btn" }, "\u2713 Save Box Sale Record")
+              /*#__PURE__*/React.createElement("button", { type: "submit", className: "btn btn-primary", id: "bs-save-btn" }, "\u2713 " + t("Save Box Sale Record", "Guardar Registro de Venta de Caja"))
             )
           )
         )
       ),
       activeRecords.length > 0 && /*#__PURE__*/React.createElement("div", { className: "card mb18", id: "box-sale-records-list" },
         /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-          /*#__PURE__*/React.createElement("div", { className: "card-title" }, "Box Sale Records"),
-          /*#__PURE__*/React.createElement("span", { className: "badge bg" }, activeRecords.length + " records")
+          /*#__PURE__*/React.createElement("div", { className: "card-title" }, t("Box Sale Records", "Registros de Venta de Cajas")),
+          /*#__PURE__*/React.createElement("span", { className: "badge bg" }, activeRecords.length + " " + t("records", "registros"))
         ),
         /*#__PURE__*/React.createElement("div", { className: "tbl" },
           /*#__PURE__*/React.createElement("table", null,
             /*#__PURE__*/React.createElement("thead", null,
               /*#__PURE__*/React.createElement("tr", null,
-                /*#__PURE__*/React.createElement("th", null, "Box Type"),
-                /*#__PURE__*/React.createElement("th", null, "Qty"),
-                /*#__PURE__*/React.createElement("th", null, "Unit Cost"),
-                /*#__PURE__*/React.createElement("th", null, "Sale Price"),
-                /*#__PURE__*/React.createElement("th", null, "Total Revenue"),
-                /*#__PURE__*/React.createElement("th", null, "Total Cost"),
-                /*#__PURE__*/React.createElement("th", null, "Gross Margin"),
-                /*#__PURE__*/React.createElement("th", null, "Margin %"),
-                /*#__PURE__*/React.createElement("th", null, "Office"),
-                /*#__PURE__*/React.createElement("th", null, "Staff"),
-                /*#__PURE__*/React.createElement("th", null, "Date"),
-                /*#__PURE__*/React.createElement("th", null, "Actions")
+                /*#__PURE__*/React.createElement("th", null, t("Box Type", "Tipo de Caja")),
+                /*#__PURE__*/React.createElement("th", null, t("Qty", "Cant.")),
+                /*#__PURE__*/React.createElement("th", null, t("Unit Cost", "Costo Unit.")),
+                /*#__PURE__*/React.createElement("th", null, t("Sale Price", "P. Venta")),
+                /*#__PURE__*/React.createElement("th", null, t("Total Revenue", "Ingresos Tot.")),
+                /*#__PURE__*/React.createElement("th", null, t("Total Cost", "Costo Total")),
+                /*#__PURE__*/React.createElement("th", null, t("Gross Margin", "Margen Bruto")),
+                /*#__PURE__*/React.createElement("th", null, t("Margin %", "Margen %")),
+                /*#__PURE__*/React.createElement("th", null, t("Office", "Oficina")),
+                /*#__PURE__*/React.createElement("th", null, t("Staff", "Personal")),
+                /*#__PURE__*/React.createElement("th", null, t("Date", "Fecha")),
+                /*#__PURE__*/React.createElement("th", null, t("Actions", "Acciones"))
               )
             ),
             /*#__PURE__*/React.createElement("tbody", null,
@@ -26174,7 +26337,7 @@ setOrders(function (prev) {
                   /*#__PURE__*/React.createElement("td", null, rec.staff),
                   /*#__PURE__*/React.createElement("td", { className: "mono xs" }, rec.timestamp ? rec.timestamp.slice(0,10) : '-'),
                   /*#__PURE__*/React.createElement("td", null,
-                    /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-xs", onClick: function() { voidBoxSale(rec.id); } }, "Void")
+                    /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-xs", onClick: function() { voidBoxSale(rec.id); } }, t("Void", "Anular"))
                   )
                 );
               })
@@ -26183,7 +26346,7 @@ setOrders(function (prev) {
         )
       ),
       bsRecords.length === 0 && !showBsForm && /*#__PURE__*/React.createElement("div", { className: "alert alert-b", id: "bs-empty-state" },
-        "\ud83d\uddc3\ufe0f No box sales recorded yet. Click \u201C+ Record Box Sale\u201D to start."
+        t("\ud83d\uddc3\ufe0f No box sales recorded yet. Click \u201C+ Record Box Sale\u201D to start.", "\ud83d\uddc3\ufe0f Sin ventas de cajas registradas. Haz clic en \u201C+ Registrar Venta de Caja\u201D para comenzar.")
       )
     );
   };
@@ -26191,6 +26354,7 @@ setOrders(function (prev) {
   /* ── Margin Summary Page ──────────────────────────────────────── */
   var MarginSummaryPage = function MarginSummaryPage(_ref_msp) {
     var roleKey = _ref_msp.roleKey, officeFilter = _ref_msp.officeFilter;
+    var t = useT();
     // Driver gate: enforced at component level
     if (roleKey === 'driver') {
       return /*#__PURE__*/React.createElement("div", { className: "fu", id: "margin-summary-panel" },
@@ -26219,9 +26383,11 @@ setOrders(function (prev) {
     return /*#__PURE__*/React.createElement("div", { className: "fu", id: "margin-summary-panel" },
       /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: 'wrap' } },
         /*#__PURE__*/React.createElement("div", null,
-          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\ud83d\udcca Margin Summary"),
+          /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\ud83d\udcca " + t("Margin Summary", "Resumen de Margen")),
           /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 2 } },
-            roleKey === 'hq' ? "Tenant-wide margin data. Use office filter to drill down." : "Showing your office data only."
+            roleKey === 'hq'
+              ? t("Tenant-wide margin data. Use office filter to drill down.", "Datos de margen del tenant. Usa el filtro de oficina para detallar.")
+              : t("Showing your office data only.", "Mostrando solo los datos de tu oficina.")
           )
         ),
         roleKey === 'hq' && offices.length > 0 && /*#__PURE__*/React.createElement("div", { className: "mla", style: { display: 'flex', gap: 8, alignItems: 'center' } },
@@ -26229,67 +26395,67 @@ setOrders(function (prev) {
           /*#__PURE__*/React.createElement("select", { className: "fi", id: "margin-office-filter", style: { width: 160 }, value: officeFilterLocal,
             onChange: function(e) { setOfficeFilterLocal(e.target.value); }
           },
-            /*#__PURE__*/React.createElement("option", { value: "all" }, "All Offices"),
+            /*#__PURE__*/React.createElement("option", { value: "all" }, t("All Offices", "Todas las Oficinas")),
             offices.map(function(o) { return /*#__PURE__*/React.createElement("option", { key: o, value: o }, o); })
           )
         )
       ),
       /*#__PURE__*/React.createElement("div", { className: "sg4 mb18", id: "margin-summary-stats" },
         /*#__PURE__*/React.createElement("div", { className: "sc sc-a" },
-          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Total Revenue"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, t("Total Revenue", "Ingresos Totales")),
           /*#__PURE__*/React.createElement("div", { className: "sc-val" }, "$" + totalRevenue.toFixed(2)),
-          /*#__PURE__*/React.createElement("div", { className: "sc-delta delta-n" }, "Box sales")
+          /*#__PURE__*/React.createElement("div", { className: "sc-delta delta-n" }, t("Box sales", "Ventas de cajas"))
         ),
         /*#__PURE__*/React.createElement("div", { className: "sc sc-r" },
-          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Total Cost"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, t("Total Cost", "Costo Total")),
           /*#__PURE__*/React.createElement("div", { className: "sc-val" }, "$" + totalCost.toFixed(2)),
-          /*#__PURE__*/React.createElement("div", { className: "sc-delta delta-n" }, "Box cost")
+          /*#__PURE__*/React.createElement("div", { className: "sc-delta delta-n" }, t("Box cost", "Costo de cajas"))
         ),
         /*#__PURE__*/React.createElement("div", { className: "sc sc-g" },
-          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Gross Margin"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, t("Gross Margin", "Margen Bruto")),
           /*#__PURE__*/React.createElement("div", { className: "sc-val" }, "$" + grossMargin.toFixed(2)),
           /*#__PURE__*/React.createElement("div", { className: "sc-delta " + (grossMargin >= 0 ? 'delta-u' : 'delta-d') },
-            (grossMargin >= 0 ? '\u2191 ' : '\u2193 ') + marginPct.toFixed(1) + "% margin"
+            (grossMargin >= 0 ? '\u2191 ' : '\u2193 ') + marginPct.toFixed(1) + "% " + t("margin", "margen")
           )
         ),
         /*#__PURE__*/React.createElement("div", { className: "sc sc-b" },
-          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Margin %"),
+          /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, t("Margin %", "Margen %")),
           /*#__PURE__*/React.createElement("div", { className: "sc-val" }, marginPct.toFixed(1) + "%"),
-          /*#__PURE__*/React.createElement("div", { className: "sc-delta delta-n" }, "Gross margin rate")
+          /*#__PURE__*/React.createElement("div", { className: "sc-delta delta-n" }, t("Gross margin rate", "Tasa de margen bruto"))
         )
       ),
       /*#__PURE__*/React.createElement("div", { className: "g2 mb18" },
         /*#__PURE__*/React.createElement("div", { className: "card" },
           /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-            /*#__PURE__*/React.createElement("div", { className: "card-title" }, "Tape Direct Records"),
-            /*#__PURE__*/React.createElement("span", { className: "badge bb" }, tdFiltered.length + " records")
+            /*#__PURE__*/React.createElement("div", { className: "card-title" }, t("Tape Direct Records", "Registros Tape Direct")),
+            /*#__PURE__*/React.createElement("span", { className: "badge bb" }, tdFiltered.length + " " + t("records", "registros"))
           ),
           /*#__PURE__*/React.createElement("div", { className: "card-bd" },
             /*#__PURE__*/React.createElement("div", { className: "sc-val" }, tdFiltered.length),
-            /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "Active tape direct records"),
+            /*#__PURE__*/React.createElement("div", { className: "mut xs" }, t("Active tape direct records", "Registros Tape Direct activos")),
             tdFiltered.length > 0 && /*#__PURE__*/React.createElement("div", { className: "row g6 mt", style: { marginTop: 8 } },
-              /*#__PURE__*/React.createElement("span", { className: "mut xs" }, "Total TD cost:"),
+              /*#__PURE__*/React.createElement("span", { className: "mut xs" }, t("Total TD cost:", "Costo total TD:")),
               /*#__PURE__*/React.createElement("span", { className: "mono", style: { color: "var(--amber)" } }, "$" + tdCost.toFixed(2))
             )
           )
         ),
         /*#__PURE__*/React.createElement("div", { className: "card" },
           /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-            /*#__PURE__*/React.createElement("div", { className: "card-title" }, "Box Sale Records"),
-            /*#__PURE__*/React.createElement("span", { className: "badge bg" }, bsFiltered.length + " records")
+            /*#__PURE__*/React.createElement("div", { className: "card-title" }, t("Box Sale Records", "Registros de Venta de Cajas")),
+            /*#__PURE__*/React.createElement("span", { className: "badge bg" }, bsFiltered.length + " " + t("records", "registros"))
           ),
           /*#__PURE__*/React.createElement("div", { className: "card-bd" },
             /*#__PURE__*/React.createElement("div", { className: "sc-val" }, bsFiltered.length),
-            /*#__PURE__*/React.createElement("div", { className: "mut xs" }, "Active box sale records"),
+            /*#__PURE__*/React.createElement("div", { className: "mut xs" }, t("Active box sale records", "Registros de venta de cajas activos")),
             bsFiltered.length > 0 && /*#__PURE__*/React.createElement("div", { className: "row g6 mt", style: { marginTop: 8 } },
-              /*#__PURE__*/React.createElement("span", { className: "mut xs" }, "Avg margin:"),
+              /*#__PURE__*/React.createElement("span", { className: "mut xs" }, t("Avg margin:", "Margen prom.:")),
               /*#__PURE__*/React.createElement("span", { className: "mono", style: { color: "var(--green)" } }, marginPct.toFixed(1) + "%")
             )
           )
         )
       ),
       (bsFiltered.length === 0 && tdFiltered.length === 0) && /*#__PURE__*/React.createElement("div", { className: "alert alert-b", id: "margin-empty-state" },
-        "No records found. Add Tape Direct or Box Sale records to see margin data."
+        t("No records found. Add Tape Direct or Box Sale records to see margin data.", "Sin registros. Agrega registros de Tape Direct o Venta de Cajas para ver los m\u00e1rgenes.")
       )
     );
   };
@@ -27009,6 +27175,7 @@ setOrders(function (prev) {
   ══════════════════════════════════════════════════════════════ */
   var ProviderConfigPage = function ProviderConfigPage(_ref_pcp) {
     var roleKey = _ref_pcp.roleKey, supabase = _ref_pcp.supabase;
+    var t = useT();
 
     if (!roleKey || roleKey !== "hq") {
       return React.createElement("div", { className: "fu", style: { textAlign: "center", padding: "60px 20px" } },
@@ -27053,8 +27220,8 @@ setOrders(function (prev) {
       /* Header */
       React.createElement("div", { className: "row g10 mb18", style: { flexWrap: "wrap" } },
         React.createElement("div", null,
-          React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\u2699\uFE0F Provider Config"),
-          React.createElement("div", { className: "mut xs", style: { marginTop: 2 } }, "SMS & WhatsApp provider status. Secrets are server-side only \u2014 never exposed to the browser.")
+          React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\u2699\uFE0F " + t("Provider Config", "Config. del Proveedor")),
+          React.createElement("div", { className: "mut xs", style: { marginTop: 2 } }, t("SMS & WhatsApp provider status. Secrets are server-side only \u2014 never exposed to the browser.", "Estado del proveedor SMS y WhatsApp. Los secretos son solo del lado del servidor \u2014 nunca expuestos al navegador."))
         ),
         React.createElement("div", { className: "mla" },
           React.createElement("div", { className: "alert alert-b", style: { marginBottom: 0, fontSize: 11, id: "provider-readonly-badge" } },
@@ -27066,7 +27233,7 @@ setOrders(function (prev) {
       /* Status card */
       React.createElement("div", { className: "card mb16", id: "provider-status-card" },
         React.createElement("div", { className: "card-hd" },
-          React.createElement("div", { className: "card-title" }, "Connection Status"),
+          React.createElement("div", { className: "card-title" }, t("Connection Status", "Estado de Conexi\u00f3n")),
           React.createElement("span", { className: "badge " + st.badge, id: "provider-status-badge" }, st.icon + " " + st.label)
         ),
         React.createElement("div", { className: "card-bd" },
@@ -27172,15 +27339,17 @@ setOrders(function (prev) {
     return records;
   }
 
-  /* Status badge helper */
-  function mqStatusBadge(status) {
+  /* Status badge helper — uses ES dict for Spanish labels */
+  function mqStatusBadge(status, lang) {
+    var _l = lang || "en";
+    var _t = function(en, es) { return _l === "es" ? es : en; };
     var map = {
-      draft:     { cls: "ba", label: "Draft" },
-      queued:    { cls: "bp", label: "Queued \u2014 awaiting Twilio credentials" },
-      blocked:   { cls: "br", label: "Blocked" },
-      sent:      { cls: "bg", label: "Sent" },
-      failed:    { cls: "br", label: "Failed" },
-      cancelled: { cls: "bgr", label: "Cancelled" }
+      draft:     { cls: "ba", label: _t("Draft", "Borrador") },
+      queued:    { cls: "bp", label: _t("Queued \u2014 awaiting Twilio credentials", "En Cola \u2014 esperando credenciales Twilio") },
+      blocked:   { cls: "br", label: _t("Blocked", "Bloqueado") },
+      sent:      { cls: "bg", label: _t("Sent", "Enviado") },
+      failed:    { cls: "br", label: _t("Failed", "Fallido") },
+      cancelled: { cls: "bgr", label: _t("Cancelled", "Cancelado") }
     };
     var s = map[status] || { cls: "ba", label: status };
     return React.createElement("span", { className: "badge " + s.cls }, s.label);
@@ -27188,6 +27357,8 @@ setOrders(function (prev) {
 
   var MessageQueuePage = function MessageQueuePage(_ref_mqp) {
     var roleKey = _ref_mqp.roleKey, currentUser = _ref_mqp.currentUser, supabase = _ref_mqp.supabase;
+    var t = useT();
+    var _mqLang = React.useContext(LangContext);
 
     if (!roleKey || roleKey === "driver") {
       return React.createElement("div", { className: "fu", style: { textAlign: "center", padding: "60px 20px" } },
@@ -27202,6 +27373,20 @@ setOrders(function (prev) {
     var _sc = useState(null), confirmCancel = _sc[0], setConfirmCancel = _sc[1];
     var _si = useState(null), _sendingId = _si[0], setSendingId = _si[1];
     var _sr = useState(null), _sendResult = _sr[0], setSendResult = _sr[1];
+    var _spc = useState(null), providerConfigured = _spc[0], setProviderConfigured = _spc[1];
+
+    useEffect(function() {
+      if (!supabase) return;
+      supabase.functions.invoke("sms-status")
+        .then(function(res) {
+          if (res.data && typeof res.data.configured === "boolean") {
+            setProviderConfigured(res.data.configured);
+          } else {
+            setProviderConfigured(false);
+          }
+        })
+        .catch(function() { setProviderConfigured(false); });
+    }, []);
 
     /* Office scoping: only show records linked to their orders.
        Since this is pre-Supabase, office filter is advisory only (enforced by RLS post-schema). */
@@ -27219,23 +27404,25 @@ setOrders(function (prev) {
       /* Header */
       React.createElement("div", { className: "row g10 mb18", style: { flexWrap: "wrap" } },
         React.createElement("div", null,
-          React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\uD83D\uDCEC Message Queue"),
+          React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, "\uD83D\uDCEC " + t("Message Queue", "Cola de Mensajes")),
           React.createElement("div", { className: "mut xs", style: { marginTop: 2 } },
             roleKey === "hq"
-              ? "All outbound message records \u2014 tenant-wide."
-              : "Outbound message records for your office orders."
+              ? t("All outbound message records \u2014 tenant-wide.", "Todos los registros de mensajes salientes \u2014 todo el tenant.")
+              : t("Outbound message records for your office orders.", "Registros de mensajes salientes para las \u00f3rdenes de tu oficina.")
           )
         ),
         React.createElement("div", { className: "mla" },
-          React.createElement("div", { className: "alert alert-b", style: { marginBottom: 0, fontSize: 11 } },
-            "\uD83D\uDEAB Stage 3 \u2014 Queued only. No message is sent."
+          React.createElement("div", { className: "alert " + (providerConfigured === true ? "alert-g" : "alert-b"), style: { marginBottom: 0, fontSize: 11 } },
+            providerConfigured === true
+              ? "\u2705 Twilio credentials configured \u2014 Send Now will deliver via SMS."
+              : "\u23F3 Twilio credentials pending \u2014 messages queue but do not send. Add secrets in Supabase to enable delivery."
           )
         )
       ),
 
       /* Stat cards */
       React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }, id: "queue-stat-cards" },
-        [["draft","Draft","-"],["queued","Queued","bp"],["sent","Sent","bg"],["failed","Failed","br"],["cancelled","Cancelled","bgr"]].map(function(row) {
+        [["draft",t("Draft","Borrador"),"-"],["queued",t("Queued","En Cola"),"bp"],["sent",t("Sent","Enviado"),"bg"],["failed",t("Failed","Fallido"),"br"],["cancelled",t("Cancelled","Cancelado"),"bgr"]].map(function(row) {
           return React.createElement("div", { key: row[0], className: "card", style: { minWidth: 110, flex: "1 1 110px", padding: "10px 14px", cursor: "pointer", borderBottom: filterStatus === row[0] ? "2px solid var(--amber)" : "2px solid transparent" },
             onClick: function() { setFilterStatus(filterStatus === row[0] ? "all" : row[0]); } },
             React.createElement("div", { style: { fontSize: 20, fontWeight: 800 } }, statusCounts[row[0]] || 0),
@@ -27246,9 +27433,9 @@ setOrders(function (prev) {
 
       /* Filter chips */
       React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }, id: "queue-filter-chips" },
-        React.createElement("button", { className: "btn btn-sm" + (filterStatus === "all" ? " btn-primary" : " btn-ghost"), onClick: function() { setFilterStatus("all"); } }, "All (" + records.length + ")"),
-        ["queued","draft","sent","failed","blocked","cancelled"].map(function(s) {
-          return React.createElement("button", { key: s, className: "btn btn-sm" + (filterStatus === s ? " btn-primary" : " btn-ghost"), onClick: function() { setFilterStatus(s); } }, s.charAt(0).toUpperCase() + s.slice(1) + " (" + (statusCounts[s] || 0) + ")");
+        React.createElement("button", { className: "btn btn-sm" + (filterStatus === "all" ? " btn-primary" : " btn-ghost"), onClick: function() { setFilterStatus("all"); } }, t("All", "Todos") + " (" + records.length + ")"),
+        [["queued",t("Queued","En Cola")],["draft",t("Draft","Borrador")],["sent",t("Sent","Enviado")],["failed",t("Failed","Fallido")],["blocked",t("Blocked","Bloqueado")],["cancelled",t("Cancelled","Cancelado")]].map(function(pair) {
+          return React.createElement("button", { key: pair[0], className: "btn btn-sm" + (filterStatus === pair[0] ? " btn-primary" : " btn-ghost"), onClick: function() { setFilterStatus(pair[0]); } }, pair[1] + " (" + (statusCounts[pair[0]] || 0) + ")");
         })
       ),
 
@@ -27267,8 +27454,8 @@ setOrders(function (prev) {
       visible.length === 0 && React.createElement("div", { className: "card", id: "queue-empty-state" },
         React.createElement("div", { className: "card-bd", style: { textAlign: "center", padding: "40px 20px", color: "var(--text3)" } },
           React.createElement("div", { style: { fontSize: 32, marginBottom: 8 } }, "\uD83D\uDCEC"),
-          React.createElement("div", { style: { fontWeight: 700 } }, filterStatus === "all" ? "No messages queued yet." : "No " + filterStatus + " messages."),
-          React.createElement("div", { className: "mut xs", style: { marginTop: 4 } }, "Queue a message from the Message Templates page.")
+          React.createElement("div", { style: { fontWeight: 700 } }, filterStatus === "all" ? t("No messages queued yet.", "Sin mensajes en cola a\u00fan.") : t("No", "Sin") + " " + filterStatus + " " + t("messages.", "mensajes.")),
+          React.createElement("div", { className: "mut xs", style: { marginTop: 4 } }, t("Queue a message from the Message Templates page.", "Pon un mensaje en cola desde la p\u00e1gina de Plantillas de Mensaje."))
         )
       ),
 
@@ -27282,7 +27469,7 @@ setOrders(function (prev) {
           React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", fontSize: 12 } },
             React.createElement("thead", null,
               React.createElement("tr", { style: { borderBottom: "1px solid var(--border)" } },
-                ["Status","Channel","Template","Recipient","Order","Created","Actions"].map(function(h) {
+                [t("Status","Estado"),t("Channel","Canal"),t("Template","Plantilla"),t("Recipient","Destinatario"),t("Order","Orden"),t("Created","Creado"),t("Actions","Acciones")].map(function(h) {
                   return React.createElement("th", { key: h, style: { padding: "8px 12px", textAlign: "left", color: "var(--text4)", fontWeight: 700, fontSize: 10, textTransform: "uppercase", letterSpacing: ".06em" } }, h);
                 })
               )
@@ -27290,7 +27477,7 @@ setOrders(function (prev) {
             React.createElement("tbody", null,
               visible.map(function(r, i) {
                 return React.createElement("tr", { key: r.id, id: "queue-row-" + r.id, style: { borderBottom: "1px solid var(--border2)", background: i % 2 === 0 ? "transparent" : "var(--bg3)" } },
-                  React.createElement("td", { style: { padding: "8px 12px" } }, mqStatusBadge(r.status)),
+                  React.createElement("td", { style: { padding: "8px 12px" } }, mqStatusBadge(r.status, _mqLang)),
                   React.createElement("td", { style: { padding: "8px 12px" } }, React.createElement("span", { className: "badge bt" }, r.channel.toUpperCase())),
                   React.createElement("td", { style: { padding: "8px 12px", color: "var(--text2)", fontSize: 11 } }, r.template_name || r.template_key),
                   React.createElement("td", { style: { padding: "8px 12px", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "var(--text3)" } }, r.recipient_phone),
@@ -27302,7 +27489,8 @@ setOrders(function (prev) {
                           roleKey === "hq" && React.createElement("button", {
                             className: "btn btn-sm btn-primary",
                             id: "send-now-btn-" + r.id,
-                            disabled: _sendingId === r.id,
+                            disabled: _sendingId === r.id || providerConfigured === false,
+                            title: providerConfigured === false ? "Twilio credentials not configured \u2014 add secrets in Supabase to enable sending" : undefined,
                             style: { fontSize: 11 },
                             onClick: function() {
                               setSendingId(r.id);
@@ -27319,7 +27507,7 @@ setOrders(function (prev) {
                                 })
                                 .catch(function(e) { setSendingId(null); setSendResult({ id: r.id, ok: false, error: String(e) }); });
                             }
-                          }, _sendingId === r.id ? "\u23F3 Sending\u2026" : "\u{1F4AC} Send"),
+                          }, _sendingId === r.id ? "\u23F3 Sending\u2026" : providerConfigured === false ? "\uD83D\uDD12 Twilio Pending" : "\u{1F4AC} Send"),
                           React.createElement("button", {
                             className: "btn btn-sm btn-ghost",
                             id: "cancel-btn-" + r.id,
@@ -27381,7 +27569,7 @@ setOrders(function (prev) {
       tenant: tenant
     });
     if (page === "hq_ops") return renderHQOpsPage();
-    if (page === "receipts_invoices") return /*#__PURE__*/React.createElement(ReceiptsInvoicesApp, { orders: orders, notify: notify });
+    if (page === "receipts_invoices") return /*#__PURE__*/React.createElement(ReceiptsInvoicesApp, { orders: orders, notify: notify, roleKey: roleKey, session: session });
     if (page === "customers") return /*#__PURE__*/React.createElement(CustomerProfilePage, {
       orders: orders,
       onImportCustomers: function onImportCustomers(imported) {

@@ -245,6 +245,11 @@ var PaymentReceiptTemplate = {
       <p>Keep this receipt for your records.</p>
       <p style="margin-top: 8px; color: #999;">casabe.example.com</p>
     </div>
+    ${data.disclaimer && data.disclaimer.text ? `
+    <div class="inv-disclaimer" style="margin-top:0.18in;padding-top:0.1in;border-top:1pt solid #ccc;font-size:7pt;color:#555;line-height:1.5;">
+      ${data.disclaimer.title ? `<div style="font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3pt;color:#333;">${data.disclaimer.title}</div>` : ''}
+      <div>${data.disclaimer.text}</div>
+    </div>` : ''}
   </div>
 </body>
 </html>
@@ -632,6 +637,11 @@ var ShipmentInvoiceTemplate = {
       <p>Thank you for your business!</p>
       <p style="margin-top: 8px;">casabe.example.com</p>
     </div>
+    ${data.disclaimer && data.disclaimer.text ? `
+    <div class="inv-disclaimer" style="margin-top:0.18in;padding-top:0.1in;border-top:1pt solid #ccc;font-size:7pt;color:#555;line-height:1.5;">
+      ${data.disclaimer.title ? `<div style="font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:3pt;color:#333;">${data.disclaimer.title}</div>` : ''}
+      <div>${data.disclaimer.text}</div>
+    </div>` : ''}
   </div>
 </body>
 </html>

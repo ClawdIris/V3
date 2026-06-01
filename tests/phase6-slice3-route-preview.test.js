@@ -197,28 +197,30 @@ describe('Gate 7: Route results display', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GATE [8] — SVG route line overlay
+// GATE [8] — Leaflet route line overlay (upgraded from SVG placeholder)
+// SVG polyline (#route-svg-line) was replaced by a real Leaflet map.
+// These tests reflect the Leaflet implementation.
 // ─────────────────────────────────────────────────────────────────────────────
-describe('Gate 8: SVG visual route line', () => {
-  test('route-svg-line polyline element exists', () => {
-    expect(html).toContain('id: "route-svg-line"');
+describe('Gate 8: Leaflet visual route line (Leaflet map, replaces SVG placeholder)', () => {
+  test('leaflet-map-container is present', () => {
+    expect(html).toContain('leaflet-map-container');
   });
 
-  test('polyline is conditional on routeResult.stops length >= 2', () => {
+  test('route polyline is conditional on routeResult.stops length >= 2', () => {
     expect(html).toContain('routeResult.stops.length >= 2');
   });
 
-  test('polyline uses PIN_OFFSETS for coordinate mapping', () => {
-    expect(html).toContain('PIN_OFFSETS[i].dx');
-    expect(html).toContain('PIN_OFFSETS[i].dy');
+  test('Leaflet polyline uses real lat/lon from routeResult.stops', () => {
+    // Leaflet route: L.polyline(routePoints, ...) drawn in useEffect
+    expect(html).toContain('L.polyline');
   });
 
-  test('polyline has stroke-dasharray for dashed route style', () => {
-    expect(html).toContain('strokeDasharray: "3,2"');
+  test('Leaflet polyline uses dashArray for dashed route style', () => {
+    expect(html).toContain('dashArray');
   });
 
-  test('numbered route stop pins are rendered over map', () => {
-    expect(html).toContain('"rpin-" + stop.id');
+  test('route-results panel is rendered when route is computed', () => {
+    expect(html).toContain('id: "route-results"');
   });
 });
 

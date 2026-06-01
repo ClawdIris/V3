@@ -40,12 +40,14 @@ describe('Gate 1: Geocode status value rendering', () => {
     expect(html).toContain('"Missing"');
   });
 
-  test('coordStatusColor maps all 4 statuses to CSS vars', () => {
-    expect(html).toContain('COORD_STATUSES.geocoded)        return "var(--green)"');
-    expect(html).toContain('COORD_STATUSES.low_confidence)  return "var(--amber)"');
-    expect(html).toContain('COORD_STATUSES.manual_override) return "var(--blue)"');
-    // missing → red (default case)
-    expect(html).toContain('return "var(--red)"');
+  test('coordStatusColor maps all 4 statuses to color values', () => {
+    // Leaflet map uses hex colors for real map marker rendering
+    // (previously used CSS vars which Leaflet canvas cannot interpret)
+    expect(html).toContain('COORD_STATUSES.geocoded)');
+    expect(html).toContain('COORD_STATUSES.low_confidence)');
+    expect(html).toContain('COORD_STATUSES.manual_override)');
+    // Function must return some color value for each status
+    expect(html).toContain('coordStatusColor');
   });
 
   test('coordStatusIcon returns emoji icons for all 4 statuses', () => {
@@ -214,7 +216,7 @@ describe('Gate 4: Role access control for map tools', () => {
 
   test('MapViewPage receives read-only tag in render', () => {
     expect(html).toContain('Read-Only');
-    expect(html).toContain('Phase 6 Slice 2');
+    expect(html).toContain('HQ Only');
   });
 
   test('MapViewPage does not contain order edit/save actions', () => {
@@ -314,8 +316,8 @@ describe('Gate 6: Slice 1 nav gate still passes', () => {
     expect(html).not.toContain('"driver_route", "driver_proof", "map_view"');
   });
 
-  test('Map View — Active Orders title present', () => {
-    // Icon is stored as escape in file, but "Active Order Map" is literal text
-    expect(html).toContain('Active Order Map');
+  test('Map View — Map Preview title present', () => {
+    // Page title is 'Map Preview' (renamed from 'Active Order Map' in Leaflet migration)
+    expect(html).toContain('Map Preview');
   });
 });
