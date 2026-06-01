@@ -24015,6 +24015,9 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
       riCancelled = _stRICancelled2[0], setRICancelled = _stRICancelled2[1];
   var _stRILinkExpired = useState(false), _stRILinkExpired2 = _slicedToArray(_stRILinkExpired, 2),
       riLinkExpired = _stRILinkExpired2[0], setRILinkExpired = _stRILinkExpired2[1];
+  /* Inline error for missing order selection */
+  var _stRIErr = useState(null), _stRIErr2 = _slicedToArray(_stRIErr, 2),
+      riSelectErr = _stRIErr2[0], setRISelectErr = _stRIErr2[1];
   var voidInvoice = function voidInvoice() {
     if (!riPreview || riPreview.type !== 'invoice') { notify && notify('No invoice to void'); return; }
     if (riCancelled) { notify && notify('Cannot void — receipt already cancelled'); return; }
@@ -24064,9 +24067,11 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
 
   var generateInvoice = function generateInvoice() {
     if (!riOrderId || !selectedOrder) {
+      setRISelectErr('Please select an order first');
       notify && notify('Select an order before generating an invoice');
       return;
     }
+    setRISelectErr(null);
     var boxes = (selectedOrder && selectedOrder.boxes) ? selectedOrder.boxes : [];
     var BOX_PRICES = { 'Dish/Small': 200, 'Medium 74': 260, 'Large 88': 360, 'Barrel': 340 };
     var items = boxes.length ? boxes.map(function(box, idx) {
@@ -24101,9 +24106,11 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
 
   var generateDriverReceipt = function generateDriverReceipt() {
     if (!riOrderId || !selectedOrder) {
+      setRISelectErr('Please select an order first');
       notify && notify('Select an order before generating a receipt');
       return;
     }
+    setRISelectErr(null);
     var receiptData = {
       receiptNumber: 'RCT-' + Date.now(),
       receiptDate: new Date().toLocaleDateString(),
@@ -24180,6 +24187,7 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
               /*#__PURE__*/React.createElement('label', { className: 'fl' }, 'Stripe Payment URL (stripe_payment_url)'),
               /*#__PURE__*/React.createElement('input', { className: 'fi', type: 'text', placeholder: 'https://buy.stripe.com/...', value: riPaymentUrl, onChange: function(e) { setRIPaymentUrl(e.target.value); } })
             ),
+            riSelectErr && /*#__PURE__*/React.createElement('div', { className: 'alert alert-r', style: { marginTop: 8, marginBottom: 4, fontSize: 12 }, id: 'ri-select-err' }, '\u26A0\uFE0F ' + riSelectErr),
             /*#__PURE__*/React.createElement('div', { className: 'row g6', style: { flexWrap: 'wrap' } },
               /*#__PURE__*/React.createElement('button', { className: 'btn btn-primary', onClick: function() { setRIVoided(false); setRICancelled(false); doGenerate(); } }, genLabel),
               /*#__PURE__*/React.createElement('button', { className: 'btn btn-ghost', onClick: copyPaymentLink, title: 'Copy Stripe payment link to clipboard', disabled: riLinkExpired }, riLinkExpired ? '\uD83D\uDD12 Link Expired' : '\uD83D\uDD17 Copy Payment Link'),
@@ -24207,13 +24215,13 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
               riPreview.type === 'invoice' && !riVoided && /*#__PURE__*/React.createElement('button', {
                 className: 'btn btn-red btn-sm',
                 onClick: voidInvoice,
-                title: 'Void this invoice'
-              }, '\u26D4 Void Invoice'),
+                title: 'Void this invoice — Beta: void resets on refresh'
+              }, '\u26D4 Void Invoice \u2014 Beta: resets on refresh'),
               riPreview.type === 'receipt' && !riCancelled && /*#__PURE__*/React.createElement('button', {
                 className: 'btn btn-red btn-sm',
                 onClick: cancelReceipt,
-                title: 'Cancel this receipt'
-              }, '\u274C Cancel Receipt'),
+                title: 'Cancel this receipt — Beta: cancel resets on refresh'
+              }, '\u274C Cancel Receipt \u2014 Beta: resets on refresh'),
               !riVoided && !riCancelled && /*#__PURE__*/React.createElement('button', { className: 'btn btn-ghost btn-sm', onClick: printInvoice }, '\uD83D\uDDA8\uFE0F Print')
             )
           ),
