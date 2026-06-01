@@ -1,6 +1,6 @@
 # Phase 7 — Payments + Accounting Roadmap
 **Added: 2026-06-01 14:57 EDT — Jefe directive**
-**Status: 🔒 NOT STARTED — blocked until Phase 6 beta-readiness is closed**
+**Status: 🟡 READY TO BUILD — Phase 6 closed 2026-06-01 16:39 EDT. Awaiting Jefe answers to open questions before Slice 7.1 starts.**
 
 ---
 
@@ -16,7 +16,7 @@ Stripe + QuickBooks are not post-beta anymore. They ARE Phase 7 beta blockers.
 
 | Slice | Scope | Trigger |
 |---|---|---|
-| **7.1** | Stripe config + Checkout Session Edge Function | After Phase 6 closed |
+| **7.1** | Stripe config + Checkout Session Edge Function | ✅ COMPLETE — commits b447c7f, 588d5b8, e57de82 |
 | **7.2** | Stripe webhook + payment status update | After 7.1 smoke passes |
 | **7.3** | QuickBooks OAuth connect/disconnect | After 7.2 smoke passes |
 | **7.4** | QuickBooks invoice/payment sync | After 7.3 smoke passes |
@@ -183,7 +183,7 @@ Before Phase 7 is closed, this full flow must pass in a real browser:
 
 ---
 
-## Open Questions (resolve before Slice 7.1)
+## Open Questions (resolve before Slice 7.1 starts — BLOCKING)
 
 1. **Stripe account**: Does Jefe have a Stripe account, or does cousin handle this too?
 2. **Stripe test key**: Need `STRIPE_SECRET_KEY` (test) to start Slice 7.1
