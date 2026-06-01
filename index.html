@@ -24215,7 +24215,7 @@ var GeneratePaymentLink = function GeneratePaymentLink(_ref_gpl) {
       style: { marginTop: 8, fontSize: 12 }
     }, gplError),
     gplUrl && /*#__PURE__*/React.createElement('div', { style: { marginTop: 10 } },
-      /*#__PURE__*/React.createElement('label', { className: 'fl' }, '✅ Payment Link'),
+      /*#__PURE__*/React.createElement('label', { className: 'fl' }, '\u2705 Payment Link Generated'),
       /*#__PURE__*/React.createElement('div', { className: 'row g6', style: { marginTop: 4 } },
         /*#__PURE__*/React.createElement('input', {
           id: 'gpl-url-field',
@@ -24223,12 +24223,16 @@ var GeneratePaymentLink = function GeneratePaymentLink(_ref_gpl) {
           type: 'text',
           readOnly: true,
           value: gplUrl,
-          style: { flex: 1, fontFamily: 'var(--mono)', fontSize: 11 }
+          style: { flex: 1, fontFamily: 'var(--mono)', fontSize: 11, border: '1.5px solid #f59e0b', borderRadius: 6, background: '#fffbf0' }
         }),
         /*#__PURE__*/React.createElement('button', {
           className: 'btn btn-ghost btn-sm',
-          onClick: handleCopy
-        }, gplCopied ? '✓ Copied' : '📋 Copy Link')
+          onClick: handleCopy,
+          style: { minWidth: 90 }
+        }, gplCopied ? '\u2713 Copied!' : '\uD83D\uDCCB Copy')
+      ),
+      /*#__PURE__*/React.createElement('div', { style: { fontSize: 11, color: 'var(--text3)', marginTop: 6 } },
+        'Share this link with your customer to collect payment via Stripe.'
       )
     )
   );
@@ -24244,6 +24248,7 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
   var session = _ref_ri.session || {};
   var tenant  = _ref_ri.tenant  || {};
   var tenant = _ref_ri.tenant || {};
+  var setPage = _ref_ri.setPage || function() {};
   var _stRITab = useState('shipment_invoice'), _stRITab2 = _slicedToArray(_stRITab, 2),
       riTab = _stRITab2[0], setRITab = _stRITab2[1];
   var _stRIOrder = useState(''), _stRIOrder2 = _slicedToArray(_stRIOrder, 2),
@@ -24601,7 +24606,20 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
       /*#__PURE__*/React.createElement('div', null,
         /*#__PURE__*/React.createElement('div', { className: 'card mb12' },
           /*#__PURE__*/React.createElement('div', { className: 'card-hd' },
-            /*#__PURE__*/React.createElement('div', { className: 'card-title' }, riTab === 'driver_receipt' ? 'Generate Driver Receipt' : riTab === 'box_invoice' ? 'Generate Box Invoice' : 'Generate Shipment Invoice')
+            /*#__PURE__*/React.createElement('div', { className: 'card-title', style: { display: 'flex', alignItems: 'center', gap: 8 } },
+              riTab === 'driver_receipt' ? 'Generate Driver Receipt' : riTab === 'box_invoice' ? 'Generate Box Invoice' : 'Generate Shipment Invoice',
+              (function() {
+                var so = (orders || []).find(function(x) { return String(x.id) === String(riOrderId); });
+                if (!so) return null;
+                var ps = (so.payment_status) || (so.payment) || null;
+                var badgeStyle = { display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700, marginLeft: 4 };
+                if (ps === 'paid' || ps === 'Paid') return /*#__PURE__*/React.createElement('span', { style: Object.assign({}, badgeStyle, { background: '#d1fae5', color: '#065f46' }) }, '\u2713 Paid');
+                if (ps === 'payment_failed') return /*#__PURE__*/React.createElement('span', { style: Object.assign({}, badgeStyle, { background: '#fee2e2', color: '#991b1b' }) }, '\u2717 Payment Failed');
+                if (ps === 'payment_expired') return /*#__PURE__*/React.createElement('span', { style: Object.assign({}, badgeStyle, { background: '#e5e7eb', color: '#374151' }) }, '\u23F1 Expired');
+                if (ps) return /*#__PURE__*/React.createElement('span', { style: Object.assign({}, badgeStyle, { background: '#fef3c7', color: '#92400e' }) }, ps);
+                return null;
+              })()
+            )
           ),
           /*#__PURE__*/React.createElement('div', { className: 'card-bd' },
             /*#__PURE__*/React.createElement('div', { className: 'fg' },
@@ -24681,7 +24699,14 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
             })
           )
         ) : /*#__PURE__*/React.createElement('div', { className: 'card card-bd', style: { textAlign: 'center', padding: 40, color: 'var(--text3)' } },
-          "\uD83D\uDCCB Generate an invoice above to preview it"
+          !riOrderId
+            ? /*#__PURE__*/React.createElement('div', null,
+                /*#__PURE__*/React.createElement('div', { style: { fontSize: 40, marginBottom: 12 } }, '\uD83D\uDCC4'),
+                /*#__PURE__*/React.createElement('div', { style: { fontWeight: 600, fontSize: 14, color: 'var(--text2)', marginBottom: 6 } }, 'Select an order to generate a receipt or invoice'),
+                /*#__PURE__*/React.createElement('div', { style: { fontSize: 12, color: 'var(--text3)', marginBottom: 16 } }, 'Choose an order from the dropdown on the left to get started.'),
+                /*#__PURE__*/React.createElement('button', { className: 'btn btn-ghost btn-sm', onClick: function() { setPage('orders'); } }, 'Go to Orders \u2192')
+              )
+            : /*#__PURE__*/React.createElement('div', null, '\uD83D\uDCCB Generate an invoice above to preview it')
         )
       )
     ),
@@ -27997,7 +28022,7 @@ setOrders(function (prev) {
       tenant: tenant
     });
     if (page === "hq_ops") return renderHQOpsPage();
-    if (page === "receipts_invoices") return /*#__PURE__*/React.createElement(ReceiptsInvoicesApp, { orders: orders, notify: notify, roleKey: roleKey, session: session, tenant: tenant });
+    if (page === "receipts_invoices") return /*#__PURE__*/React.createElement(ReceiptsInvoicesApp, { orders: orders, notify: notify, roleKey: roleKey, session: session, tenant: tenant, setPage: setPage });
     if (page === "customers") return /*#__PURE__*/React.createElement(CustomerProfilePage, {
       orders: orders,
       onImportCustomers: function onImportCustomers(imported) {
@@ -29974,6 +29999,7 @@ if (typeof STRIPE_CHECKOUT_URL === "undefined") {
       return result === null;
     })()
   );
+
 
   /* ──── RESULTS ──── */
   window.__R4TestResults = _results;
