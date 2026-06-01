@@ -195,6 +195,10 @@ ES["Confirm Override"] = "Confirmar Anulación";
 ES["All Orders"] = "Todas las Órdenes";
 ES["Needs Coordinates"] = "Necesita Coordenadas";
 ES["Active Orders — Coordinate Status"] = "Órdenes Activas — Estado de Coordenadas";
+// ── Phase 6 Disclaimer Variables translations ───────────────
+ES["Available variables"] = "Variables disponibles";
+ES["click to insert"] = "haz clic para insertar";
+ES["partner / office / company name"] = "nombre de socio / oficina / empresa";
 // ── Phase 6 Messaging translations ──────────────────────────
 ES["Message Templates"] = "Plantillas de Mensaje";
 ES["Message Queue"] = "Cola de Mensajes";
@@ -535,6 +539,30 @@ var guardCommissionAmount = function guardCommissionAmount(rawAmount, basisAmoun
 var getCompanyName = function getCompanyName(tenant) {
   return (tenant && tenant.name) || "Casabe Connect";
 };
+
+/* ── Disclaimer variable resolution ──────────────────────────────────────────
+   resolveBrandName: partner name → office name → tenant/company name
+   applyDisclaimerVariables: replaces {{key}} tokens globally in text
+   ─────────────────────────────────────────────────────────────────────────── */
+var resolveBrandName = function resolveBrandName(order, dbOffices, dbPartners, tenant) {
+  var src = resolveOrderSource(order, dbOffices, dbPartners, tenant);
+  if (src && src.name) return src.name;
+  return getCompanyName(tenant) || 'Casabe Xpress';
+};
+
+var applyDisclaimerVariables = function applyDisclaimerVariables(text, vars) {
+  if (!text) return '';
+  var result = text;
+  Object.keys(vars || {}).forEach(function(key) {
+    result = result.replace(new RegExp('\\{\\{' + key + '\\}\\}', 'g'), vars[key] != null ? String(vars[key]) : '');
+  });
+  return result;
+};
+
+/* Default bilingual legal disclaimer seed text — owner should review and approve final wording */
+var DISCLAIMER_SEED_ES = 'CONDICIONES DEL CONTRATO\n\nLas siguientes condiciones que aplican en este contrato para el env\u00edo de su propiedad a trav\u00e9s de {{brand_name}} se detallan en los siguientes t\u00e9rminos.\n\n1. El propietario de este env\u00edo o carga acepta las condiciones del contrato, las cuales no pueden ser violadas o alteradas por ning\u00fan agente o empleado de ambas partes. Queda establecido el convenio que el env\u00edo (cargo, veh\u00edculo, mudanza), no es negociable y que la misma ha sido preparada por transportador o embarcador o por {{brand_name}}. Tambi\u00e9n queda convenido mutuamente que las condiciones de transporte de este env\u00edo siguen las regulaciones y pol\u00edtica administrativa de {{brand_name}}, las cuales est\u00e1n disponibles en nuestras localidades y agentes autorizados por la recolecci\u00f3n de mercanc\u00eda.\n\n2. {{brand_name}} garantiza que este env\u00edo ser\u00e1 tratado adecuadamente para proteger la mercanc\u00eda enviada.\n\n3. Debido al tipo de servicio que ofrece el negocio de flete mar\u00edtimo y terrestre, {{brand_name}} no garantiza la entrega de su encomienda o carga en una fecha u hora estipulada. Tampoco nos hacemos responsables de las consecuencias al no poder entregar o cumplir con la entrega a su debido tiempo.\n\n4. Todas las reclamaciones por p\u00e9rdida o da\u00f1os verificados deben ser reportados por escrito a {{brand_name}} dentro de los 30 d\u00edas despu\u00e9s de haber sido aceptada la mercanc\u00eda o carga. Fuera de ese l\u00edmite, no ser\u00e1 aceptado ning\u00fan reclamo.\n\n5. {{brand_name}} no se responsabiliza por p\u00e9rdida, da\u00f1os o demoras ocasionadas por actos sobrenaturales, o de autoridades gubernamentales y p\u00fablicas de cada pa\u00eds de entrega, huelgas, ineficiencia de personal de aduana, personal de naviera o puerto, inclemencia del tiempo, fallas mec\u00e1nicas de los recursos para transportaci\u00f3n de la mercanc\u00eda o carga, cuarentena o ratificaci\u00f3n de ley de cada puerto de llegada.\n\n6. {{brand_name}} no se responsabiliza por cualquier mercader\u00eda confiscada por autoridades de puerto, por art\u00edculos prohibidos de entrada como: dinero en efectivo, joyas, cualquier art\u00edculo prohibido por la ley, obras de arte, metales preciosos en barras, platas, drogas, licores, animales, pornograf\u00eda, explosivos, armas de fuego, perecederos, instrumentos negociables al portador, art\u00edculos restringidos por las leyes mar\u00edtimas y de puertos, o sea de cada gobierno y pa\u00eds.\n\n7. Los cargos y tarifas para el env\u00edo de su mercanc\u00eda o carga son basados por las medidas o volumen del art\u00edculo. El pago por el servicio ser\u00e1 efectuado en efectivo, money order o tarjeta de cr\u00e9dito.\n\n8. {{brand_name}} no es responsable por el pago de impuesto de cualquier encomienda o carga que contenga cualquier art\u00edculo de lujo, o varios art\u00edculos repetidos, con fines de negociaci\u00f3n en el pa\u00eds de destino.\n\n9. {{brand_name}} est\u00e1 en todo el derecho de revisar el contenido de su encomienda, y al momento de encontrar un art\u00edculo prohibido estaremos en el derecho de cancelar el servicio. Ning\u00fan empleado ni agente de {{brand_name}} est\u00e1 autorizado a aceptar transportar art\u00edculos prohibidos de acuerdo a lo estipulado.\n\n10. En caso de p\u00e9rdidas o da\u00f1os en cualquier env\u00edo, {{brand_name}} se compromete a pagar un m\u00e1ximo de 150.00 por caja siempre y cuando sea reportado dentro de los 30 d\u00edas despu\u00e9s de haber sido aceptado el env\u00edo. En caso de cualquier da\u00f1o a los art\u00edculos enviados por mal empacamiento de parte del cliente o compa\u00f1\u00eda emisora, {{brand_name}} no se responsabiliza. Para mayor cobertura se puede comprar un seguro adicional.\n\n11. En caso de una entrega equivocada por error de direcci\u00f3n en el destinatario, {{brand_name}} se responsabiliza a corregir el error, pero no en fecha estipulada.\n\n12. El contrato est\u00e1 escrito en espa\u00f1ol en cortes\u00eda a nuestros clientes, pero se encuentra disponible en ingl\u00e9s por cualquier anomal\u00eda y en solicitud de cualquiera.\n\n13. Las condiciones del contrato no son negociables ni transferibles. Cada parte asume su responsabilidad y queda sobreentendida cada condici\u00f3n estipulada en el mismo.\n\n14. En caso de que el env\u00edo no est\u00e9 cancelado en su totalidad, {{brand_name}} se reserva el derecho de almacenar la mercanc\u00eda en el pa\u00eds de destino, por cuanto se cobrar\u00e1 $10.00 mensuales por pieza hasta que el saldo sea cancelado en su totalidad.\n\n15. Todo reclamo tiene que estar acompa\u00f1ado de fotos, tales como al recibir su caja y productos da\u00f1ados.';
+
+var DISCLAIMER_SEED_EN = 'CONTRACT TERMS AND CONDITIONS\n\nThe following conditions apply to this contract for the shipment of your property through {{brand_name}} and are detailed in the following terms.\n\n1. The owner of this shipment or cargo accepts the terms and conditions of this contract, which may not be violated or modified by any agent or employee of either party. It is agreed that the shipment, including cargo, vehicle, or moving goods, is non-negotiable and has been prepared by the carrier, shipper, or {{brand_name}}. It is also mutually agreed that the transportation conditions of this shipment follow the regulations and administrative policies of {{brand_name}}, which are available at our locations and authorized agents for merchandise collection.\n\n2. {{brand_name}} guarantees that this shipment will be handled appropriately to protect the merchandise being shipped.\n\n3. Due to the type of maritime and land freight service offered, {{brand_name}} does not guarantee delivery of your package or cargo on a specific date or at a specific time. We are also not responsible for any consequences resulting from an inability to deliver or complete delivery on time.\n\n4. All claims for verified loss or damage must be reported in writing to {{brand_name}} within 30 days after the merchandise or cargo has been accepted. After that period, no claim will be accepted.\n\n5. {{brand_name}} is not responsible for loss, damage, or delays caused by acts of nature, government or public authorities in each destination country, strikes, customs personnel inefficiency, shipping line or port personnel, weather conditions, mechanical failures of transportation resources, quarantine, or enforcement of laws at any arrival port.\n\n6. {{brand_name}} is not responsible for any merchandise confiscated by port authorities or for prohibited items, including cash, jewelry, any item prohibited by law, artwork, precious metals in bars, silver, drugs, liquor, animals, pornography, explosives, firearms, perishables, negotiable bearer instruments, and items restricted by maritime, port, government, or country laws.\n\n7. Charges and rates for shipping merchandise or cargo are based on the measurements or volume of the item. Payment for the service shall be made in cash, money order, or credit card.\n\n8. {{brand_name}} is not responsible for the payment of taxes on any package or cargo containing luxury items or multiple repeated items intended for business or resale in the destination country.\n\n9. {{brand_name}} has the full right to inspect the contents of your package. If a prohibited item is found, we have the right to cancel the service. No employee or agent of {{brand_name}} is authorized to accept prohibited items for transport.\n\n10. In the event of loss or damage to any shipment, {{brand_name}} agrees to pay a maximum of $150.00 per box, provided that the claim is reported within 30 days after the shipment has been accepted. {{brand_name}} is not responsible for damage to items caused by poor packaging by the customer or sending company. Additional insurance may be purchased for greater coverage.\n\n11. In the event of an incorrect delivery caused by an address error at the destination, {{brand_name}} is responsible for correcting the error, but not by a guaranteed date.\n\n12. This contract is written in Spanish as a courtesy to our customers, but it is available in English upon request or in the event of any discrepancy.\n\n13. The conditions of this contract are not negotiable or transferable. Each party assumes its own responsibility and each condition stated herein is understood and accepted.\n\n14. If the shipment is not fully paid, {{brand_name}} reserves the right to store the merchandise in the destination country, and a fee of $10.00 per month per piece will be charged until the balance is paid in full.\n\n15. All claims must be accompanied by photos, including photos taken when receiving the box and photos of any damaged products.';
 
 // ── Message template system ──────────────────────────────────────────────────
 var DEFAULT_MESSAGE_TEMPLATES = {
@@ -24033,6 +24061,8 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
   var notify = _ref_ri.notify;
   var roleKey = _ref_ri.roleKey || 'hq';
   var session = _ref_ri.session || {};
+  var tenant  = _ref_ri.tenant  || {};
+  var tenant = _ref_ri.tenant || {};
   var _stRITab = useState('shipment_invoice'), _stRITab2 = _slicedToArray(_stRITab, 2),
       riTab = _stRITab2[0], setRITab = _stRITab2[1];
   var _stRIOrder = useState(''), _stRIOrder2 = _slicedToArray(_stRIOrder, 2),
@@ -24197,8 +24227,14 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
     var _docTypeKey = riTab === 'shipment_invoice' ? 'shipment_invoices' : riTab === 'box_invoice' ? 'box_invoices' : 'shipment_invoices';
     var _dSetting = _disclaimerSettingRef.current;
     if (_dSetting && _dSetting.active && _dSetting.applies_to && _dSetting.applies_to.includes(_docTypeKey)) {
-      var _dText = (currentLang === 'es' && _dSetting.text_es) ? _dSetting.text_es : _dSetting.text_en;
-      invoiceData.disclaimer = { title: _dSetting.title || '', text: _dText || '' };
+      var _dbOffices  = (tenant && tenant.__dbOffices)  || [];
+      var _dbPartners = (tenant && tenant.__dbPartners) || [];
+      var _brandName  = resolveBrandName(selectedOrder, _dbOffices, _dbPartners, tenant);
+      var _vars = { brand_name: _brandName, order_id: (selectedOrder && selectedOrder.id) || '', customer_name: (selectedOrder && (selectedOrder.name || selectedOrder.customer)) || '' };
+      var _rawEN = _dSetting.text_en || '';
+      var _rawES = _dSetting.text_es || '';
+      var _dText = (currentLang === 'es' && _rawES) ? applyDisclaimerVariables(_rawES, _vars) : applyDisclaimerVariables(_rawEN, _vars);
+      invoiceData.disclaimer = { title: _dSetting.title || '', text: _dText };
     }
     var html = (typeof ShipmentInvoiceTemplate !== 'undefined') ? ShipmentInvoiceTemplate.generateHTML(invoiceData) : '<div style="padding:20px">Invoice generated for order: ' + riOrderId + '<br>Total: ' + invoiceData.totalDisplay + '</div>';
     setRIPreview({ type: 'invoice', html: html, data: invoiceData });
@@ -24224,8 +24260,14 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
     // Inject disclaimer if active and applies to driver_receipts
     var _dSettingR = _disclaimerSettingRef.current;
     if (_dSettingR && _dSettingR.active && _dSettingR.applies_to && _dSettingR.applies_to.includes('driver_receipts')) {
-      var _dTextR = (currentLang === 'es' && _dSettingR.text_es) ? _dSettingR.text_es : _dSettingR.text_en;
-      receiptData.disclaimer = { title: _dSettingR.title || '', text: _dTextR || '' };
+      var _dbOfficesR  = (tenant && tenant.__dbOffices)  || [];
+      var _dbPartnersR = (tenant && tenant.__dbPartners) || [];
+      var _brandNameR  = resolveBrandName(selectedOrder, _dbOfficesR, _dbPartnersR, tenant);
+      var _varsR = { brand_name: _brandNameR, order_id: (selectedOrder && selectedOrder.id) || '', customer_name: (selectedOrder && (selectedOrder.name || selectedOrder.customer)) || '' };
+      var _rawENR = _dSettingR.text_en || '';
+      var _rawESR = _dSettingR.text_es || '';
+      var _dTextR = (currentLang === 'es' && _rawESR) ? applyDisclaimerVariables(_rawESR, _varsR) : applyDisclaimerVariables(_rawENR, _varsR);
+      receiptData.disclaimer = { title: _dSettingR.title || '', text: _dTextR };
     }
     var html = (typeof PaymentReceiptTemplate !== 'undefined') ? PaymentReceiptTemplate.generateHTML(receiptData) : '<div style="padding:20px">Receipt generated for order: ' + riOrderId + '</div>';
     setRIPreview({ type: 'receipt', html: html, data: receiptData });
@@ -24296,11 +24338,55 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
         ),
         /*#__PURE__*/React.createElement('div', { className: 'fg' },
           /*#__PURE__*/React.createElement('label', { className: 'fl' }, t('Disclaimer Text \u2013 English', 'Texto del Aviso \u2013 Ingl\u00e9s')),
-          /*#__PURE__*/React.createElement('textarea', { className: 'fi', rows: 3, placeholder: 'Disclaimer text in English...', value: disclaimerForm.text_en, style: { resize: 'vertical' }, onChange: function(e) { setDisclaimerForm(Object.assign({}, disclaimerForm, { text_en: e.target.value })); } })
+          /*#__PURE__*/React.createElement('textarea', { className: 'fi', rows: 12, placeholder: 'Disclaimer text in English...', value: disclaimerForm.text_en, style: { resize: 'vertical', fontFamily: "'IBM Plex Mono',monospace", fontSize: 11 }, onChange: function(e) { setDisclaimerForm(Object.assign({}, disclaimerForm, { text_en: e.target.value })); } })
         ),
         /*#__PURE__*/React.createElement('div', { className: 'fg' },
           /*#__PURE__*/React.createElement('label', { className: 'fl' }, t('Disclaimer Text \u2013 Spanish', 'Texto del Aviso \u2013 Espa\u00f1ol') + ' \u2014 leave blank to use English'),
-          /*#__PURE__*/React.createElement('textarea', { className: 'fi', rows: 3, placeholder: 'Aviso legal en espa\u00f1ol (opcional)...', value: disclaimerForm.text_es, style: { resize: 'vertical' }, onChange: function(e) { setDisclaimerForm(Object.assign({}, disclaimerForm, { text_es: e.target.value })); } })
+          /*#__PURE__*/React.createElement('textarea', { className: 'fi', rows: 12, placeholder: 'Aviso legal en espa\u00f1ol (opcional)...', value: disclaimerForm.text_es, style: { resize: 'vertical', fontFamily: "'IBM Plex Mono',monospace", fontSize: 11 }, onChange: function(e) { setDisclaimerForm(Object.assign({}, disclaimerForm, { text_es: e.target.value })); } })
+        ),
+        /*#__PURE__*/React.createElement('div', { className: 'fg', style: { marginTop: 8 } },
+          /*#__PURE__*/React.createElement('label', { className: 'fl', style: { fontSize: 11, color: 'var(--text3)' } },
+            '\uD83D\uDCA1 ' + t('Available variables', 'Variables disponibles') + ' \u2014 ' + t('click to insert', 'haz clic para insertar') + ' into EN or ES field above'
+          ),
+          /*#__PURE__*/React.createElement('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 } },
+            [
+              { key: 'brand_name', desc: t('partner / office / company name', 'nombre de socio / oficina / empresa') },
+              { key: 'order_id',   desc: 'order ID' },
+              { key: 'customer_name', desc: 'customer name' }
+            ].map(function(v) {
+              return /*#__PURE__*/React.createElement('button', {
+                key: v.key,
+                type: 'button',
+                className: 'btn btn-ghost btn-sm',
+                style: { fontFamily: "'IBM Plex Mono',monospace", fontSize: 11 },
+                title: 'Insert {{' + v.key + '}} \u2014 ' + v.desc,
+                onClick: function() {
+                  setDisclaimerForm(Object.assign({}, disclaimerForm, {
+                    text_en: disclaimerForm.text_en + '{{' + v.key + '}}'
+                  }));
+                }
+              }, '{{' + v.key + '}}');
+            })
+          ),
+          /*#__PURE__*/React.createElement('div', { style: { fontSize: 10, color: 'var(--text4)', marginTop: 4 } },
+            '{{brand_name}} resolves to: partner name \u2192 office name \u2192 company name (in that priority)'
+          ),
+          /*#__PURE__*/React.createElement('button', {
+            type: 'button',
+            className: 'btn btn-ghost btn-sm',
+            id: 'load-legal-template-btn',
+            style: { marginTop: 8, fontSize: 11, borderColor: 'var(--amber)', color: 'var(--amber)' },
+            title: 'Load bilingual legal template (15 clauses, EN + ES). Will replace current text after confirmation.',
+            onClick: function() {
+              if ((disclaimerForm.text_en || disclaimerForm.text_es) && !window.confirm('Load legal template? This will replace your current disclaimer text.')) return;
+              setDisclaimerForm(Object.assign({}, disclaimerForm, {
+                title: 'Condiciones del Contrato / Contract Terms',
+                text_en: DISCLAIMER_SEED_EN,
+                text_es: DISCLAIMER_SEED_ES,
+                active: true
+              }));
+            }
+          }, '\uD83D\uDCCB Load bilingual legal template (EN + ES)')
         ),
         /*#__PURE__*/React.createElement('div', { className: 'fg', style: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 } },
           /*#__PURE__*/React.createElement('label', { className: 'fl', style: { margin: 0 } }, t('Active', 'Activo')),
@@ -27574,7 +27660,7 @@ setOrders(function (prev) {
       tenant: tenant
     });
     if (page === "hq_ops") return renderHQOpsPage();
-    if (page === "receipts_invoices") return /*#__PURE__*/React.createElement(ReceiptsInvoicesApp, { orders: orders, notify: notify, roleKey: roleKey, session: session });
+    if (page === "receipts_invoices") return /*#__PURE__*/React.createElement(ReceiptsInvoicesApp, { orders: orders, notify: notify, roleKey: roleKey, session: session, tenant: tenant });
     if (page === "customers") return /*#__PURE__*/React.createElement(CustomerProfilePage, {
       orders: orders,
       onImportCustomers: function onImportCustomers(imported) {
