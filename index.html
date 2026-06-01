@@ -27325,7 +27325,11 @@ setOrders(function (prev) {
 
 
 
-  var renderPage = function renderPage() {
+  /* Derive the active driver identity from session for role-scoped filtering.
+       Uses display_name from members table, falls back to email. Never hardcoded. */
+    var _activeDriverName = (session && (session.displayName || session.email)) || "";
+
+    var renderPage = function renderPage() {
     // HQ pages
     if (page === "overview") return /*#__PURE__*/React.createElement(HQOverview, {
       orders: orders,
@@ -27774,7 +27778,7 @@ setOrders(function (prev) {
     });
     if (page === "pickup_list") return /*#__PURE__*/React.createElement(PickupListPage, {
       orders: roleKey === "driver" ? orders.filter(function (o) {
-        return o.assignedDriver === "Carlos Vargas";
+        return o.assignedDriver === _activeDriverName;
       }) : orders,
       onStatusChange: changeStatus,
       onSelect: setSelectedOrder,
@@ -27786,7 +27790,7 @@ setOrders(function (prev) {
     });
     if (page === "dropoff_list") return /*#__PURE__*/React.createElement(DropOffListPage, {
       orders: roleKey === "driver" ? orders.filter(function (o) {
-        return o.assignedDriver === "Carlos Vargas";
+        return o.assignedDriver === _activeDriverName;
       }) : orders,
       onStatusChange: changeStatus,
       onSelect: setSelectedOrder
@@ -27802,7 +27806,7 @@ setOrders(function (prev) {
     // Driver
     if (page === "driver_route") return /*#__PURE__*/React.createElement(DriverRoutePage, {
       orders: orders,
-      driverName: "Carlos Vargas",
+      driverName: _activeDriverName,
       onStatusChange: changeStatus,
       onReceipt: setReceiptOrder,
       onRunningLate: function onRunningLate(id) {
@@ -27816,7 +27820,7 @@ setOrders(function (prev) {
     }, /*#__PURE__*/React.createElement("div", {
       className: "tbl"
     }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Order"), /*#__PURE__*/React.createElement("th", null, "Customer"), /*#__PURE__*/React.createElement("th", null, "Status"), /*#__PURE__*/React.createElement("th", null, "Office"))), /*#__PURE__*/React.createElement("tbody", null, orders.filter(function (o) {
-      return ["in_warehouse", "delivered"].includes(o.status) && o.assignedDriver === "Carlos Vargas";
+      return ["in_warehouse", "delivered"].includes(o.status) && o.assignedDriver === _activeDriverName;
     }).map(function (o) {
       return /*#__PURE__*/React.createElement("tr", {
         key: o.id
@@ -27837,7 +27841,7 @@ setOrders(function (prev) {
     }, /*#__PURE__*/React.createElement("div", {
       className: "alert alert-a mb12"
     }, "\u26A0\uFE0F ", /*#__PURE__*/React.createElement("strong", null, "Attempted Stops"), " \u2014 these customers were not home. Call to reschedule before your next run."), orders.filter(function (o) {
-      return o.status === "attempted" && (roleKey !== "driver" || o.assignedDriver === "Carlos Vargas");
+      return o.status === "attempted" && (roleKey !== "driver" || o.assignedDriver === _activeDriverName);
     }).length === 0 ? /*#__PURE__*/React.createElement("div", {
       style: {
         textAlign: "center",
@@ -27851,7 +27855,7 @@ setOrders(function (prev) {
         gap: 10
       }
     }, orders.filter(function (o) {
-      return o.status === "attempted" && (roleKey !== "driver" || o.assignedDriver === "Carlos Vargas");
+      return o.status === "attempted" && (roleKey !== "driver" || o.assignedDriver === _activeDriverName);
     }).map(function (o) {
       return /*#__PURE__*/React.createElement("div", {
         key: o.id,
