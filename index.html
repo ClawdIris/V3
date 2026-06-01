@@ -24059,6 +24059,9 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
       disclaimerOpen = _stDisclaimerOpen2[0], setDisclaimerOpen = _stDisclaimerOpen2[1];
   var _stDisclaimerSetting = useState(null), _stDisclaimerSetting2 = _slicedToArray(_stDisclaimerSetting, 2),
       disclaimerSetting = _stDisclaimerSetting2[0], setDisclaimerSetting = _stDisclaimerSetting2[1];
+  /* Ref so generateInvoice/generateDriverReceipt always read latest setting, avoiding stale closure */
+  var _disclaimerSettingRef = useRef(null);
+  _disclaimerSettingRef.current = disclaimerSetting;
   var _stDisclaimerForm = useState({
     title: '', text_en: '', text_es: '', active: true,
     applies_to: ['receipts', 'shipment_invoices', 'driver_receipts', 'box_invoices']
@@ -24192,9 +24195,10 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
     };
     // Inject disclaimer if active and applies to this doc type
     var _docTypeKey = riTab === 'shipment_invoice' ? 'shipment_invoices' : riTab === 'box_invoice' ? 'box_invoices' : 'shipment_invoices';
-    if (disclaimerSetting && disclaimerSetting.active && disclaimerSetting.applies_to && disclaimerSetting.applies_to.includes(_docTypeKey)) {
-      var _dText = (currentLang === 'es' && disclaimerSetting.text_es) ? disclaimerSetting.text_es : disclaimerSetting.text_en;
-      invoiceData.disclaimer = { title: disclaimerSetting.title || '', text: _dText || '' };
+    var _dSetting = _disclaimerSettingRef.current;
+    if (_dSetting && _dSetting.active && _dSetting.applies_to && _dSetting.applies_to.includes(_docTypeKey)) {
+      var _dText = (currentLang === 'es' && _dSetting.text_es) ? _dSetting.text_es : _dSetting.text_en;
+      invoiceData.disclaimer = { title: _dSetting.title || '', text: _dText || '' };
     }
     var html = (typeof ShipmentInvoiceTemplate !== 'undefined') ? ShipmentInvoiceTemplate.generateHTML(invoiceData) : '<div style="padding:20px">Invoice generated for order: ' + riOrderId + '<br>Total: ' + invoiceData.totalDisplay + '</div>';
     setRIPreview({ type: 'invoice', html: html, data: invoiceData });
@@ -24218,9 +24222,10 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
       stripe_payment_url: riPaymentUrl
     };
     // Inject disclaimer if active and applies to driver_receipts
-    if (disclaimerSetting && disclaimerSetting.active && disclaimerSetting.applies_to && disclaimerSetting.applies_to.includes('driver_receipts')) {
-      var _dTextR = (currentLang === 'es' && disclaimerSetting.text_es) ? disclaimerSetting.text_es : disclaimerSetting.text_en;
-      receiptData.disclaimer = { title: disclaimerSetting.title || '', text: _dTextR || '' };
+    var _dSettingR = _disclaimerSettingRef.current;
+    if (_dSettingR && _dSettingR.active && _dSettingR.applies_to && _dSettingR.applies_to.includes('driver_receipts')) {
+      var _dTextR = (currentLang === 'es' && _dSettingR.text_es) ? _dSettingR.text_es : _dSettingR.text_en;
+      receiptData.disclaimer = { title: _dSettingR.title || '', text: _dTextR || '' };
     }
     var html = (typeof PaymentReceiptTemplate !== 'undefined') ? PaymentReceiptTemplate.generateHTML(receiptData) : '<div style="padding:20px">Receipt generated for order: ' + riOrderId + '</div>';
     setRIPreview({ type: 'receipt', html: html, data: receiptData });
