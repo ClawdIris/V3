@@ -3953,7 +3953,11 @@ var OrderForm = function OrderForm(_ref4) {
     }
   }, /*#__PURE__*/React.createElement("option", {
     value: ""
-  }, "\u2014 Unassigned \u2014"), (driversList || DRIVERS_LIST).map(function (d) {
+  }, "\u2014 Unassigned \u2014"), (driversList || DRIVERS_LIST).filter(function(d) {
+    // GAP 3A: hide inactive drivers from new-order selector
+    if (typeof d === "object" && d !== null) return d.active !== false;
+    return true;
+  }).map(function (d) {
     // Tolerate both shapes: string (legacy) and {name, userId} (prereq #1).
     var name = typeof d === "string" ? d : (d && d.name) || "";
     return /*#__PURE__*/React.createElement("option", {
@@ -5011,7 +5015,7 @@ var OrderDetail = function OrderDetail(_ref22) {
         [["\uD83D\uDCE6 Box Type", order.boxType], ["\uD83C\uDF0E Destination", order.destination], ["\uD83D\uDE97 Driver", order.assignedDriver || "Unassigned"], ["\u23F0 Window", order.pickupWindow || "\u2014"]].map(function(item, ki) {
           return /*#__PURE__*/React.createElement("div", { key: ki, className: "row", style: { padding: "6px 0", borderBottom: "1px solid rgba(28,40,64,.5)" } },
             /*#__PURE__*/React.createElement("span", { className: "mut", style: { width: 110 } }, item[0]),
-            /*#__PURE__*/React.createElement("span", { style: { fontSize: 12.5, fontWeight: 500, color: "var(--text2)" } }, item[1])
+            /*#__PURE__*/React.createElement("span", { className: "notranslate", translate: "no", style: { fontSize: 12.5, fontWeight: 500, color: "var(--text2)" } }, item[1])
           );
         })
       )
@@ -5256,9 +5260,9 @@ var OrdersPage = function OrdersPage(_ref31) {
         return onSelect(o);
       }
     }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-      className: "tamb"
+      className: "tamb notranslate", translate: "no"
     }, o.id)), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
-      className: "tb"
+      className: "tb notranslate", translate: "no"
     }, o.name)), /*#__PURE__*/React.createElement("td", {
       className: "mut mono"
     }, o.phone), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
@@ -5270,11 +5274,11 @@ var OrdersPage = function OrdersPage(_ref31) {
         return types.length > 1 ? "Mixed" : resolveLabel(types[0]);
       })())), /*#__PURE__*/React.createElement("td", {
       className: "mut"
-    }, (function() {
+    }, /*#__PURE__*/React.createElement("span", { className: "notranslate", translate: "no" }, (function() {
         if (!o.boxes || o.boxes.length <= 1) return o.destination || "\u2014";
         var dests = Array.from(new Set(o.boxes.map(function(b){ return b.destinationCountry || o.destination; })));
         return dests.length > 1 ? "Mixed" : dests[0];
-      })()), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Sbadge, {
+      })())), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Sbadge, {
       s: (function() {
         if (!o.boxes || o.boxes.length <= 1) return o.status;
         var statuses = Array.from(new Set(o.boxes.map(function(b){ return b.status || o.status; })));
@@ -5282,11 +5286,7 @@ var OrdersPage = function OrdersPage(_ref31) {
       })()
     })), /*#__PURE__*/React.createElement("td", {
       className: "mut"
-    }, o.assignedDriver || /*#__PURE__*/React.createElement("span", {
-      style: {
-        color: "var(--text4)"
-      }
-    }, "\u2014")), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(PayBadge, {
+    }, /*#__PURE__*/React.createElement("span", { className: "notranslate", translate: "no" }, o.assignedDriver || "\u2014")), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(PayBadge, {
       s: o.payment.status
     })), /*#__PURE__*/React.createElement("td", {
       className: "mut"
@@ -6458,9 +6458,9 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
           /*#__PURE__*/React.createElement("div", { style: { fontWeight: 700, color: "var(--text)", fontSize: 13.5 } },
             grp.merged
               ? grp.orders.length + " orders \u2014 " + (grp.address || repOrder.name)
-              : repOrder.name
+              : /*#__PURE__*/React.createElement("span", { className: "notranslate", translate: "no" }, repOrder.name)
           ),
-          /*#__PURE__*/React.createElement("div", { className: "mut xs" },
+          /*#__PURE__*/React.createElement("div", { className: "mut xs notranslate", translate: "no" },
             grp.address, ", ", grp.city, " ", grp.state, " ", grp.zip),
           grp.orders.map(function(o) {
             return /*#__PURE__*/React.createElement("div", { key: o.id,
@@ -6468,7 +6468,7 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
             },
               /*#__PURE__*/React.createElement("div", { className: "row g10" },
                 /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
-                  grp.merged && /*#__PURE__*/React.createElement("div", { style: { fontWeight: 600, fontSize: 12 } }, o.name),
+                  grp.merged && /*#__PURE__*/React.createElement("div", { className: "notranslate", translate: "no", style: { fontWeight: 600, fontSize: 12 } }, o.name),
                   /*#__PURE__*/React.createElement("div", { className: "mut xs" },
                     "\uD83D\uDCDE ", o.phone,
                     o.pickupWindow ? " \xB7 " + o.pickupWindow : ""),
@@ -19796,10 +19796,10 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
 
   // Pricing completeness: warn if any cell is blank/0
   var pricingComplete = data.destinations.length > 0 && data.boxSizes.filter(function (b) {
-    return b.label;
+    return b.label && b.is_active !== false;
   }).length > 0 && data.destinations.every(function (dest) {
     return data.boxSizes.filter(function (b) {
-      return b.label;
+      return b.label && b.is_active !== false;
     }).some(function (b) {
       var _data$pricing$dest;
       return (((_data$pricing$dest = data.pricing[dest]) === null || _data$pricing$dest === void 0 ? void 0 : _data$pricing$dest[b.id]) || 0) > 0;
@@ -19813,7 +19813,7 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
     if (sid === "users") return (data.users || []).some(function (u) {
       return u.name.trim().length > 0;
     });
-    if (sid === "boxes") return data.boxSizes.every(function (b) {
+    if (sid === "boxes") return data.boxSizes.filter(function(b){ return b.is_active !== false; }).every(function (b) {
       return b.label.trim().length > 0;
     });
     return true;
@@ -20996,7 +20996,15 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
             fontSize: 13,
             color: "var(--amber)"
           }
-        }, "Box ", i + 1), data.boxSizes.length > 1 && /*#__PURE__*/React.createElement("button", {
+        }, "Box ", i + 1), /*#__PURE__*/React.createElement("button", {
+          className: "btn btn-sm " + (box.is_active === false ? "btn-green" : "btn-ghost"),
+          style: { marginRight: 6 },
+          onClick: function onClick() {
+            return set("boxSizes", data.boxSizes.map(function(b, j) {
+              return j === i ? Object.assign({}, b, { is_active: b.is_active === false ? true : false }) : b;
+            }));
+          }
+        }, box.is_active === false ? "Reactivate" : "Deactivate"), data.boxSizes.length > 1 && /*#__PURE__*/React.createElement("button", {
           onClick: function onClick() {
             return remBox(box.id);
           },
@@ -21101,7 +21109,7 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
           className: "chip ".concat(data.destinations.includes(d) ? "on" : "")
         }, d);
       }))), data.destinations.length > 0 && data.boxSizes.filter(function (b) {
-        return b.label;
+        return b.label && b.is_active !== false;
       }).length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("label", {
         className: "fl",
         style: {
@@ -21132,7 +21140,7 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
           borderBottom: "1px solid var(--border)"
         }
       }, "Destination"), data.boxSizes.filter(function (b) {
-        return b.label;
+        return b.label && b.is_active !== false;
       }).map(function (b) {
         return /*#__PURE__*/React.createElement("th", {
           key: b.id,
@@ -21163,7 +21171,7 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
             borderBottom: "1px solid rgba(28,40,64,.3)"
           }
         }, dest), data.boxSizes.filter(function (b) {
-          return b.label;
+          return b.label && b.is_active !== false;
         }).map(function (b) {
           var _data$pricing$dest2, _data$pricing$dest3;
           return /*#__PURE__*/React.createElement("td", {
@@ -21511,7 +21519,7 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
         return o.name;
       });
       var namedBoxes = data.boxSizes.filter(function (b) {
-        return b.label;
+        return b.label && b.is_active !== false;
       });
       var issues = [!data.email && "No business email", !data.whatsapp && "No WhatsApp Business number — notifications won't send", !data.hqAddress && "No HQ address — shipping docs will be incomplete", !pricingComplete && "Some pricing cells are $0 — review before going live", !namedDrivers.length && "No drivers added", !namedOffices.length && "No offices added", namedDrivers.some(function (d) {
         return !d.phone;
@@ -24264,8 +24272,8 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
       invoiceDate: new Date().toLocaleDateString(),
       orderId: selectedOrder.id,
       shipperName: 'Casabe Konnect', shipperAddress: 'Miami, FL', shipperPhone: '+1 (305) 555-0100', shipperEmail: 'info@casabe.example.com',
-      recipientName: selectedOrder ? (selectedOrder.recipient || selectedOrder.customer || 'Recipient') : 'Recipient',
-      recipientAddress: selectedOrder ? (selectedOrder.destination || '') : '',
+      recipientName: selectedOrder ? (selectedOrder.recipient || selectedOrder.customer || selectedOrder.name || '\u2014') : '\u2014',
+      recipientAddress: selectedOrder ? (selectedOrder.destination || '\u2014') : '\u2014',
       numBoxes: items.length, items: items,
       subtotalCents: subtotal, shippingCostCents: 0, taxCents: 0, totalCents: subtotal,
       subtotalDisplay: '$' + (subtotal / 100).toFixed(2), totalDisplay: '$' + (subtotal / 100).toFixed(2),
@@ -24532,7 +24540,9 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
               sandbox: 'allow-same-origin'
             })
           )
-        ) : null
+        ) : /*#__PURE__*/React.createElement('div', { className: 'card card-bd', style: { textAlign: 'center', padding: 40, color: 'var(--text3)' } },
+          "\uD83D\uDCCB Generate an invoice above to preview it"
+        )
       )
     ),
     riWhatsApp ? /*#__PURE__*/React.createElement('div', { className: 'overlay', onClick: function() { setRIWhatsApp(null); } },
@@ -24753,9 +24763,9 @@ function AppShell(_ref130) {
   // DEFAULT_DRIVERS preserves the legacy demo data shape.
   var tenantDrivers = React.useMemo(function () {
     var fromTenant = ((tenant === null || tenant === void 0 ? void 0 : tenant.drivers) || []).filter(function (d) {
-      return d.name;
+      return d.name && d.active !== false;
     }).map(function (d) {
-      return { name: d.name, userId: d.user_id || "" };
+      return { name: d.name, userId: d.user_id || "", active: d.active !== false };
     });
     if (fromTenant.length > 0) return fromTenant;
     return DEFAULT_DRIVERS.map(function (name) { return { name: name, userId: "" }; });
