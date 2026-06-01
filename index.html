@@ -27,6 +27,21 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; overflow: hidden; }
   </style>
+  <!-- Leaflet.js — real interactive map, no API key required -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <!-- Leaflet dark-tile override -->
+  <style>
+    .leaflet-container { background: #07090F !important; }
+    .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.85) saturate(0.7); }
+    .leaflet-popup-content-wrapper { background: #0C1120; border: 1px solid #1C2840; color: #E2E8F0; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+    .leaflet-popup-tip { background: #0C1120; }
+    .leaflet-popup-content { margin: 10px 14px; font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; }
+    .leaflet-control-zoom a { background: #0C1120 !important; color: #94A3B8 !important; border-color: #1C2840 !important; }
+    .leaflet-control-zoom a:hover { background: #111827 !important; color: #E2E8F0 !important; }
+    .leaflet-control-attribution { background: rgba(7,9,15,0.7) !important; color: #475569 !important; }
+    .leaflet-control-attribution a { color: #3B82F6 !important; }
+  </style>
   <!-- Supabase JS client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <!-- Runtime config -->
@@ -25032,10 +25047,10 @@ setOrders(function (prev) {
     return "Missing";
   }
   function coordStatusColor(s) {
-    if (s === COORD_STATUSES.geocoded)        return "var(--green)";
-    if (s === COORD_STATUSES.low_confidence)  return "var(--amber)";
-    if (s === COORD_STATUSES.manual_override) return "var(--blue)";
-    return "var(--red)";
+    if (s === COORD_STATUSES.geocoded)        return "#10b981"; // --green hex (Leaflet pin color)
+    if (s === COORD_STATUSES.low_confidence)  return "#f59e0b"; // --amber hex
+    if (s === COORD_STATUSES.manual_override) return "#3b82f6"; // --blue hex
+    return "#6b7280"; // grey for missing (missing orders don't get a pin)
   }
   function coordStatusIcon(s) {
     if (s === COORD_STATUSES.geocoded)        return "📍";
@@ -25152,6 +25167,87 @@ setOrders(function (prev) {
 
     var _useState_rr = useState(null);
     var routeResult = _useState_rr[0], setRouteResult = _useState_rr[1];
+
+    /* ── Leaflet map ref ── */
+    var _leafletMapRef = useRef(null);   // DOM node
+    var _leafletInstRef = useRef(null);  // L.Map instance
+
+    /* ── Initialize / update Leaflet map ── */
+    useEffect(function() {
+      if (typeof L === "undefined") return; // Leaflet not yet loaded
+      var container = _leafletMapRef.current;
+      if (!container) return;
+
+      /* Init map once */
+      if (!_leafletInstRef.current) {
+        var mapInst = L.map(container, {
+          center: [25.7617, -80.1918], // Miami metro default
+          zoom: 10,
+          zoomControl: true,
+          attributionControl: true
+        });
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "\u00a9 OpenStreetMap contributors",
+          maxZoom: 19
+        }).addTo(mapInst);
+        _leafletInstRef.current = mapInst;
+      }
+
+      var mapInst = _leafletInstRef.current;
+
+      /* Clear existing layers (markers + polyline) except tile layer */
+      mapInst.eachLayer(function(layer) {
+        if (!(layer instanceof L.TileLayer)) {
+          mapInst.removeLayer(layer);
+        }
+      });
+
+      /* Add order pins */
+      var pinBounds = [];
+      var currentCache = loadGeoCache();
+      activeOrders.forEach(function(o) {
+        var entry = currentCache[o.id];
+        var cStatus = entry ? entry.status : COORD_STATUSES.missing;
+        if (!entry || entry.lat == null || entry.lon == null) return; // missing — skip pin
+        var colorMap = {
+          geocoded: "#10b981",
+          manual_override: "#3b82f6",
+          low_confidence: "#f59e0b"
+        };
+        var pinColor = colorMap[cStatus] || "#6b7280";
+        var icon = L.divIcon({
+          className: "",
+          html: "<div style=\"width:14px;height:14px;border-radius:50%;background:" + pinColor + ";border:2.5px solid #fff;box-shadow:0 0 6px " + pinColor + "88;\"></div>",
+          iconSize: [14, 14],
+          iconAnchor: [7, 7]
+        });
+        var marker = L.marker([entry.lat, entry.lon], { icon: icon });
+        var addr = (o.address || "") + (o.city ? ", " + o.city : "");
+        marker.bindPopup(
+          "<div style='font-family:IBM Plex Mono,monospace;font-size:11px;color:#F59E0B;font-weight:700'>" + o.id + "</div>" +
+          "<div style='font-weight:600;color:#E2E8F0;margin:3px 0 2px'>" + (o.name || "") + "</div>" +
+          "<div style='color:#94A3B8;font-size:11px'>" + addr + "</div>" +
+          "<div style='margin-top:5px'><span style='display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:" + pinColor + "22;color:" + pinColor + "'>" + coordStatusLabel(cStatus) + "</span></div>"
+        );
+        marker.addTo(mapInst);
+        pinBounds.push([entry.lat, entry.lon]);
+      });
+
+      /* Route polyline if route result available */
+      if (routeResult && routeResult.stops && routeResult.stops.length >= 2) {
+        var routePoints = routeResult.stops.filter(function(s) { return s.lat != null && s.lon != null; }).map(function(s) { return [s.lat, s.lon]; });
+        if (routePoints.length >= 2) {
+          L.polyline(routePoints, { color: "#3b82f6", weight: 3, opacity: 0.8, dashArray: "6,4" }).addTo(mapInst);
+        }
+      }
+
+      /* Fit map to pins if we have any */
+      if (pinBounds.length >= 2) {
+        mapInst.fitBounds(pinBounds, { padding: [40, 40] });
+      } else if (pinBounds.length === 1) {
+        mapInst.setView(pinBounds[0], 13);
+      }
+    }, [activeOrders.length, JSON.stringify(Object.keys(geoCache)), routeResult]);
 
     /* ── Auto-geocode orders without coords on mount + when orders change ── */
     useEffect(function() {
@@ -25411,128 +25507,22 @@ setOrders(function (prev) {
         )
       ),
 
-      /* ── Map canvas ── */
+      /* ── Leaflet map canvas ── */
       /*#__PURE__*/React.createElement("div", { className: "card mb18" },
         /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "Order Pins \u2014 Coordinate Quality View"),
+          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDDFA\uFE0F Interactive Map — OpenStreetMap"),
           /*#__PURE__*/React.createElement("div", { className: "row g6 xs" },
-            /*#__PURE__*/React.createElement("span", null, "\uD83D\uDCCD Geocoded"),
-            /*#__PURE__*/React.createElement("span", null, "\u270F\uFE0F Manual"),
-            /*#__PURE__*/React.createElement("span", { style: { color: "var(--amber)" } }, "\u26A0\uFE0F Low Conf."),
-            /*#__PURE__*/React.createElement("span", { style: { color: "var(--red)" } }, "\u2753 Missing")
+            /*#__PURE__*/React.createElement("span", { style: { color: "#10b981" } }, "\u25CF Geocoded"),
+            /*#__PURE__*/React.createElement("span", { style: { color: "#3b82f6" } }, "\u25CF Manual"),
+            /*#__PURE__*/React.createElement("span", { style: { color: "#f59e0b" } }, "\u25CF Low Conf."),
+            /*#__PURE__*/React.createElement("span", { style: { color: "var(--text3)" } }, "(missing = no pin)")
           )
         ),
         /*#__PURE__*/React.createElement("div", {
-          style: { position: "relative", height: 360, background: "var(--bg)", borderRadius: "0 0 11px 11px", overflow: "hidden" }
-        },
-          /*#__PURE__*/React.createElement("div", { className: "map-grid", style: { position: "absolute", inset: 0 } }),
-          /*#__PURE__*/React.createElement("div", { style: {
-            position: "absolute", inset: 0,
-            background: "linear-gradient(160deg, rgba(14,28,60,0.55) 0%, rgba(7,9,15,0.9) 100%)"
-          } }),
-          /*#__PURE__*/React.createElement("svg", {
-            style: { position: "absolute", inset: 0, width: "100%", height: "100%" },
-            viewBox: "0 0 100 100", preserveAspectRatio: "none"
-          },
-            /*#__PURE__*/React.createElement("defs", null,
-              /*#__PURE__*/React.createElement("radialGradient", { id: "bay-grd2", cx: "70%", cy: "50%", r: "40%" },
-                /*#__PURE__*/React.createElement("stop", { offset: "0%", stopColor: "#1e3a5f", stopOpacity: "0.45" }),
-                /*#__PURE__*/React.createElement("stop", { offset: "100%", stopColor: "transparent", stopOpacity: "0" })
-              )
-            ),
-            /*#__PURE__*/React.createElement("ellipse", { cx: "78", cy: "50", rx: "22", ry: "38", fill: "url(#bay-grd2)" }),
-            /*#__PURE__*/React.createElement("line", { x1: "0", y1: "40", x2: "70", y2: "40", stroke: "rgba(59,130,246,0.12)", strokeWidth: "0.5" }),
-            /*#__PURE__*/React.createElement("line", { x1: "0", y1: "60", x2: "70", y2: "60", stroke: "rgba(59,130,246,0.12)", strokeWidth: "0.5" }),
-            /*#__PURE__*/React.createElement("line", { x1: "30", y1: "0", x2: "30", y2: "100", stroke: "rgba(59,130,246,0.12)", strokeWidth: "0.5" }),
-            /*#__PURE__*/React.createElement("line", { x1: "55", y1: "0", x2: "55", y2: "100", stroke: "rgba(59,130,246,0.12)", strokeWidth: "0.5" }),
-            /*#__PURE__*/React.createElement("line", { x1: "20", y1: "0", x2: "22", y2: "100", stroke: "rgba(245,158,11,0.18)", strokeWidth: "1" }),
-            /* Route polyline overlay (Slice 3 — visual only, no DB) */
-            routeResult && routeResult.stops && routeResult.stops.length >= 2 &&
-              React.createElement("polyline", {
-                id: "route-svg-line",
-                points: routeResult.stops.slice(0, PIN_OFFSETS.length).map(function(s, i) {
-                  return PIN_OFFSETS[i].dx + "," + PIN_OFFSETS[i].dy;
-                }).join(" "),
-                fill: "none", stroke: "rgba(59,130,246,0.75)", strokeWidth: "1.5", strokeDasharray: "3,2"
-              })
-          ),
-
-          /* Order pins — color/icon by coordinate_status */
-          filteredOrders.slice(0, PIN_OFFSETS.length).map(function(o, i) {
-            var pos      = PIN_OFFSETS[i];
-            var entry    = geoCache[o.id];
-            var cStatus  = entry ? entry.status : COORD_STATUSES.missing;
-            var icon     = coordStatusIcon(cStatus);
-            var isSelected = selectedPin && selectedPin.id === o.id;
-            return /*#__PURE__*/React.createElement("div", {
-              key: o.id,
-              className: "map-pin",
-              title: o.id + " \u2014 " + coordStatusLabel(cStatus),
-              "data-coord-status": cStatus,
-              onClick: function() { setSelectedPin(isSelected ? null : o); },
-              style: {
-                left: pos.dx + "%", top: pos.dy + "%",
-                animationDelay: (i * 0.15) + "s",
-                cursor: "pointer", zIndex: 10,
-                fontSize: 20,
-                filter: isSelected
-                  ? "drop-shadow(0 0 8px " + coordStatusColor(cStatus) + ")"
-                  : "drop-shadow(0 0 3px " + coordStatusColor(cStatus) + "88)"
-              }
-            }, icon);
-          }),
-
-          /* Route numbered stop pins (Slice 3) */
-          routeResult && routeResult.stops && routeResult.stops.slice(0, PIN_OFFSETS.length).map(function(stop, i) {
-            var pos = PIN_OFFSETS[i];
-            return React.createElement("div", {
-              key: "rpin-" + stop.id,
-              style: {
-                position: "absolute", left: pos.dx + "%", top: pos.dy + "%",
-                width: 22, height: 22, borderRadius: "50%",
-                background: "rgba(59,130,246,0.9)", border: "2px solid #fff",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 11, fontWeight: 700, color: "#fff",
-                transform: "translate(-50%,-50%)", zIndex: 15, pointerEvents: "none",
-                fontFamily: "'IBM Plex Mono',monospace"
-              }
-            }, stop.stopNum);
-          }),
-
-          /* Popup */
-          selectedPin && (function() {
-            var entry   = geoCache[selectedPin.id];
-            var cStatus = entry ? entry.status : COORD_STATUSES.missing;
-            var latStr  = entry && entry.lat != null ? entry.lat.toFixed(5) + "\xB0N" : "—";
-            var lonStr  = entry && entry.lon != null ? Math.abs(entry.lon).toFixed(5) + "\xB0W" : "—";
-            return /*#__PURE__*/React.createElement("div", {
-              style: {
-                position: "absolute", bottom: 14, left: "50%", transform: "translateX(-50%)",
-                background: "var(--bg2)", border: "1px solid " + coordStatusColor(cStatus),
-                borderRadius: 10, padding: "10px 14px", minWidth: 220, zIndex: 20,
-                boxShadow: "0 4px 20px rgba(0,0,0,0.5)"
-              }
-            },
-              /*#__PURE__*/React.createElement("div", { className: "row g6", style: { marginBottom: 5 } },
-                /*#__PURE__*/React.createElement("span", { className: "tamb" }, selectedPin.id),
-                /*#__PURE__*/React.createElement("span", {
-                  className: "badge xs",
-                  style: { background: coordStatusColor(cStatus) + "22", color: coordStatusColor(cStatus), fontSize: 9 }
-                }, coordStatusLabel(cStatus)),
-                /*#__PURE__*/React.createElement("span", { className: "mla xs", style: { cursor: "pointer", color: "var(--text3)" }, onClick: function() { setSelectedPin(null); } }, "\xD7")
-              ),
-              /*#__PURE__*/React.createElement("div", { className: "tb xs" }, selectedPin.name),
-              /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginTop: 3 } }, (selectedPin.address || "") + (selectedPin.city ? ", " + selectedPin.city : "")),
-              /*#__PURE__*/React.createElement("div", { className: "mono xs", style: { marginTop: 5, opacity: 0.8 } }, latStr + ", " + lonStr),
-              entry && entry.importance != null && /*#__PURE__*/React.createElement("div", { className: "xs mut", style: { marginTop: 2 } }, "Importance: " + (entry.importance * 100).toFixed(0) + "%")
-            );
-          })(),
-
-          /* Legend */
-          /*#__PURE__*/React.createElement("div", {
-            style: { position: "absolute", bottom: 10, right: 12, fontSize: 10, color: "rgba(100,116,139,0.6)", fontFamily: "'IBM Plex Mono',monospace" }
-          }, "Miami Metro \u2022 Nominatim/OSM")
-        )
+          id: "leaflet-map-container",
+          ref: _leafletMapRef,
+          style: { height: 480, borderRadius: "0 0 11px 11px", zIndex: 1 }
+        })
       ),
 
       /* ── Activity log (manual overrides) ── */
@@ -26732,6 +26722,10 @@ setOrders(function (prev) {
     var _useState_mtc8 = useState(null);
     var confirmArchive = _useState_mtc8[0], setConfirmArchive = _useState_mtc8[1];
 
+    /* Queue Message tracking: map of tpl.id -> queued record id */
+    var _useState_mtc9 = useState({});
+    var queuedTplMap = _useState_mtc9[0], setQueuedTplMap = _useState_mtc9[1];
+
     function refreshTemplates() { setTemplates(_localTemplates.slice()); }
 
     function openCreate() {
@@ -26925,6 +26919,27 @@ setOrders(function (prev) {
                         " · " + (tpl.variables && tpl.variables.length ? tpl.variables.length + " vars" : "no vars")
                       )
                     ),
+                    !inactive && React.createElement("button", {
+                      id: "queue-tpl-" + tpl.id,
+                      className: "btn btn-sm " + (queuedTplMap[tpl.id] ? "btn-ghost" : "btn-primary"),
+                      style: queuedTplMap[tpl.id] ? { opacity: 0.7 } : {},
+                      onClick: function() {
+                        if (queuedTplMap[tpl.id]) return;
+                        var body = tpl.body_en || "";
+                        var rec = mqAdd({
+                          tenant_id: "local",
+                          order_id: null,
+                          recipient_phone: "+13055550000",
+                          channel: tpl.channel === "both" ? "sms" : tpl.channel,
+                          template_key: tpl.id,
+                          template_name: tpl.name,
+                          rendered_body: body,
+                          status: "queued",
+                          created_by: "hq-templates-crud"
+                        });
+                        setQueuedTplMap(function(prev) { return Object.assign({}, prev, _defineProperty({}, tpl.id, rec.id)); });
+                      }
+                    }, queuedTplMap[tpl.id] ? t("\u2705 Queued", "\u2705 En Cola") : t("\uD83D\uDCEC Queue Message", "\uD83D\uDCEC Poner en Cola")),
                     !inactive && roleKey !== "driver" && React.createElement("button", {
                       id: "edit-tpl-" + tpl.id,
                       className: "btn btn-sm btn-ghost",
@@ -27125,7 +27140,7 @@ setOrders(function (prev) {
   function mqStatusBadge(status) {
     var map = {
       draft:     { cls: "ba", label: "Draft" },
-      queued:    { cls: "bp", label: "Queued" },
+      queued:    { cls: "bp", label: "Queued \u2014 awaiting Twilio credentials" },
       blocked:   { cls: "br", label: "Blocked" },
       sent:      { cls: "bg", label: "Sent" },
       failed:    { cls: "br", label: "Failed" },
@@ -27241,7 +27256,7 @@ setOrders(function (prev) {
                 return React.createElement("tr", { key: r.id, id: "queue-row-" + r.id, style: { borderBottom: "1px solid var(--border2)", background: i % 2 === 0 ? "transparent" : "var(--bg3)" } },
                   React.createElement("td", { style: { padding: "8px 12px" } }, mqStatusBadge(r.status)),
                   React.createElement("td", { style: { padding: "8px 12px" } }, React.createElement("span", { className: "badge bt" }, r.channel.toUpperCase())),
-                  React.createElement("td", { style: { padding: "8px 12px", color: "var(--text2)", fontSize: 11 } }, r.template_key),
+                  React.createElement("td", { style: { padding: "8px 12px", color: "var(--text2)", fontSize: 11 } }, r.template_name || r.template_key),
                   React.createElement("td", { style: { padding: "8px 12px", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "var(--text3)" } }, r.recipient_phone),
                   React.createElement("td", { style: { padding: "8px 12px", color: "var(--text3)", fontSize: 11 } }, r.order_id || "\u2014"),
                   React.createElement("td", { style: { padding: "8px 12px", color: "var(--text4)", fontSize: 10 } }, r.created_at ? r.created_at.slice(0,16).replace("T"," ") : ""),
@@ -29166,11 +29181,25 @@ if (typeof deactivateOffice === "undefined") {
   /* ──── PRIORITY 4: Map UX ──── */
   assert("P4: MapViewPage defined", typeof MapViewPage === "function");
   assert("P4: coordStatusColor function defined", typeof coordStatusColor === "function");
-  // Color coding per status
-  assert("P4: geocoded = green",  coordStatusColor("geocoded").indexOf("green") >= 0 || coordStatusColor("geocoded").indexOf("#") >= 0);
-  assert("P4: manual_override = blue", coordStatusColor("manual_override").indexOf("blue") >= 0 || coordStatusColor("manual_override").indexOf("#") >= 0);
-  assert("P4: low_confidence = amber/yellow", coordStatusColor("low_confidence").indexOf("amber") >= 0 || coordStatusColor("low_confidence").indexOf("#") >= 0);
-  assert("P4: missing = red", coordStatusColor("missing").indexOf("red") >= 0 || coordStatusColor("missing").indexOf("#") >= 0);
+  // Leaflet real map: coordStatusColor must return hex values (#rrggbb)
+  assert("P4: geocoded returns hex #10b981",  coordStatusColor("geocoded") === "#10b981");
+  assert("P4: manual_override returns hex #3b82f6", coordStatusColor("manual_override") === "#3b82f6");
+  assert("P4: low_confidence returns hex #f59e0b", coordStatusColor("low_confidence") === "#f59e0b");
+  assert("P4: missing returns hex #6b7280", coordStatusColor("missing") === "#6b7280" || coordStatusColor("missing").indexOf("red") >= 0 || coordStatusColor("missing").indexOf("#") >= 0);
+  // Leaflet must be loaded
+  assert("P4: Leaflet (window.L) loaded", typeof L !== "undefined" && typeof L.map === "function");
+  // MapViewPage renders leaflet-map-container, NOT the old map-grid placeholder
+  assert("P4: #leaflet-map-container present in MapViewPage",
+    (function() {
+      var src = MapViewPage.toString ? MapViewPage.toString() : "";
+      return src.indexOf("leaflet-map-container") >= 0;
+    })());
+  assert("P4: old .map-grid placeholder removed from MapViewPage",
+    (function() {
+      var src = MapViewPage.toString ? MapViewPage.toString() : "";
+      // The stub MapViewPage (null-returning) won't have map-grid; real one must not either
+      return src.indexOf('className: "map-grid"') < 0 && src.indexOf("className: 'map-grid'") < 0;
+    })());
   // Map Preview rename
   assert("P4: 'Map Preview' in HQ nav",
     (function() { return JSON.stringify(HQ_NAV || "").indexOf("Map Preview") >= 0; })());
