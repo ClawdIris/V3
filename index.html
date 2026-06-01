@@ -25757,11 +25757,13 @@ setOrders(function (prev) {
         staff_email: rec.staff,
         status: rec.status
       };
-      var _sbTD = await _supabase.from('tape_direct_records').insert([sbPayload]);
+      var _sbTD = await _supabase.from('tape_direct_records').insert([sbPayload]).select();
       if (_sbTD.error) {
         if (notify) notify('Save failed: ' + _sbTD.error.message, 'red');
         return;
       }
+      /* Store server-assigned id so void can call Supabase later */
+      if (_sbTD.data && _sbTD.data[0] && _sbTD.data[0].id) { rec.sbId = _sbTD.data[0].id; }
       var updated = [rec].concat(tdRecords);
       setTdRecords(updated);
       try { localStorage.setItem(TD_KEY, JSON.stringify(updated)); } catch(e) {}
@@ -25770,12 +25772,24 @@ setOrders(function (prev) {
       if (notify) notify('Tape Direct record saved.', 'green');
     }
     function voidRecord(id) {
+      var rec = tdRecords.find(function(r) { return r.id === id; });
       var updated = tdRecords.map(function(r) {
         return r.id === id ? Object.assign({}, r, { status: 'voided', voided_at: new Date().toISOString() }) : r;
       });
       setTdRecords(updated);
       try { localStorage.setItem(TD_KEY, JSON.stringify(updated)); } catch(e) {}
-      if (notify) notify('Record voided (archived).', 'amber');
+      /* Write void status back to Supabase if we have the server-side id */
+      if (rec && rec.sbId && _supabase) {
+        _supabase.from('tape_direct_records')
+          .update({ status: 'voided' })
+          .eq('id', rec.sbId)
+          .then(function(r) {
+            if (r.error) { if (notify) notify('Void saved locally; Supabase sync failed: ' + r.error.message, 'amber'); }
+            else { if (notify) notify('Record voided \u2014 Supabase updated.', 'amber'); }
+          });
+      } else {
+        if (notify) notify('Record voided (local only \u2014 sync pending).', 'amber');
+      }
     }
     var activeRecords = tdRecords.filter(function(r) { return r.status === 'active'; });
     var voidedRecords = tdRecords.filter(function(r) { return r.status !== 'active'; });
@@ -25982,11 +25996,13 @@ setOrders(function (prev) {
         staff_email: rec.staff,
         status: rec.status
       };
-      var _sbBS = await _supabase.from('box_sale_records').insert([sbPayload]);
+      var _sbBS = await _supabase.from('box_sale_records').insert([sbPayload]).select();
       if (_sbBS.error) {
         if (notify) notify('Save failed: ' + _sbBS.error.message, 'red');
         return;
       }
+      /* Store server-assigned id so void can call Supabase later */
+      if (_sbBS.data && _sbBS.data[0] && _sbBS.data[0].id) { rec.sbId = _sbBS.data[0].id; }
       var updated = [rec].concat(bsRecords);
       setBsRecords(updated);
       try { localStorage.setItem(BOX_SALE_KEY, JSON.stringify(updated)); } catch(e) {}
@@ -25996,12 +26012,24 @@ setOrders(function (prev) {
     }
     function voidBoxSale(id) {
       if (isDriver) return;
+      var rec = bsRecords.find(function(r) { return r.id === id; });
       var updated = bsRecords.map(function(r) {
         return r.id === id ? Object.assign({}, r, { status: 'voided', voided_at: new Date().toISOString() }) : r;
       });
       setBsRecords(updated);
       try { localStorage.setItem(BOX_SALE_KEY, JSON.stringify(updated)); } catch(e) {}
-      if (notify) notify('Box sale voided.', 'amber');
+      /* Write void status back to Supabase if we have the server-side id */
+      if (rec && rec.sbId && _supabase) {
+        _supabase.from('box_sale_records')
+          .update({ status: 'voided' })
+          .eq('id', rec.sbId)
+          .then(function(r) {
+            if (r.error) { if (notify) notify('Voided locally; Supabase sync failed: ' + r.error.message, 'amber'); }
+            else { if (notify) notify('Box sale voided \u2014 Supabase updated.', 'amber'); }
+          });
+      } else {
+        if (notify) notify('Box sale voided (local only \u2014 sync pending).', 'amber');
+      }
     }
     var activeRecords = bsRecords.filter(function(r) { return r.status === 'active'; });
     if (!roleKey || roleKey === 'driver') {
