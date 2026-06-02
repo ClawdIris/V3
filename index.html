@@ -26370,49 +26370,77 @@ setOrders(function (prev) {
             className: "alert alert-r mb12"
           }, "\uD83D\uDEAB Route preview requires \u2265 2 eligible orders with valid coordinates. Currently " + (routeResult.eligibleCount || 0) + " eligible."),
           routeResult && routeResult.stops && routeResult.stops.length >= 2 && /*#__PURE__*/React.createElement("div", { id: "route-results" },
-            /*#__PURE__*/React.createElement("div", { className: "sg4 mb14" },
-              /*#__PURE__*/React.createElement("div", { className: "sc sc-b" },
-                /*#__PURE__*/React.createElement("div", { className: "sc-ico" }, "\uD83D\uDEE3\uFE0F"),
-                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Stops"),
-                /*#__PURE__*/React.createElement("div", { className: "sc-val", style: { color: "var(--blue)" } }, routeResult.stops.length)
-              ),
-              /*#__PURE__*/React.createElement("div", { className: "sc sc-g" },
-                /*#__PURE__*/React.createElement("div", { className: "sc-ico" }, "\uD83D\uDCCF"),
-                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Total (est.)"),
-                /*#__PURE__*/React.createElement("div", { className: "sc-val", style: { color: "var(--green)" } }, routeResult.totalDist.toFixed(1) + " km")
-              ),
-              /*#__PURE__*/React.createElement("div", { className: "sc sc-a" },
-                /*#__PURE__*/React.createElement("div", { className: "sc-ico" }, "\uD83D\uDC64"),
-                /*#__PURE__*/React.createElement("div", { className: "sc-lbl" }, "Driver"),
-                /*#__PURE__*/React.createElement("div", { className: "sc-val xs", style: { color: "var(--amber)", fontSize: 11 } }, routeResult.driverLabel)
+            /* B1: Route summary card */
+            /*#__PURE__*/React.createElement("div", { className: "card mb12", style: { background: "var(--bg2)", borderRadius: 10, padding: "10px 14px" } },
+              /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "6px 18px", fontSize: 12, alignItems: "center" } },
+                /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Total stops:"), " " + routeResult.stops.length),
+                /*#__PURE__*/React.createElement("span", { style: { color: "var(--text3)" } }, "|"),
+                /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Excluded:"), " " + (routeResult.excludedCount || 0)),
+                /*#__PURE__*/React.createElement("span", { style: { color: "var(--text3)" } }, "|"),
+                /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Est. distance:"), " " + routeResult.totalDist.toFixed(1) + " km"),
+                /*#__PURE__*/React.createElement("span", { style: { color: "var(--text3)" } }, "|"),
+                /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Est. time:"), " " + (routeResult.estTime || Math.round(routeResult.totalDist * 2.5)) + " min"),
+                /*#__PURE__*/React.createElement("span", { style: { color: "var(--text3)" } }, "|"),
+                /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Start:"), " " + (routeResult.startLabel || "HQ")),
+                /*#__PURE__*/React.createElement("span", { style: { color: "var(--text3)" } }, "|"),
+                /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "End:"), " " + (routeResult.endLabel || "Anywhere"))
               )
             ),
-            /*#__PURE__*/React.createElement("div", { id: "route-stop-list", style: { display: "flex", flexDirection: "column", gap: 6 } },
-              routeResult.stops.map(function(stop) {
+            /* B2: Ordered stop list */
+            /*#__PURE__*/React.createElement("div", { id: "route-stop-list", style: { display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 } },
+              routeResult.stops.map(function(stop, idx) {
+                var pinColor = coordStatusColor(stop.coordStatus || stop.status || "geocoded");
+                var prevStop = idx === 0 ? null : routeResult.stops[idx - 1];
+                var distFromPrev = idx === 0 ? 0 : haversineDist(
+                  prevStop.lat, prevStop.lon, stop.lat, stop.lon
+                );
                 return /*#__PURE__*/React.createElement("div", {
                   key: stop.id,
                   className: "row g10",
-                  style: { padding: "8px 12px", background: "var(--bg)", borderRadius: 8, alignItems: "flex-start" }
+                  style: { padding: "8px 12px", background: "var(--bg)", borderRadius: 8, alignItems: "flex-start", borderLeft: "3px solid " + pinColor }
                 },
                   /*#__PURE__*/React.createElement("div", {
                     style: {
                       minWidth: 24, height: 24, borderRadius: "50%",
-                      background: "rgba(59,130,246,0.85)", border: "2px solid rgba(99,102,241,0.5)",
+                      background: pinColor, border: "2px solid rgba(0,0,0,0.2)",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 11, fontWeight: 700, color: "#fff", flexShrink: 0,
+                      fontSize: 11, fontWeight: 800, color: "#fff", flexShrink: 0,
                       fontFamily: "'IBM Plex Mono',monospace"
                     }
-                  }, stop.stopNum),
+                  }, stop.stopNum || (idx + 1)),
                   /*#__PURE__*/React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-                    /*#__PURE__*/React.createElement("div", { className: "tb xs" }, stop.name || stop.id),
-                    stop.address && /*#__PURE__*/React.createElement("div", { className: "mut xs" }, stop.address)
+                    /*#__PURE__*/React.createElement("div", { className: "tb xs notranslate" }, stop.name || stop.id),
+                    stop.address && /*#__PURE__*/React.createElement("div", { className: "mut xs notranslate" }, stop.address),
+                    /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 3, flexWrap: "wrap" } },
+                      /*#__PURE__*/React.createElement("span", { className: "notranslate mono", style: { fontSize: 10, color: "var(--amber)", fontFamily: "'IBM Plex Mono',monospace" } }, stop.id),
+                      stop.type && /*#__PURE__*/React.createElement("span", { className: "badge", style: { fontSize: 10, padding: "1px 6px", background: stop.type === 'dropoff' ? "rgba(99,102,241,0.2)" : "rgba(16,185,129,0.2)", color: stop.type === 'dropoff' ? "#818cf8" : "#10b981" } }, stop.type),
+                      stop.driver_name && /*#__PURE__*/React.createElement("span", { className: "notranslate", style: { fontSize: 10, color: "var(--text3)" } }, "\uD83D\uDC64 " + stop.driver_name),
+                      /*#__PURE__*/React.createElement("span", { className: "badge", style: { fontSize: 10, padding: "1px 6px", background: pinColor + "22", color: pinColor } }, coordStatusLabel(stop.coordStatus || stop.status || "geocoded"))
+                    )
                   ),
                   /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", flexShrink: 0 } },
-                    /*#__PURE__*/React.createElement("div", { className: "mono xs", style: { color: "var(--blue)" } }, stop.legDist + " km"),
-                    /*#__PURE__*/React.createElement("div", { className: "mut", style: { fontSize: 9 } }, "this leg")
+                    idx > 0 && /*#__PURE__*/React.createElement("div", { className: "mono xs", style: { color: "var(--blue)" } }, distFromPrev.toFixed(1) + " km"),
+                    idx > 0 && /*#__PURE__*/React.createElement("div", { className: "mut", style: { fontSize: 9 } }, "from prev"),
+                    idx === 0 && /*#__PURE__*/React.createElement("div", { className: "mut", style: { fontSize: 9 } }, "first stop")
                   )
                 );
               })
+            ),
+            /* B3: Excluded stops section */
+            routeResult.excludedStops && routeResult.excludedStops.length > 0 && /*#__PURE__*/React.createElement("details", { style: { marginTop: 8 } },
+              /*#__PURE__*/React.createElement("summary", { style: { cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--amber)", padding: "6px 0" } },
+                "\u26A0\uFE0F " + routeResult.excludedStops.length + " stops excluded"
+              ),
+              /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 4, marginTop: 6 } },
+                routeResult.excludedStops.map(function(ex, i) {
+                  return /*#__PURE__*/React.createElement("div", { key: ex.id + i, style: { padding: "6px 10px", background: "var(--bg2)", borderRadius: 6, display: "flex", gap: 10, alignItems: "flex-start", fontSize: 12 } },
+                    /*#__PURE__*/React.createElement("span", { className: "notranslate tb", style: { minWidth: 100 } }, ex.name),
+                    /*#__PURE__*/React.createElement("span", { className: "notranslate mut", style: { flex: 1 } }, ex.address),
+                    /*#__PURE__*/React.createElement("span", { className: "notranslate mono", style: { color: "var(--amber)", fontSize: 10 } }, ex.id),
+                    /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { fontSize: 10, padding: "1px 6px" } }, ex.reason)
+                  );
+                })
+              )
             )
           ),
           !routeResult && /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { textAlign: "center", padding: "16px 0" } },
