@@ -26431,7 +26431,9 @@ setOrders(function (prev) {
                 /*#__PURE__*/React.createElement("span", { style: { color: "var(--text3)" } }, "|"),
                 /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Start:"), " " + (routeResult.startLabel || "HQ")),
                 /*#__PURE__*/React.createElement("span", { style: { color: "var(--text3)" } }, "|"),
-                /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "End:"), " " + (routeResult.endLabel || "Anywhere"))
+                /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "End:"), " " + (routeResult.endLabel || "Anywhere")),
+                /*#__PURE__*/React.createElement("span", { style: { color: "var(--text3)" } }, "|"),
+                /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Driver:"), " " + routeResult.driverLabel)
               )
             ),
             /* B2: Ordered stop list */
@@ -26439,9 +26441,9 @@ setOrders(function (prev) {
               routeResult.stops.map(function(stop, idx) {
                 var pinColor = coordStatusColor(stop.coordStatus || stop.status || "geocoded");
                 var prevStop = idx === 0 ? null : routeResult.stops[idx - 1];
-                var distFromPrev = idx === 0 ? 0 : haversineDist(
+                var distFromPrev = idx === 0 ? 0 : (stop.legDist != null ? stop.legDist : haversineDist(
                   prevStop.lat, prevStop.lon, stop.lat, stop.lon
-                );
+                ));
                 return /*#__PURE__*/React.createElement("div", {
                   key: stop.id,
                   className: "row g10",
@@ -26468,7 +26470,7 @@ setOrders(function (prev) {
                   ),
                   /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", flexShrink: 0 } },
                     idx > 0 && /*#__PURE__*/React.createElement("div", { className: "mono xs", style: { color: "var(--blue)" } }, distFromPrev.toFixed(1) + " km"),
-                    idx > 0 && /*#__PURE__*/React.createElement("div", { className: "mut", style: { fontSize: 9 } }, "from prev"),
+                    idx > 0 && /*#__PURE__*/React.createElement("div", { className: "mut", style: { fontSize: 9 } }, "this leg"),
                     idx === 0 && /*#__PURE__*/React.createElement("div", { className: "mut", style: { fontSize: 9 } }, "first stop")
                   )
                 );
