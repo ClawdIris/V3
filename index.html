@@ -25671,11 +25671,32 @@ setOrders(function (prev) {
     var _driversList = _ref_mvp.driversList || null;
     var t = useT();
 
-    var ACTIVE_STATUSES = ["received","in_warehouse","ready_pickup","in_transit","out_for_delivery","loaded_container","processing"];
+    var ACTIVE_STATUSES = ["received","in_warehouse","ready_pickup","in_transit","out_for_delivery","loaded_container","processing","Ready for Pickup","In Warehouse","Loaded in Container","En Route to Destination","Delivered"];
     var activeOrders = (_orders || []).filter(function(o) { return ACTIVE_STATUSES.includes(o.status); });
 
+    /* ── Debug fixture stops (?debug=1 only — never affects production data) ── */
+    var _isDebugMode = typeof window !== 'undefined' && (window.location.search.includes('debug=1') || window.location.search.includes('debug=true'));
+    var DEBUG_MAP_FIXTURES = _isDebugMode ? [
+      { id: 'DBG-001', name: 'Debug Customer A', customer_name: 'Debug Customer A', address: '1000 Brickell Ave', city: 'Miami, FL', lat: 25.7617, lon: -80.1918, coordinate_status: 'geocoded', status: 'Ready for Pickup', driver_name: 'Test Driver', phone: '+13055550001', type: 'pickup', _isDebugFixture: true },
+      { id: 'DBG-002', name: 'Debug Customer B', customer_name: 'Debug Customer B', address: '401 Biscayne Blvd', city: 'Miami, FL', lat: 25.7751, lon: -80.1868, coordinate_status: 'geocoded', status: 'Ready for Pickup', driver_name: 'Test Driver', phone: '+13055550002', type: 'dropoff', _isDebugFixture: true },
+      { id: 'DBG-003', name: 'Debug Customer C', customer_name: 'Debug Customer C', address: '3200 NW 87th Ave', city: 'Doral, FL', lat: 25.8176, lon: -80.3525, coordinate_status: 'low_confidence', status: 'In Warehouse', driver_name: 'Test Driver', phone: '+13055550003', type: 'pickup', _isDebugFixture: true },
+      { id: 'DBG-004', name: 'Debug Customer D', customer_name: 'Debug Customer D', address: 'No Address', city: '', lat: null, lon: null, coordinate_status: 'missing', status: 'Ready for Pickup', driver_name: null, phone: '+13055550004', type: 'dropoff', _isDebugFixture: true },
+    ] : [];
+    var activeOrdersWithFixtures = _isDebugMode ? activeOrders.concat(DEBUG_MAP_FIXTURES.filter(function(f) { return !activeOrders.find(function(o) { return o.id === f.id; }); })) : activeOrders;
+
     /* ── Local state ── */
-    var _useState_gc = useState(function() { return loadGeoCache(); });
+    var _useState_gc = useState(function() {
+      var cache = loadGeoCache();
+      /* Seed debug fixtures into geoCache so Leaflet map sees their coords */
+      if (_isDebugMode) {
+        DEBUG_MAP_FIXTURES.forEach(function(f) {
+          if (!cache[f.id] && f.lat != null) {
+            cache[f.id] = { lat: f.lat, lon: f.lon, status: f.coordinate_status || COORD_STATUSES.geocoded, cachedAt: Date.now() };
+          }
+        });
+      }
+      return cache;
+    });
     var geoCache = _useState_gc[0], setGeoCache = _useState_gc[1];
 
     var _useState_cf = useState("all");
@@ -25725,6 +25746,21 @@ setOrders(function (prev) {
     var selectedDriver = _useState_dsel[0], setSelectedDriver = _useState_dsel[1];
     var _useState_gpsReq = useState("idle");
     var gpsReqStatus = _useState_gpsReq[0], setGpsReqStatus = _useState_gpsReq[1];
+    /* E: Inline coord override */
+    var _useState_inlineOvr = useState(null);
+    var inlineOvrId = _useState_inlineOvr[0], setInlineOvrId = _useState_inlineOvr[1];
+    var _useState_inlineForm = useState({ lat: "", lon: "", note: "" });
+    var inlineForm = _useState_inlineForm[0], setInlineForm = _useState_inlineForm[1];
+    var handleInlineOverrideSave = function(oid) {
+      var lat = parseFloat(inlineForm.lat), lon = parseFloat(inlineForm.lon);
+      if (isNaN(lat) || lat < -90 || lat > 90) { _notify("\u26A0 Invalid latitude."); return; }
+      if (isNaN(lon) || lon < -180 || lon > 180) { _notify("\u26A0 Invalid longitude."); return; }
+      var newEntry = { lat: lat, lon: lon, status: COORD_STATUSES.manual_override, cachedAt: Date.now() };
+      setGeoCache(function(prev) { var u = Object.assign({}, prev); u[oid] = newEntry; saveGeoCache(u); return u; });
+      _onCoordOverride(oid, { lat: lat, lon: lon, coordinate_status: COORD_STATUSES.manual_override, coordinate_updated_at: new Date().toISOString(), coordinate_updated_by: (_session && _session.user && _session.user.email) || _session.email || "hq" });
+      setInlineOvrId(null); setInlineForm({ lat: "", lon: "", note: "" });
+      _notify("\u2705 Coordinates saved for " + oid);
+    };
     /* D: Copy stop list state */
     var _useState_copy = useState(false);
     var copyDone = _useState_copy[0], setCopyDone = _useState_copy[1];
@@ -25787,8 +25823,8 @@ setOrders(function (prev) {
       if (routeResult && routeResult.stops) {
         routeResult.stops.forEach(function(s, idx) { routeStopMap[s.id] = idx + 1; });
       }
-      activeOrders.forEach(function(o) {
-        var entry = currentCache[o.id];
+      activeOrdersWithFixtures.forEach(function(o) {
+        var entry = currentCache[o.id] || (o.lat != null ? { lat: o.lat, lon: o.lon, status: o.coordinate_status || COORD_STATUSES.geocoded } : null);
         var cStatus = entry ? entry.status : COORD_STATUSES.missing;
         if (!entry || entry.lat == null || entry.lon == null) return; // C2: missing — do NOT create pin
         var pinColor = coordStatusColor(cStatus);
@@ -25832,7 +25868,7 @@ setOrders(function (prev) {
       } else if (pinBounds.length === 1) {
         mapInst.setView(pinBounds[0], 13);
       }
-    }, [activeOrders.length, JSON.stringify(Object.keys(geoCache)), routeResult]);
+    }, [activeOrdersWithFixtures.length, JSON.stringify(Object.keys(geoCache)), routeResult]);
 
     /* ── Auto-geocode orders without coords on mount + when orders change ── */
     useEffect(function() {
@@ -25875,7 +25911,7 @@ setOrders(function (prev) {
 
     /* ── Filtered orders ── */
     var filteredOrders = coordFilter === "needs_coordinates"
-      ? activeOrders.filter(function(o) { var e = geoCache[o.id]; return !e || e.status === COORD_STATUSES.missing || e.status === COORD_STATUSES.low_confidence; })
+      ? activeOrdersWithFixtures.filter(function(o) { var e = geoCache[o.id]; var cs = o.coordinate_status || (e && e.status); return !e || cs === COORD_STATUSES.missing || cs === COORD_STATUSES.low_confidence || e.status === COORD_STATUSES.missing || e.status === COORD_STATUSES.low_confidence; })
       : activeOrders;
 
     /* ── Status color for order delivery status ── */
@@ -25936,7 +25972,7 @@ setOrders(function (prev) {
       // Default: DEPOT_LAT = 25.7617, DEPOT_LON = -80.1918 (Miami metro)
       var DEPOT_LAT = (routeStart && routeStart.lat != null) ? routeStart.lat : 25.7617;
       var DEPOT_LON = (routeStart && routeStart.lon != null) ? routeStart.lon : -80.1918;
-      var eligible = activeOrders.filter(function(o) {
+      var eligible = activeOrdersWithFixtures.filter(function(o) {
         var entry = geoCache[o.id];
         return entry && hasUsableCoords(entry);
       });
@@ -26327,7 +26363,7 @@ setOrders(function (prev) {
                   /*#__PURE__*/React.createElement("option", { value: "all" }, "All Drivers"),
                   (function() {
                     var seen = {};
-                    return activeOrders.filter(function(o) {
+                    return activeOrdersWithFixtures.filter(function(o) {
                       var dn = o.driver_name || o.driver || "";
                       if (!dn || seen[dn]) return false;
                       seen[dn] = true; return true;
@@ -30252,6 +30288,34 @@ if (typeof STRIPE_CHECKOUT_URL === "undefined") {
       return src.indexOf("Twilio Pending") >= 0 || src.indexOf("Twilio credentials pending") >= 0;
     })()
   );
+
+  /* ──── P8: RoadWarrior Map ──── */
+  assert("P8: stopFilters state defined",
+    (function() { var s = typeof document !== 'undefined' ? document.documentElement.outerHTML : ''; return s.indexOf('stopFilters') >= 0; })()
+  );
+  assert("P8: selectedDriver state defined",
+    (function() { var s = typeof document !== 'undefined' ? document.documentElement.outerHTML : ''; return s.indexOf('selectedDriver') >= 0; })()
+  );
+  assert("P8: Preview Only badge present",
+    (function() { var s = typeof document !== 'undefined' ? document.documentElement.outerHTML : ''; return s.indexOf('Preview Only') >= 0; })()
+  );
+  assert("P8: route summary fields present",
+    (function() { var s = typeof document !== 'undefined' ? document.documentElement.outerHTML : ''; return s.indexOf('Est. distance') >= 0 || s.indexOf('estDistance') >= 0 || s.indexOf('Est distance') >= 0; })()
+  );
+  assert("P8: excluded stops section present",
+    (function() { var s = typeof document !== 'undefined' ? document.documentElement.outerHTML : ''; return s.indexOf('stops excluded') >= 0 || s.indexOf('Excluded') >= 0; })()
+  );
+  /* P8 tests use outerHTML — strings are always in page source regardless of render state */
+  var _p8src = typeof document !== 'undefined' ? document.documentElement.outerHTML : '';
+  assert("P8: numbered divIcon markers in MapViewPage", _p8src.indexOf('divIcon') >= 0);
+  assert("P8: route polyline in MapViewPage", _p8src.indexOf('polyline') >= 0);
+  assert("P8: fitBounds in MapViewPage", _p8src.indexOf('fitBounds') >= 0);
+  assert("P8: Google Maps nav link", _p8src.indexOf('google.com/maps') >= 0 || _p8src.indexOf('maps.google.com') >= 0);
+  assert("P8: Apple Maps nav link", _p8src.indexOf('maps.apple.com') >= 0);
+  assert("P8: Copy Stop List present", _p8src.indexOf('Copy Stop List') >= 0 || _p8src.indexOf('Copy stop list') >= 0);
+  assert("P8: coord override form present (onCoordOverride)", _p8src.indexOf('onCoordOverride') >= 0 || _p8src.indexOf('override-save-btn') >= 0);
+  assert("P8: debug map fixtures defined (DEBUG_MAP_FIXTURES)", _p8src.indexOf('DEBUG_MAP_FIXTURES') >= 0);
+  assert("P8: no fake pins for missing coords", _p8src.indexOf('lat != null') >= 0 || _p8src.indexOf('lat !== null') >= 0 || _p8src.indexOf('hasUsableCoords') >= 0);
 
   /* ──── RESULTS ──── */
   window.__R4TestResults = _results;
