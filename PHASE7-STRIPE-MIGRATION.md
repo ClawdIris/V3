@@ -33,19 +33,21 @@ CREATE TABLE IF NOT EXISTS stripe_configs (
 
 ALTER TABLE stripe_configs ENABLE ROW LEVEL SECURITY;
 
--- ⚠️ DELTA ACTION REQUIRED — placeholder below is WRONG, do not apply as-is
--- get_user_role() returns a role string ('hq','office','driver'), NOT a tenant_id
--- Replace with the hardened pattern from tape_direct_records / box_sale_records policies
--- Reference those policies in Supabase for the exact USING(...) expression
+-- ⚠️ DELTA ACTION REQUIRED — bad line flagged below, do not apply as-is
+-- BAD: tenant_id = get_user_role()
+--   get_user_role() returns a role string ('hq','office','driver'), NOT a tenant_id
+--   This will never match and silently denies all access
+-- FIX: replace the USING clause with the hardened tenant + HQ role pattern
+--   used by tape_direct_records and box_sale_records policies in Supabase
+--   Reference those exact policies for the correct USING(...) expression
+--   Do NOT use USING (true) under any circumstances
 CREATE POLICY "stripe_configs_hq_all"
   ON stripe_configs
   FOR ALL
   TO authenticated
   USING (
-    -- FIXME by Delta: use correct tenant_id resolution + role = 'hq' check
-    -- Pattern: (get_user_role() = 'hq' AND tenant_id = <tenant_resolution_expression>)
-    -- Do not use USING (true) under any circumstances
-    FALSE -- intentionally blocks all until Delta fixes this
+    -- FIXME by Delta: replace this line with hardened pattern from tape_direct_records
+    tenant_id = get_user_role() -- ❌ WRONG — get_user_role() is a role string, not tenant_id
   );
 
 -- anon: blocked (no policy = denied)
@@ -125,10 +127,12 @@ WHERE tablename IN ('stripe_configs', 'stripe_webhook_log');
 
 ## ⚠️ Delta Action Items (must fix before approving)
 
-1. **Fix `stripe_configs` HQ policy** — the USING clause is a placeholder returning FALSE.
-   - Look up the exact policy pattern from `tape_direct_records` or `box_sale_records` in Supabase
-   - Correct form is: `get_user_role() = 'hq' AND tenant_id = <tenant_resolution>`
+1. **Fix `stripe_configs` HQ policy** — bad line is `tenant_id = get_user_role()`.
+   - `get_user_role()` returns a role string ('hq'/'office'/'driver'), NOT a tenant_id — this never matches
+   - Look up the exact USING(...) expression from `tape_direct_records` or `box_sale_records` policies in Supabase
+   - Replace the bad line with that hardened tenant + HQ role check
    - Do NOT use `USING (true)` — must be tenant + role scoped
+   - `USING (FALSE)` is acceptable only for intentional deny policies (not this one)
 2. **Fix `stripe_webhook_log` HQ select policy** — verify the subquery for tenant resolution matches existing pattern (not a guess)
 
 ## Delta Review Checklist
