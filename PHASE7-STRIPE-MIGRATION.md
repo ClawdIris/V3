@@ -33,15 +33,19 @@ CREATE TABLE IF NOT EXISTS stripe_configs (
 
 ALTER TABLE stripe_configs ENABLE ROW LEVEL SECURITY;
 
--- HQ: full access to own tenant row
+-- ⚠️ DELTA ACTION REQUIRED — placeholder below is WRONG, do not apply as-is
+-- get_user_role() returns a role string ('hq','office','driver'), NOT a tenant_id
+-- Replace with the hardened pattern from tape_direct_records / box_sale_records policies
+-- Reference those policies in Supabase for the exact USING(...) expression
 CREATE POLICY "stripe_configs_hq_all"
   ON stripe_configs
   FOR ALL
   TO authenticated
   USING (
-    tenant_id = get_user_role() -- HQ check via existing helper
-    -- NOTE for Delta: replace with correct tenant+role check pattern
-    -- matching existing tables (e.g. invoices, payments policies)
+    -- FIXME by Delta: use correct tenant_id resolution + role = 'hq' check
+    -- Pattern: (get_user_role() = 'hq' AND tenant_id = <tenant_resolution_expression>)
+    -- Do not use USING (true) under any circumstances
+    FALSE -- intentionally blocks all until Delta fixes this
   );
 
 -- anon: blocked (no policy = denied)
@@ -118,6 +122,14 @@ WHERE tablename IN ('stripe_configs', 'stripe_webhook_log');
 ```
 
 ---
+
+## ⚠️ Delta Action Items (must fix before approving)
+
+1. **Fix `stripe_configs` HQ policy** — the USING clause is a placeholder returning FALSE.
+   - Look up the exact policy pattern from `tape_direct_records` or `box_sale_records` in Supabase
+   - Correct form is: `get_user_role() = 'hq' AND tenant_id = <tenant_resolution>`
+   - Do NOT use `USING (true)` — must be tenant + role scoped
+2. **Fix `stripe_webhook_log` HQ select policy** — verify the subquery for tenant resolution matches existing pattern (not a guess)
 
 ## Delta Review Checklist
 
