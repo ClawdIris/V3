@@ -25717,6 +25717,12 @@ setOrders(function (prev) {
     var customStartAddr = _useState_customStart[0], setCustomStartAddr = _useState_customStart[1];
     var _useState_customEnd = useState("");
     var customEndAddr = _useState_customEnd[0], setCustomEndAddr = _useState_customEnd[1];
+    /* A1: Stop filters */
+    var _useState_sf = useState({ pickups: true, dropoffs: true, readyOnly: false, assignedOnly: false, excludeMissing: true, excludeLowConf: false });
+    var stopFilters = _useState_sf[0], setStopFilters = _useState_sf[1];
+    /* A2: Driver selector */
+    var _useState_dsel = useState("all");
+    var selectedDriver = _useState_dsel[0], setSelectedDriver = _useState_dsel[1];
     var _useState_gpsReq = useState("idle");
     var gpsReqStatus = _useState_gpsReq[0], setGpsReqStatus = _useState_gpsReq[1];
     var handleDetectGPS = function() {
@@ -25922,26 +25928,54 @@ setOrders(function (prev) {
         var entry = geoCache[o.id];
         return entry && hasUsableCoords(entry);
       });
+      // Track excluded reasons for SLICE B3
+      var excludedStops = [];
+      activeOrders.forEach(function(o) {
+        var entry = geoCache[o.id];
+        if (!entry || entry.lat == null || entry.lon == null) {
+          excludedStops.push({ id: o.id, name: o.name || o.id, address: [o.address, o.city].filter(Boolean).join(", "), reason: "Missing coordinates" });
+        } else if (!hasUsableCoords(entry)) {
+          excludedStops.push({ id: o.id, name: o.name || o.id, address: [o.address, o.city].filter(Boolean).join(", "), reason: "Low confidence coordinates" });
+        }
+      });
       var excludedCount = activeOrders.length - eligible.length;
-      var filtered = routeDriver
-        ? eligible.filter(function(o) { return o.assignedDriver === routeDriver; })
-        : eligible;
-      if (filtered.length < 2) {
-        setRouteResult({ error: "needsMore", eligibleCount: filtered.length, excludedCount: excludedCount });
-        return;
-      }
-      var stops = filtered.map(function(o) {
+      // A3: Apply stopFilters before TSP
+      var stops = eligible.filter(function(o) {
+        var entry = geoCache[o.id];
+        if (!stopFilters.pickups && o.type !== 'dropoff') { excludedStops.push({ id: o.id, name: o.name || o.id, address: [o.address, o.city].filter(Boolean).join(", "), reason: "Wrong type (pickups excluded)" }); return false; }
+        if (!stopFilters.dropoffs && o.type === 'dropoff') { excludedStops.push({ id: o.id, name: o.name || o.id, address: [o.address, o.city].filter(Boolean).join(", "), reason: "Wrong type (dropoffs excluded)" }); return false; }
+        if (stopFilters.readyOnly && o.status !== 'Ready for Pickup') { excludedStops.push({ id: o.id, name: o.name || o.id, address: [o.address, o.city].filter(Boolean).join(", "), reason: "Wrong status (readyOnly filter)" }); return false; }
+        if (stopFilters.assignedOnly && selectedDriver !== 'all' && o.driver_name !== selectedDriver && o.driver !== selectedDriver) { excludedStops.push({ id: o.id, name: o.name || o.id, address: [o.address, o.city].filter(Boolean).join(", "), reason: "Not assigned to selected driver" }); return false; }
+        return true;
+      }).map(function(o) {
         var entry = geoCache[o.id];
         return { id: o.id, name: o.name || o.id, lat: entry.lat, lon: entry.lon,
-                 status: entry.status, address: [o.address, o.city].filter(Boolean).join(", ") };
+                 status: entry.status, coordStatus: entry.status,
+                 orderStatus: o.status, type: o.type || 'pickup',
+                 driver_name: o.driver_name || o.driver || "",
+                 phone: o.phone || o.customer_phone || "",
+                 address: [o.address, o.city].filter(Boolean).join(", ") };
       });
-      var ordered = nearestNeighborTSP(stops, DEPOT_LAT, DEPOT_LON);
+      // Legacy driver filter (routeDriver from old select)
+      var filtered = routeDriver
+        ? stops.filter(function(s) { return s.driver_name === routeDriver; })
+        : stops;
+      if (filtered.length < 2) {
+        setRouteResult({ error: "needsMore", eligibleCount: filtered.length, excludedCount: excludedCount + (stops.length - filtered.length), excludedStops: excludedStops });
+        return;
+      }
+      var ordered = nearestNeighborTSP(filtered, DEPOT_LAT, DEPOT_LON);
+      // Compute total distance from cumDist
+      var estDist = ordered.length > 0 ? ordered[ordered.length - 1].cumDist : 0;
+      var estTime = Math.round(estDist * 2.5); // 2.5 min/km urban delivery
       // Issue 6: if routeEnd.type === 'hq', append HQ as final stop in result label
       setRouteResult({
         stops: ordered,
-        totalDist: ordered.length > 0 ? ordered[ordered.length - 1].cumDist : 0,
-        excludedCount: excludedCount,
-        driverLabel: routeDriver || "All Drivers",
+        totalDist: estDist,
+        estTime: estTime,
+        excludedCount: excludedCount + (stops.length - filtered.length),
+        excludedStops: excludedStops,
+        driverLabel: routeDriver || (selectedDriver !== 'all' ? selectedDriver : "All Drivers"),
         routeDate: routeDate,
         startLabel: routeStart.label || "HQ",
         endLabel: routeEnd.type === "hq" ? "HQ" : routeEnd.type === "custom" ? (customEndAddr || "Custom") : "Anywhere"
@@ -26255,6 +26289,42 @@ setOrders(function (prev) {
                     onChange: function(e) { setCustomEndAddr(e.target.value); }
                   })
                 )
+              ),
+              /* A1: Stop filters section */
+              /*#__PURE__*/React.createElement("div", { style: { borderTop: "1px solid var(--border)", paddingTop: 10, marginTop: 4 } },
+                /*#__PURE__*/React.createElement("div", { className: "fl", style: { marginBottom: 6, fontWeight: 600, fontSize: 12 } }, "\uD83D\uDEA6 Stop Filters:"),
+                /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "6px 16px" } },
+                  ["pickups", "dropoffs", "readyOnly", "assignedOnly", "excludeMissing", "excludeLowConf"].map(function(key) {
+                    var labels = { pickups: "\u2611 Include Pickups", dropoffs: "\u2611 Include Drop-offs", readyOnly: "Ready for Pickup only", assignedOnly: "Assigned driver only", excludeMissing: "Exclude missing coords", excludeLowConf: "Exclude low-confidence coords" };
+                    return /*#__PURE__*/React.createElement("label", { key: key, style: { display: "flex", alignItems: "center", gap: 5, fontSize: 12, cursor: "pointer" } },
+                      /*#__PURE__*/React.createElement("input", { type: "checkbox", checked: stopFilters[key], onChange: function(e) { var v = e.target.checked; setStopFilters(function(f) { var n = Object.assign({}, f); n[key] = v; return n; }); } }),
+                      labels[key]
+                    );
+                  })
+                )
+              ),
+              /* A2: Driver selector */
+              /*#__PURE__*/React.createElement("div", { style: { borderTop: "1px solid var(--border)", paddingTop: 10, marginTop: 4 } },
+                /*#__PURE__*/React.createElement("div", { className: "fl", style: { marginBottom: 6, fontWeight: 600, fontSize: 12 } }, "\uD83D\uDC64 Filter by Driver:"),
+                /*#__PURE__*/React.createElement("select", {
+                  id: "route-driver-filter-select",
+                  className: "fi",
+                  value: selectedDriver,
+                  onChange: function(e) { setSelectedDriver(e.target.value); setRouteResult(null); }
+                },
+                  /*#__PURE__*/React.createElement("option", { value: "all" }, "All Drivers"),
+                  (function() {
+                    var seen = {};
+                    return activeOrders.filter(function(o) {
+                      var dn = o.driver_name || o.driver || "";
+                      if (!dn || seen[dn]) return false;
+                      seen[dn] = true; return true;
+                    }).map(function(o) {
+                      var dn = o.driver_name || o.driver || "";
+                      return /*#__PURE__*/React.createElement("option", { key: dn, value: dn }, dn);
+                    });
+                  })()
+                )
               )
             )
           ),
@@ -26288,7 +26358,8 @@ setOrders(function (prev) {
               id: "preview-route-btn",
               className: "btn btn-primary",
               onClick: handlePreviewRoute
-            }, "\uD83D\uDD0D Preview Route")
+            }, "\uD83D\uDD0D Preview Route"),
+            /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { marginLeft: 8 } }, "\uD83D\uDC41 Preview Only \u2014 No assignments saved")
           ),
           routeResult && routeResult.excludedCount > 0 && /*#__PURE__*/React.createElement("div", {
             id: "route-excluded-warning",

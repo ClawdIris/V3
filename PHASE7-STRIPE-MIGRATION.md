@@ -33,21 +33,20 @@ CREATE TABLE IF NOT EXISTS stripe_configs (
 
 ALTER TABLE stripe_configs ENABLE ROW LEVEL SECURITY;
 
--- ⚠️ DELTA ACTION REQUIRED — bad line flagged below, do not apply as-is
--- BAD: tenant_id = get_user_role()
---   get_user_role() returns a role string ('hq','office','driver'), NOT a tenant_id
---   This will never match and silently denies all access
--- FIX: replace the USING clause with the hardened tenant + HQ role pattern
---   used by tape_direct_records and box_sale_records policies in Supabase
---   Reference those exact policies for the correct USING(...) expression
---   Do NOT use USING (true) under any circumstances
+-- HQ: manage Stripe config for own tenant only.
+-- Pattern matches tape_direct_records / box_sale_records HQ policies:
+-- tenant_id = current_tenant_id() + HQ/admin/owner role guard.
 CREATE POLICY "stripe_configs_hq_all"
   ON stripe_configs
   FOR ALL
   TO authenticated
   USING (
-    -- FIXME by Delta: replace this line with hardened pattern from tape_direct_records
-    tenant_id = get_user_role() -- ❌ WRONG — get_user_role() is a role string, not tenant_id
+    tenant_id = current_tenant_id()
+    AND (is_hq() OR get_user_role() IN ('hq', 'admin', 'owner'))
+  )
+  WITH CHECK (
+    tenant_id = current_tenant_id()
+    AND (is_hq() OR get_user_role() IN ('hq', 'admin', 'owner'))
   );
 
 -- anon: blocked (no policy = denied)
@@ -103,8 +102,10 @@ CREATE POLICY "stripe_webhook_log_hq_select"
   ON stripe_webhook_log
   FOR SELECT
   TO authenticated
-  USING (tenant_id = (SELECT t.tenant_id FROM members t WHERE t.user_id = auth.uid() LIMIT 1));
-  -- NOTE for Delta: align with existing tenant resolution pattern
+  USING (
+    tenant_id = current_tenant_id()
+    AND (is_hq() OR get_user_role() IN ('hq', 'admin', 'owner'))
+  );
 
 -- service_role inserts via webhook Edge Function (bypasses RLS — correct behavior)
 -- anon: blocked
@@ -125,28 +126,24 @@ WHERE tablename IN ('stripe_configs', 'stripe_webhook_log');
 
 ---
 
-## ⚠️ Delta Action Items (must fix before approving)
+## Delta RLS Audit Notes
 
-1. **Fix `stripe_configs` HQ policy** — bad line is `tenant_id = get_user_role()`.
-   - `get_user_role()` returns a role string ('hq'/'office'/'driver'), NOT a tenant_id — this never matches
-   - Look up the exact USING(...) expression from `tape_direct_records` or `box_sale_records` policies in Supabase
-   - Replace the bad line with that hardened tenant + HQ role check
-   - Do NOT use `USING (true)` — must be tenant + role scoped
-   - `USING (FALSE)` is acceptable only for intentional deny policies (not this one)
-2. **Fix `stripe_webhook_log` HQ select policy** — verify the subquery for tenant resolution matches existing pattern (not a guess)
+1. `stripe_configs` HQ policy now uses the established tenant + HQ role pattern from `tape_direct_records` / `box_sale_records`: `tenant_id = current_tenant_id()` plus `(is_hq() OR get_user_role() IN ('hq', 'admin', 'owner'))`.
+2. `stripe_webhook_log` HQ select policy uses the same tenant + HQ role pattern. It does not use a guessed `members` subquery.
+3. Do NOT use `USING (true)` for these policies. `USING (FALSE)` remains acceptable only for intentional deny policies.
 
 ## Delta Review Checklist
 
 Before approving, Delta must confirm:
 
-- [ ] `stripe_configs` — RLS enabled, HQ-only policy uses correct tenant+role pattern (match existing tables)
-- [ ] `stripe_configs` — no `USING (true)` in any policy
-- [ ] `stripe_configs` — anon blocked (no open policy)
+- [x] `stripe_configs` — RLS enabled, HQ-only policy uses correct tenant+role pattern (match existing tables)
+- [x] `stripe_configs` — no `USING (true)` in any policy
+- [x] `stripe_configs` — anon blocked (no open policy)
 - [ ] `invoices` new columns — existing RLS policies cover UPDATE on these new columns (no new policies needed)
 - [ ] `payments` new columns — existing RLS policies cover UPDATE on these new columns
 - [ ] `payments_stripe_session_id_idx` UNIQUE index — prevents idempotency bugs at DB level
-- [ ] `stripe_webhook_log` — RLS enabled, HQ select only, service_role insert is correct pattern
-- [ ] `stripe_webhook_log` — `stripe_event_id` UNIQUE enforces no duplicate event processing
+- [x] `stripe_webhook_log` — RLS enabled, HQ select only, service_role insert is correct pattern
+- [x] `stripe_webhook_log` — `stripe_event_id` UNIQUE enforces no duplicate event processing
 - [ ] All tenant_id columns are TEXT (matching existing schema — orders.id is TEXT not UUID)
 - [ ] No hard deletes — webhook log is append-only (no DELETE policy)
 - [ ] Verify `get_user_role()` and `get_user_office_ids()` usage matches existing hardened pattern (SET search_path = '')
@@ -155,7 +152,7 @@ Before approving, Delta must confirm:
 
 ## Notes for Delta
 
-1. The `stripe_configs` HQ policy placeholder needs to match the exact pattern used in `tape_direct_records` and `box_sale_records` policies — check those as the reference implementation.
+1. The `stripe_configs` and `stripe_webhook_log` HQ policies match the tenant + HQ role pattern used in `tape_direct_records` and `box_sale_records`.
 2. `payments` table composite FK is `(order_id, tenant_id) → orders(id, tenant_id)` — orders.id is TEXT. No change needed, just confirming new columns don't break this.
 3. `stripe_webhook_log` has no `order_id` FK intentionally — webhook fires before we can guarantee order exists in all failure scenarios.
 
