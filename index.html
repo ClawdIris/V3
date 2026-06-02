@@ -8795,6 +8795,47 @@ var CampaignsPage = function CampaignsPage(_ref55) {
       click:   0,    // placeholder — Phase 2 tracking
       revenue: 0     // placeholder — Phase 2 attribution
     };
+    var _campaignStats = [["Sent", c.sent > 0 ? c.sent.toLocaleString() : "—"], ["Open", c.open > 0 ? "".concat(c.open, "%") : "—"], ["Clicks", c.click > 0 ? "".concat(c.click, "%") : "—"], ["Revenue", c.revenue > 0 ? "$".concat(c.revenue.toLocaleString()) : "—"]].map(function (_ref56) {
+      var _ref57 = _slicedToArray(_ref56, 2),
+        k = _ref57[0],
+        v = _ref57[1];
+      return /*#__PURE__*/React.createElement("div", {
+        key: k,
+        style: {
+          textAlign: "center"
+        }
+      }, /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontFamily: "'Syne',sans-serif",
+          fontWeight: 700,
+          fontSize: 14
+        }
+      }, v), /*#__PURE__*/React.createElement("div", {
+        className: "xs mut"
+      }, k));
+    });
+    var _campaignProgress = c.open > 0 && /*#__PURE__*/React.createElement("div", {
+      style: {
+        marginTop: 10
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "prog"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "prog-fill",
+      style: {
+        width: "".concat(c.open, "%"),
+        background: "var(--green)"
+      }
+    })), /*#__PURE__*/React.createElement("div", {
+      className: "row",
+      style: {
+        marginTop: 3
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "xs mut"
+    }, "Open ", c.open, "%"), /*#__PURE__*/React.createElement("span", {
+      className: "xs mut mla"
+    }, "Click ", c.click, "%")));
     return /*#__PURE__*/React.createElement("div", {
       key: camp.id || i,
       style: {
@@ -8827,31 +8868,13 @@ var CampaignsPage = function CampaignsPage(_ref55) {
       className: "tag"
     }, c.type)), /*#__PURE__*/React.createElement("div", {
       className: "xs mut"
-    }, "Target: ", c.target, " \xB7 Created ", c.ends)), /*#__PURE__*/React.createElement("div", {
+    }, "Target: ", c.target, " \xB7 Created ", c.ends), /*#__PURE__*/React.createElement("div", {
       style: {
         display: "grid",
         gridTemplateColumns: "repeat(4,72px)",
         gap: 8
       }
-    }, [["Sent", c.sent > 0 ? c.sent.toLocaleString() : "—"], ["Open", c.open > 0 ? "".concat(c.open, "%") : "—"], ["Clicks", c.click > 0 ? "".concat(c.click, "%") : "—"], ["Revenue", c.revenue > 0 ? "$".concat(c.revenue.toLocaleString()) : "—"]].map(function (_ref56) {
-      var _ref57 = _slicedToArray(_ref56, 2),
-        k = _ref57[0],
-        v = _ref57[1];
-      return /*#__PURE__*/React.createElement("div", {
-        key: k,
-        style: {
-          textAlign: "center"
-        }
-      }, /*#__PURE__*/React.createElement("div", {
-        style: {
-          fontFamily: "'Syne',sans-serif",
-          fontWeight: 700,
-          fontSize: 14
-        }
-      }, v), /*#__PURE__*/React.createElement("div", {
-        className: "xs mut"
-      }, k));
-    })), /*#__PURE__*/React.createElement("div", {
+    }, _campaignStats), /*#__PURE__*/React.createElement("div", {
       className: "row g6"
     }, c.status === "active" && /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost btn-sm",
@@ -8884,28 +8907,7 @@ var CampaignsPage = function CampaignsPage(_ref55) {
         ? t("Edit this draft", "Editar este borrador")
         : t("Only drafts can be edited", "Solo se pueden editar borradores"),
       style: c.status !== "draft" ? { opacity: 0.5, cursor: "not-allowed" } : null
-    }, "\u270F Edit")), c.open > 0 && /*#__PURE__*/React.createElement("div", {
-      style: {
-        marginTop: 10
-      }
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "prog"
-    }, /*#__PURE__*/React.createElement("div", {
-      className: "prog-fill",
-      style: {
-        width: "".concat(c.open, "%"),
-        background: "var(--green)"
-      }
-    })), /*#__PURE__*/React.createElement("div", {
-      className: "row",
-      style: {
-        marginTop: 3
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      className: "xs mut"
-    }, "Open ", c.open, "%"), /*#__PURE__*/React.createElement("span", {
-      className: "xs mut mla"
-    }, "Click ", c.click, "%")))));
+    }, "\u270F Edit")), _campaignProgress)));
   })), tab === "automations" && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "alert alert-b mb12"
   }, "\u26A1 Automations fire automatically when order statuses change. No manual triggering needed."), [{
@@ -10223,7 +10225,7 @@ var CustomerPortal = function CustomerPortal(_ref59) {
         transition: "left .2s"
       }
     })));
-  }),
+  }))))),
   /* ── Need a Box modal ── */
   nbOpen && /*#__PURE__*/React.createElement("div", { className: "overlay", onClick: function(e){ if(e.target===e.currentTarget) setNbOpen(false); } },
     /*#__PURE__*/React.createElement("div", { className: "modal" },
