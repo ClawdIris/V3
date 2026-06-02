@@ -25725,6 +25725,9 @@ setOrders(function (prev) {
     var selectedDriver = _useState_dsel[0], setSelectedDriver = _useState_dsel[1];
     var _useState_gpsReq = useState("idle");
     var gpsReqStatus = _useState_gpsReq[0], setGpsReqStatus = _useState_gpsReq[1];
+    /* D: Copy stop list state */
+    var _useState_copy = useState(false);
+    var copyDone = _useState_copy[0], setCopyDone = _useState_copy[1];
     var handleDetectGPS = function() {
       if (!navigator.geolocation) {
         setGpsReqStatus("denied");
@@ -26449,6 +26452,65 @@ setOrders(function (prev) {
                     /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { fontSize: 10, padding: "1px 6px" } }, ex.reason)
                   );
                 })
+              )
+            )
+          ),
+          /* D: Navigation links — shown when route result exists */
+          routeResult && routeResult.stops && routeResult.stops.length >= 2 && /*#__PURE__*/React.createElement("div", { className: "card mb12", style: { marginTop: 12 } },
+            /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+              /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCCD Open in Navigation App"),
+              /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { fontSize: 10 } }, "Preview only \u2014 no assignments saved")
+            ),
+            /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+              /*#__PURE__*/React.createElement("div", { className: "row g10", style: { flexWrap: "wrap" } },
+                /* D1: Google Maps */
+                /*#__PURE__*/React.createElement("button", {
+                  className: "btn btn-primary btn-sm",
+                  onClick: function() {
+                    var ordered = routeResult.stops;
+                    if (ordered.length < 2) return;
+                    var dest = ordered[ordered.length - 1];
+                    var waypts = ordered.slice(1, -1);
+                    if (waypts.length > 9) {
+                      _notify("\u26A0 Google Maps supports up to 9 waypoints. Showing first 9 of " + waypts.length + ".");
+                      waypts = waypts.slice(0, 9);
+                    }
+                    var waypointsStr = waypts.map(function(s) { return s.lat + "," + s.lon; }).join("|");
+                    var url = "https://www.google.com/maps/dir/?api=1&destination=" + dest.lat + "," + dest.lon + (waypointsStr ? "&waypoints=" + waypointsStr : "") + "&travelmode=driving";
+                    window.open(url, "_blank");
+                  }
+                }, "\uD83D\uDDFA\uFE0F Google Maps"),
+                /* D2: Apple Maps */
+                /*#__PURE__*/React.createElement("button", {
+                  className: "btn btn-ghost btn-sm",
+                  onClick: function() {
+                    var ordered = routeResult.stops;
+                    var url = "https://maps.apple.com/?" + ordered.map(function(s) { return "daddr=" + s.lat + "," + s.lon; }).join("&");
+                    window.open(url, "_blank");
+                  }
+                }, "\uD83C\uDF0F Apple Maps"),
+                /* D3: Copy Stop List */
+                /*#__PURE__*/React.createElement("button", {
+                  className: "btn btn-ghost btn-sm",
+                  onClick: function() {
+                    var text = routeResult.stops.map(function(s, i) {
+                      return (i + 1) + ". " + (s.name || s.id) + " \u2014 " + (s.address || "") + " (" + s.id + ")";
+                    }).join("\n");
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                      navigator.clipboard.writeText(text).then(function() {
+                        setCopyDone(true);
+                        setTimeout(function() { setCopyDone(false); }, 2000);
+                      });
+                    } else {
+                      var ta = document.createElement("textarea");
+                      ta.value = text; document.body.appendChild(ta);
+                      ta.select(); document.execCommand("copy");
+                      document.body.removeChild(ta);
+                      setCopyDone(true);
+                      setTimeout(function() { setCopyDone(false); }, 2000);
+                    }
+                  }
+                }, copyDone ? "\u2713 Copied!" : "\uD83D\uDCCB Copy Stop List")
               )
             )
           ),
