@@ -216,6 +216,9 @@ ES["Queued"] = "En Cola";
 ES["Sent"] = "Enviado";
 ES["Failed"] = "Fallido";
 ES["Blocked"] = "Bloqueado";
+ES["Processing"] = "Procesando";
+ES["Payment Failed"] = "Pago Fallido";
+ES["Opted Out"] = "No Desea Mensajes";
 // ── Phase 6 Finance page translations ───────────────────────
 ES["Tape Direct"] = "Cinta Directa";
 ES["Box Sale Tracking"] = "Seguimiento de Venta de Cajas";
@@ -1436,7 +1439,9 @@ var PAY_STATUS = {
   unpaid: "Unpaid",
   deposit: "Deposit",
   paid: "Paid",
-  refunded: "Refunded"
+  refunded: "Refunded",
+  pending: "Processing",
+  failed: "Payment Failed"
 };
 // v9.11: "Card" label clarified to "Card (recorded manually)" so operators
 // don't conflate manual recording with an automated Stripe charge. The
@@ -1500,7 +1505,9 @@ var PayBadge = function PayBadge(_ref2) {
     paid: "bg",
     unpaid: "br",
     deposit: "ba",
-    refunded: "bp"
+    refunded: "bp",
+    pending: "bb",
+    failed: "br"
   }[s] || "bgr";
   return /*#__PURE__*/React.createElement("span", {
     className: "badge ".concat(cls)
@@ -28183,7 +28190,8 @@ setOrders(function (prev) {
       blocked:   { cls: "br", label: _t("Blocked", "Bloqueado") },
       sent:      { cls: "bg", label: _t("Sent", "Enviado") },
       failed:    { cls: "br", label: _t("Failed", "Fallido") },
-      cancelled: { cls: "bgr", label: _t("Cancelled", "Cancelado") }
+      cancelled: { cls: "bgr", label: _t("Cancelled", "Cancelado") },
+      opted_out: { cls: "ba", label: _t("Opted Out", "No Desea Mensajes") }
     };
     var s = map[status] || { cls: "ba", label: status };
     return React.createElement("span", { className: "badge " + s.cls }, s.label);
