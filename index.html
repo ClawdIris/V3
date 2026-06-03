@@ -613,6 +613,20 @@ var getSenderNotificationTarget = function getSenderNotificationTarget(order, bo
   };
 };
 
+// r6.5: resolve box type label using fallback chain (most-specific first)
+// 1. data.matrix_item_label  (canonical price-matrix selection)
+// 2. data.box_type / data.package_type / data.product_name  (legacy JSONB paths)
+// 3. boxType top-level field (camelCase on order/box)
+// 4. "Unknown" as last resort
+var resolveBoxTypeLabel = function resolveBoxTypeLabel(box, order) {
+  var d = (box && box.data) || (order && order.data) || {};
+  return (d && d.matrix_item_label)
+    || (box && box.boxType)
+    || (d && (d.box_type || d.package_type || d.product_name))
+    || (order && order.boxType)
+    || "Unknown";
+};
+
 var getInvoiceBoxRows = function getInvoiceBoxRows(order, tenant) {
   var boxes = order.boxes && order.boxes.length ? order.boxes : [{
     subId: order.id,
@@ -626,7 +640,7 @@ var getInvoiceBoxRows = function getInvoiceBoxRows(order, tenant) {
     return {
       index: i + 1,
       trackingNumber: b.subId || (order.id + "-" + (i + 1)),
-      boxType: b.boxType || order.boxType || "Unknown",
+      boxType: resolveBoxTypeLabel(b, order),
       price: price,
       contents: b.description || order.description || order.itemType || "General merchandise",
       declaredValue: parseFloat(b.declaredValue || order.declaredValue || 0),
@@ -12646,7 +12660,8 @@ var ReceiptModal = function ReceiptModal(_ref83) {
       return /*#__PURE__*/React.createElement("div", { style: { borderTop: "0.5pt dashed #bbb", paddingTop: "4pt", marginTop: "4pt", marginBottom: "4pt" } },
         rpBoxes.map(function(box, i) {
           var trackingNumber = box.subId || (receipt.orderId + "-" + (i+1));
-          var boxType = box.boxType || receipt.boxType || "";
+          // r6.5: use resolveBoxTypeLabel fallback chain (matrix_item_label > boxType > data paths)
+          var boxType = resolveBoxTypeLabel(box, null) || receipt.boxType || "";
           var destination = box.destinationCountry || receipt.destination || "";
           var contents = box.description || "";
           var declaredValue = parseFloat(box.declaredValue || 0);
@@ -12815,7 +12830,8 @@ var ReceiptModal = function ReceiptModal(_ref83) {
       return /*#__PURE__*/React.createElement("div", { style: { borderTop: "1px dashed #aaa", marginTop: 8, paddingTop: 8 } },
         mpBoxes.map(function(box, i) {
           var trackingNumber = box.subId || (receipt.orderId + "-" + (i+1));
-          var boxType = box.boxType || receipt.boxType || "";
+          // r6.5: use resolveBoxTypeLabel fallback chain (matrix_item_label > boxType > data paths)
+          var boxType = resolveBoxTypeLabel(box, null) || receipt.boxType || "";
           var destination = box.destinationCountry || receipt.destination || "";
           var contents = box.description || "";
           var declaredValue = parseFloat(box.declaredValue || 0);

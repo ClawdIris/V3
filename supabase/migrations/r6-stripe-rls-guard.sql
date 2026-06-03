@@ -9,11 +9,15 @@
 CREATE OR REPLACE FUNCTION check_stripe_payment_write()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- If stripe_session_id is set and payment->>'status' is being set to 'paid'
-  -- and caller is NOT service_role → reject
-  IF NEW.stripe_session_id IS NOT NULL 
-     AND (NEW.payment->>'status') = 'paid'
-     AND current_setting('role') != 'service_role' THEN
+  -- Block client-side 'paid' writes on Stripe-backed orders
+  -- Only applies when: stripe_session_id is set in data JSONB AND
+  --                    payment.status is being set to 'paid' AND
+  --                    caller is NOT service_role
+  -- NOTE: stripe_session_id and payment.status live inside the data JSONB column,
+  -- not as top-level columns on the orders table.
+  IF (NEW.data->>'stripe_session_id') IS NOT NULL
+     AND (NEW.data->'payment'->>'status') = 'paid'
+     AND current_setting('request.jwt.claims', true)::json->>'role' != 'service_role' THEN
     RAISE EXCEPTION 'Cannot set payment status to paid for Stripe orders via client — use webhook';
   END IF;
   RETURN NEW;
