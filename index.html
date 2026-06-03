@@ -7896,14 +7896,14 @@ var HQOverview = function HQOverview(_ref51) {
   }, /*#__PURE__*/React.createElement("div", {
     className: "g2"
   }, /*#__PURE__*/React.createElement("div", {
-    className: "card"
+    className: "card dash-panel-compact"
   }, /*#__PURE__*/React.createElement("div", {
     className: "card-hd"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "card-title"
   }, "\uD83D\uDCE6 ", t("Box Mix", "Mezcla de Cajas")), /*#__PURE__*/React.createElement("div", {
     className: "card-sub"
-  }, t("Target: 60% Large", "Meta: 60% Grandes"))), ((_boxMix$find = boxMix.find(function (b) {
+  }, t("Target: 60% Large", "Meta: 60% Grandes"))), /*#__PURE__*/React.createElement("button", { className: "dash-panel-expand", onClick: function(e){ e.currentTarget.closest(".dash-panel-compact").classList.toggle("dash-panel-expanded"); } }, "\u25BC"), ((_boxMix$find = boxMix.find(function (b) {
     return b.type === "Large";
   })) === null || _boxMix$find === void 0 ? void 0 : _boxMix$find.pct) < 60 && /*#__PURE__*/React.createElement("div", {
     style: {
@@ -7964,12 +7964,12 @@ var HQOverview = function HQOverview(_ref51) {
       }
     }, "(", b.count, ")"));
   }))), /*#__PURE__*/React.createElement("div", {
-    className: "card"
+    className: "card dash-panel-compact"
   }, /*#__PURE__*/React.createElement("div", {
     className: "card-hd"
   }, /*#__PURE__*/React.createElement("span", {
     className: "card-title"
-  }, "\uD83C\uDF0E ", t("By Destination", "Por Destino"))), /*#__PURE__*/React.createElement("div", {
+  }, "\uD83C\uDF0E ", t("By Destination", "Por Destino")), /*#__PURE__*/React.createElement("button", { className: "dash-panel-expand", onClick: function(e){ e.currentTarget.closest(".dash-panel-compact").classList.toggle("dash-panel-expanded"); } }, "\u25BC")), /*#__PURE__*/React.createElement("div", {
     className: "card-bd"
   }, byDest.slice(0, 6).map(function (d, i) {
     var colors = ["var(--amber)", "var(--blue)", "var(--green)", "var(--purple)", "var(--red)", "var(--teal)"];
@@ -8001,14 +8001,14 @@ var HQOverview = function HQOverview(_ref51) {
       }
     }, d.c));
   })))), /*#__PURE__*/React.createElement("div", {
-    className: "card"
+    className: "card dash-panel-compact"
   }, /*#__PURE__*/React.createElement("div", {
     className: "card-hd"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "card-title"
   }, t("Pipeline Overview", "Estado General")), /*#__PURE__*/React.createElement("div", {
     className: "card-sub"
-  }, t("Orders by stage", "Órdenes por etapa")))), /*#__PURE__*/React.createElement("div", {
+  }, t("Orders by stage", "Órdenes por etapa"))), /*#__PURE__*/React.createElement("button", { className: "dash-panel-expand", onClick: function(e){ e.currentTarget.closest(".dash-panel-compact").classList.toggle("dash-panel-expanded"); } }, "\u25BC")), /*#__PURE__*/React.createElement("div", {
     className: "card-bd",
     style: {
       padding: "10px 0"
@@ -10112,7 +10112,7 @@ var CustomerPortal = function CustomerPortal(_ref59) {
               /*#__PURE__*/React.createElement("span", { className: "mob-card-val notranslate tamb" }, o.id)
             ),
             /*#__PURE__*/React.createElement("div", { className: "mob-card-row" },
-              /*#__PURE__*/React.createElement("span", { className: "mob-card-lbl" }, "Status"),
+              /*#__PURE__*/React.createElement("span", { className: "mob-card-lbl" }, t("Status", "Estado")),
               /*#__PURE__*/React.createElement("span", { className: "mob-card-val" }, /*#__PURE__*/React.createElement(Sbadge, { s: o.status }))
             ),
             /*#__PURE__*/React.createElement("div", { className: "mob-card-row" },
@@ -10137,7 +10137,7 @@ var CustomerPortal = function CustomerPortal(_ref59) {
   ),
   /*#__PURE__*/React.createElement("div", {
     className: "tbl mob-hide-on-mobile"
-  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, t("Tracking ID", "ID de Rastreo")), /*#__PURE__*/React.createElement("th", null, "Status"), /*#__PURE__*/React.createElement("th", null, "Box"), /*#__PURE__*/React.createElement("th", null, "Destination"), /*#__PURE__*/React.createElement("th", null, "Date"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, myOrders.map(function (o) {
+  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, t("Tracking ID", "ID de Rastreo")), /*#__PURE__*/React.createElement("th", null, t("Status", "Estado")), /*#__PURE__*/React.createElement("th", null, "Box"), /*#__PURE__*/React.createElement("th", null, "Destination"), /*#__PURE__*/React.createElement("th", null, "Date"), /*#__PURE__*/React.createElement("th", null))), /*#__PURE__*/React.createElement("tbody", null, myOrders.map(function (o) {
     return /*#__PURE__*/React.createElement("tr", {
       key: o.id
     }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
