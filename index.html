@@ -621,7 +621,9 @@ var getSenderNotificationTarget = function getSenderNotificationTarget(order, bo
 // 5. "Unknown" as last resort
 var resolveBoxTypeLabel = function resolveBoxTypeLabel(box, order) {
   var d = (box && box.data) || (order && order.data) || {};
-  // Step 1: canonical stamped label
+  // Step 1a: canonical stamped label on box top-level (r6.6 save path)
+  if (box && box.matrix_item_label) return box.matrix_item_label;
+  // Step 1b: canonical label in data JSONB (older stamped orders)
   if (d && d.matrix_item_label) return d.matrix_item_label;
   // Step 2: translate key via BOX_CONFIG ("Small" → "(DISH) 18x18x28", "Medium" → "(74) 24x26x24", etc.)
   var rawKey = (box && box.boxType) || (order && order.boxType);
@@ -2574,7 +2576,7 @@ var BulkScanModal = function BulkScanModal(props) {
           ),
           [
             ["Customer", resolved.order.consigneeName || resolved.order.name],
-            ["Box Type", resolved.box ? (resolved.box.boxType||"") : (resolved.order.boxType||"")],
+            ["Box Type", resolved.box ? resolveBoxTypeLabel(resolved.box, resolved.order) : resolveBoxTypeLabel(null, resolved.order)],
             ["Destination", resolved.box ? (resolved.box.destinationCountry||resolved.order.destination||"") : (resolved.order.destination||"")],
             ["Department", resolved.box ? (resolved.box.gtDept||"") : (resolved.order.gtDept||"")],
             ["Current Order Status", resolved.box ? (resolved.box.orderStatus||resolved.box.status||"") : (resolved.order.status||"")],
@@ -5090,7 +5092,7 @@ var OrderDetail = function OrderDetail(_ref22) {
         )
       )
     : /*#__PURE__*/React.createElement("div", { style: { padding: "4px 0 8px" } },
-        [["\uD83D\uDCE6 Box Type", order.boxType], ["\uD83C\uDF0E Destination", order.destination], ["\uD83D\uDE97 Driver", order.assignedDriver || "Unassigned"], ["\u23F0 Window", order.pickupWindow || "\u2014"]].map(function(item, ki) {
+        [["\uD83D\uDCE6 Box Type", resolveBoxTypeLabel(null, order)], ["\uD83C\uDF0E Destination", order.destination], ["\uD83D\uDE97 Driver", order.assignedDriver || "Unassigned"], ["\u23F0 Window", order.pickupWindow || "\u2014"]].map(function(item, ki) {
           return /*#__PURE__*/React.createElement("div", { key: ki, className: "row", style: { padding: "6px 0", borderBottom: "1px solid rgba(28,40,64,.5)" } },
             /*#__PURE__*/React.createElement("span", { className: "mut", style: { width: 110 } }, item[0]),
             /*#__PURE__*/React.createElement("span", { className: "notranslate", translate: "no", style: { fontSize: 12.5, fontWeight: 500, color: "var(--text2)" } }, item[1])
@@ -6602,7 +6604,7 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
                   /*#__PURE__*/React.createElement(EtaBadge, { orderId: o.id })
                 ),
                 /*#__PURE__*/React.createElement("div", { style: { textAlign: "right", flexShrink: 0 } },
-                  /*#__PURE__*/React.createElement("span", { className: "tag" + (isPickup ? "" : " tag-b") }, o.boxType || "\u2014"),
+                  /*#__PURE__*/React.createElement("span", { className: "tag" + (isPickup ? "" : " tag-b") }, resolveBoxTypeLabel(null, o) || "\u2014"),
                   /*#__PURE__*/React.createElement("div", { style: { marginTop: 3 } },
                     o.payment.status === "paid"
                       ? /*#__PURE__*/React.createElement("span", {
@@ -10304,7 +10306,7 @@ var CustomerPortal = function CustomerPortal(_ref59) {
     style: {
       padding: "8px 0"
     }
-  }, [["Box", tracked.boxType], ["From", "".concat(tracked.city, ", ").concat(tracked.state)], ["To", tracked.destination], ["Office", tracked.office], ["Created", tracked.createdAt]].map(function (_ref64) {
+  }, [["Box", resolveBoxTypeLabel(tracked._matchedBox || null, tracked)], ["From", "".concat(tracked.city, ", ").concat(tracked.state)], ["To", tracked.destination], ["Office", tracked.office], ["Created", tracked.createdAt]].map(function (_ref64) {
     var _ref65 = _slicedToArray(_ref64, 2),
       k = _ref65[0],
       v = _ref65[1];
@@ -10746,7 +10748,7 @@ var TrackingConfirmModal = function TrackingConfirmModal(_ref70) {
       letterSpacing: ".06em",
       marginBottom: 8
     }
-  }, "Quick Summary"), [[t("Customer", "Cliente"), order.name], ["Phone", order.phone], ["Address", "".concat(order.address, ", ").concat(order.city, " ").concat(order.state)], ["Box Type", order.boxType], ["Destination", order.destination], ["Status", (_STATUS_CFG$order$sta = STATUS_CFG[order.status]) === null || _STATUS_CFG$order$sta === void 0 ? void 0 : _STATUS_CFG$order$sta.label], ["Payment", "".concat(PAY_STATUS[order.payment.status], " \u2014 $").concat(order.payment.amount)]].map(function (_ref71) {
+  }, "Quick Summary"), [[t("Customer", "Cliente"), order.name], ["Phone", order.phone], ["Address", "".concat(order.address, ", ").concat(order.city, " ").concat(order.state)], ["Box Type", resolveBoxTypeLabel(null, order)], ["Destination", order.destination], ["Status", (_STATUS_CFG$order$sta = STATUS_CFG[order.status]) === null || _STATUS_CFG$order$sta === void 0 ? void 0 : _STATUS_CFG$order$sta.label], ["Payment", "".concat(PAY_STATUS[order.payment.status], " \u2014 $").concat(order.payment.amount)]].map(function (_ref71) {
     var _ref72 = _slicedToArray(_ref71, 2),
       k = _ref72[0],
       v = _ref72[1];
@@ -24865,12 +24867,16 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
               (function() {
                 var so = (orders || []).find(function(x) { return String(x.id) === String(riOrderId); });
                 if (!so) return null;
-                var ps = (so.payment_status) || (so.payment) || null;
+                // r6.6 fix: so.payment is an object {status, method, amount, ...}; extract .status
+                // to avoid passing the object directly as a React child (React Error #31)
+                var ps = so.payment_status
+                  || (so.payment && typeof so.payment === 'object' ? so.payment.status : so.payment)
+                  || null;
                 var badgeStyle = { display: 'inline-flex', alignItems: 'center', padding: '2px 8px', borderRadius: 10, fontSize: 11, fontWeight: 700, marginLeft: 4 };
                 if (ps === 'paid' || ps === 'Paid') return /*#__PURE__*/React.createElement('span', { style: Object.assign({}, badgeStyle, { background: '#d1fae5', color: '#065f46' }) }, '\u2713 Paid');
                 if (ps === 'payment_failed') return /*#__PURE__*/React.createElement('span', { style: Object.assign({}, badgeStyle, { background: '#fee2e2', color: '#991b1b' }) }, '\u2717 Payment Failed');
                 if (ps === 'payment_expired') return /*#__PURE__*/React.createElement('span', { style: Object.assign({}, badgeStyle, { background: '#e5e7eb', color: '#374151' }) }, '\u23F1 Expired');
-                if (ps) return /*#__PURE__*/React.createElement('span', { style: Object.assign({}, badgeStyle, { background: '#fef3c7', color: '#92400e' }) }, ps);
+                if (ps && typeof ps === 'string') return /*#__PURE__*/React.createElement('span', { style: Object.assign({}, badgeStyle, { background: '#fef3c7', color: '#92400e' }) }, ps);
                 return null;
               })()
             )
