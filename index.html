@@ -22999,7 +22999,8 @@ var MobileNav = function MobileNav(_ref125) {
     setRoleKey = _ref125.setRoleKey,
     roleKey = _ref125.roleKey,
     onNewOrder = _ref125.onNewOrder,
-    onCustomer = _ref125.onCustomer;
+    onCustomer = _ref125.onCustomer,
+    onSignOut = _ref125.onSignOut;
   var t = useT();
   var _useState101 = useState(false),
     _useState102 = _slicedToArray(_useState101, 2),
@@ -23176,7 +23177,42 @@ var MobileNav = function MobileNav(_ref125) {
     }, /*#__PURE__*/React.createElement("span", {
       className: "si"
     }, item.i), /*#__PURE__*/React.createElement("span", null, lang === "es" && item.ls || item.l));
-  })))));
+  })),
+  /* ── Account / Log Out ── */
+  /*#__PURE__*/React.createElement("div", {
+    style: { marginTop: 18, borderTop: "1px solid var(--border)", paddingTop: 14 }
+  },
+    /*#__PURE__*/React.createElement("div", {
+      className: "mob-sheet-section",
+      style: { margin: "0 0 10px 0" }
+    }, t("Account", "Cuenta")),
+    /*#__PURE__*/React.createElement("div", {
+      style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }
+    },
+      /*#__PURE__*/React.createElement("div", {
+        className: "av",
+        style: { background: "linear-gradient(135deg,var(--amber),var(--purple))", flexShrink: 0 }
+      }, (role && role.name ? role.name[0] : "U").toUpperCase()),
+      /*#__PURE__*/React.createElement("div", null,
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 12.5, fontWeight: 600, color: "var(--text)" } },
+          role && role.name ? role.name : t("User", "Usuario")
+        ),
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 10.5, color: "var(--text3)" } },
+          roleKey === "hq" ? t("HQ Admin", "Administrador") :
+          roleKey === "office" ? t("Office", "Oficina") :
+          roleKey === "driver" ? t("Driver", "Conductor") : t("User", "Usuario")
+        )
+      )
+    ),
+    /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-red",
+      style: { width: "100%", justifyContent: "center", minHeight: 42, fontSize: 13 },
+      onClick: function onClick() {
+        setOpen(false);
+        if (typeof onSignOut === "function") onSignOut();
+      }
+    }, "\uD83D\uDEAA ", t("Log Out", "Cerrar Sesión"))
+  ))));
 };
 
 /* ════════════════════════════════════════════
@@ -26212,6 +26248,7 @@ setOrders(function (prev) {
       return switchRole(r);
     },
     roleKey: roleKey,
+    onSignOut: handleSignOut,
     onNewOrder: function onNewOrder() {
       return setShowNewOrder(true);
     },
