@@ -613,18 +613,26 @@ var getSenderNotificationTarget = function getSenderNotificationTarget(order, bo
   };
 };
 
-// r6.5: resolve box type label using fallback chain (most-specific first)
-// 1. data.matrix_item_label  (canonical price-matrix selection)
-// 2. data.box_type / data.package_type / data.product_name  (legacy JSONB paths)
-// 3. boxType top-level field (camelCase on order/box)
-// 4. "Unknown" as last resort
+// r6.6: resolve box type label using fallback chain (most-specific first)
+// 1. data.matrix_item_label  (canonical price-matrix selection — stamped at save time)
+// 2. getBoxLabel(boxType key) — translate key via BOX_CONFIG (e.g. "Small" → "(DISH) 18x18x28")
+// 3. data.box_type / data.package_type / data.product_name  (legacy JSONB paths)
+// 4. boxType top-level field as raw fallback
+// 5. "Unknown" as last resort
 var resolveBoxTypeLabel = function resolveBoxTypeLabel(box, order) {
   var d = (box && box.data) || (order && order.data) || {};
-  return (d && d.matrix_item_label)
-    || (box && box.boxType)
-    || (d && (d.box_type || d.package_type || d.product_name))
-    || (order && order.boxType)
-    || "Unknown";
+  // Step 1: canonical stamped label
+  if (d && d.matrix_item_label) return d.matrix_item_label;
+  // Step 2: translate key via BOX_CONFIG ("Small" → "(DISH) 18x18x28", "Medium" → "(74) 24x26x24", etc.)
+  var rawKey = (box && box.boxType) || (order && order.boxType);
+  if (rawKey) {
+    var _bcEntry = BOX_CONFIG.find(function(b){ return b.key === rawKey; });
+    if (_bcEntry && _bcEntry.label) return _bcEntry.label;
+    return rawKey; // key exists but no BOX_CONFIG entry (unknown/custom)
+  }
+  // Step 3: legacy JSONB data paths
+  if (d && (d.box_type || d.package_type || d.product_name)) return (d.box_type || d.package_type || d.product_name);
+  return "Unknown";
 };
 
 var getInvoiceBoxRows = function getInvoiceBoxRows(order, tenant) {
@@ -3241,9 +3249,14 @@ var OrderForm = function OrderForm(_ref4) {
       var boxDest = box.destinationCountry || f.destination || "Guatemala";
       var boxZone = box.zone || (box.gtDept ? (function(){ var d = GT_DEPARTMENTS.find(function(d){ return d.dept === box.gtDept; }); return d ? d.zone : null; })() : null) || getZone(boxDest) || null;
       var boxPrice = pricing[boxDest] ? (pricing[boxDest][box.boxType] || 0) : 0;
+      // r6.6: stamp matrix_item_label at save time for canonical display
+      var _boxKey = box.boxType || f.boxType || "Small";
+      var _boxCfgEntry = BOX_CONFIG.find(function(b){ return b.key === _boxKey; });
+      var _matrixLabel = (box.data && box.data.matrix_item_label) || (_boxCfgEntry ? _boxCfgEntry.label : _boxKey);
       return {
         subId: baseId + "-" + i,
-        boxType: box.boxType || f.boxType || "Small",
+        boxType: _boxKey,
+        matrix_item_label: _matrixLabel,
         destinationCountry: boxDest,
         gtDept: box.gtDept || "",
         zone: boxZone,
