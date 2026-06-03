@@ -89,6 +89,19 @@ console.log("\n[6] No cramped 3-col mobile layout at phone widths:");
 src.includes(".tbl{overflow-x:auto") ? pass("Table overflow-x:auto wrapper present") : fail("Table overflow-x:auto wrapper missing");
 src.includes(".g21{grid-template-columns:1fr!important}") ? pass("g21 collapses on mobile (no 2fr 1fr squeeze)") : fail("g21 still 2fr 1fr on small screens");
 
+// ── 7. Dashboard lower section — no 3-col mobile layout ──────────────────
+console.log("\n[7] Dashboard lower section — 3-col collapse rules:");
+const collapseChecks = [
+  [".g21 .g2{grid-template-columns:1fr!important}", "g21 inner g2 collapses at 480px"],
+  ["max-width:480px", "480px breakpoint exists"],
+  ["max-width:390px", "390px breakpoint exists"],
+];
+for (const [snippet, label] of collapseChecks) {
+  src.includes(snippet) ? pass(label) : fail(label, `Not found: ${snippet}`);
+}
+// Also confirm g3 collapses at 480px
+src.includes(".g3{grid-template-columns:1fr!important}") || src.includes(".g3{grid-template-columns:1fr 1fr!important}") ? pass("g3 has mobile collapse rule") : fail("g3 mobile collapse rule missing");
+
 // ── Summary ──────────────────────────────────────────────────────────────
 console.log(`\n── Summary: ${passed} passed, ${failed} failed ──`);
 if (failed > 0) process.exit(1);
