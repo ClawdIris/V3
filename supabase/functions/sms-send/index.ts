@@ -1,5 +1,7 @@
-// Supabase Edge Function: sms-send
+// Supabase Edge Function: sms-send — R6
 // Reads a queued message from the messages table (respects RLS),
+// enforces messaging consent (sms_opted_in / whatsapp_opted_in),
+// enforces rate limits (3/day per phone, 20/hour per tenant),
 // sends via Twilio API server-side, updates status + provider_message_id.
 // No Twilio credentials are exposed to the browser.
 
@@ -26,7 +28,8 @@ serve(async (req: Request) => {
     }
 
     // 2. Parse body
-    const { message_id } = await req.json();
+    const payload = await req.json();
+    const { message_id } = payload;
     if (!message_id) {
       return new Response(JSON.stringify({ error: "message_id required" }), {
         status: 400, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
@@ -57,6 +60,74 @@ serve(async (req: Request) => {
     if (msg.status !== "queued") {
       return new Response(JSON.stringify({ error: "Message is not in queued status", status: msg.status }), {
         status: 409, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Item 4b: Messaging Consent Check ─────────────────────────────────
+    const channel = msg.channel as string; // "sms" or "whatsapp"
+    const consentField = channel === "whatsapp" ? "whatsapp_opted_in" : "sms_opted_in";
+
+    if (msg.order_id) {
+      const { data: orderConsent } = await supabase
+        .from("orders")
+        .select(`id, ${consentField}`)
+        .eq("id", msg.order_id)
+        .single();
+
+      if (!orderConsent || !orderConsent[consentField]) {
+        await supabase.from("messages").update({
+          status: "blocked",
+          error_message: `Recipient has not opted in to ${channel} messages`,
+          updated_at: new Date().toISOString(),
+        }).eq("id", message_id);
+
+        return new Response(JSON.stringify({ error: "No consent" }), {
+          status: 403, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+        });
+      }
+    }
+
+    // ── Item 5: Rate Limiting ─────────────────────────────────────────────
+    // Per-recipient daily cap: max 3 messages per phone per day
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+
+    const { count: todayCount } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("recipient_phone", msg.recipient_phone)
+      .eq("status", "sent")
+      .gte("created_at", `${today}T00:00:00Z`);
+
+    if ((todayCount ?? 0) >= 3) {
+      await supabase.from("messages").update({
+        status: "blocked",
+        error_message: "Rate limit exceeded: max 3 messages/day per recipient",
+        updated_at: new Date().toISOString(),
+      }).eq("id", message_id);
+
+      return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
+        status: 429, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+      });
+    }
+
+    // Per-tenant hourly cap: max 20 messages/hour per tenant
+    const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
+    const { count: tenantHourCount } = await supabase
+      .from("messages")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", msg.tenant_id)
+      .eq("status", "sent")
+      .gte("created_at", oneHourAgo);
+
+    if ((tenantHourCount ?? 0) >= 20) {
+      await supabase.from("messages").update({
+        status: "blocked",
+        error_message: "Rate limit exceeded: tenant hourly cap reached",
+        updated_at: new Date().toISOString(),
+      }).eq("id", message_id);
+
+      return new Response(JSON.stringify({ error: "Tenant rate limit exceeded" }), {
+        status: 429, headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       });
     }
 

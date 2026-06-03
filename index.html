@@ -2080,7 +2080,11 @@ var EMPTY_ORDER = {
     commission: 0,
     commissionRate: 0
   },
-  shipmentId: ""
+  shipmentId: "",
+  sms_opted_in: false,
+  whatsapp_opted_in: false,
+  consent_recorded_at: null,
+  consent_recorded_by: null
 };
 /* ════════════════════════════════════════════
    CALENDAR PICKER
@@ -3345,7 +3349,12 @@ var OrderForm = function OrderForm(_ref4) {
         note: ""
       }]),
       priceStamped: true,
-      priceStampedAt: f.priceStampedAt || now()
+      priceStampedAt: f.priceStampedAt || now(),
+      // R6: messaging consent — stamp recorded_at when either opt-in is set
+      sms_opted_in: !!f.sms_opted_in,
+      whatsapp_opted_in: !!f.whatsapp_opted_in,
+      consent_recorded_at: (f.sms_opted_in || f.whatsapp_opted_in) ? now() : (f.consent_recorded_at || null),
+      consent_recorded_by: (f.sms_opted_in || f.whatsapp_opted_in) ? null : (f.consent_recorded_by || null)
     });
     var _prevPay = initial && initial.payment ? initial.payment.status : "pending";
     if (order.payment.status === "paid" && _prevPay !== "paid") {
@@ -3481,6 +3490,40 @@ var OrderForm = function OrderForm(_ref4) {
     },
       /*#__PURE__*/React.createElement("option", { value: "en" }, "English"),
       /*#__PURE__*/React.createElement("option", { value: "es" }, "Español")
+    )
+  ),
+  /* ── R6: Messaging Consent Checkboxes ─────────────────────────────────
+     Captures order-level opt-in consent for SMS and WhatsApp messages.
+     Persisted to orders.sms_opted_in / orders.whatsapp_opted_in (r6-messaging-consent.sql).
+     sms-send Edge Function blocks delivery if consent is not recorded.
+  ─────────────────────────────────────────────────────────────────────── */
+  /*#__PURE__*/React.createElement("div", { className: "card", style: { margin: "8px 0 10px 0", padding: "10px 14px", background: "var(--bg3)", border: "1px solid var(--border2)" } },
+    /*#__PURE__*/React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--text4)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 } },
+      "📋 Messaging Consent / Consentimiento de Mensajes"
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "row g10", style: { alignItems: "center", marginBottom: 6 } },
+      /*#__PURE__*/React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" } },
+        /*#__PURE__*/React.createElement("input", {
+          type: "checkbox",
+          checked: f.sms_opted_in || false,
+          onChange: function(e) { set("sms_opted_in", e.target.checked); },
+          style: { width: 14, height: 14, cursor: "pointer" }
+        }),
+        "Customer consents to SMS updates",
+        /*#__PURE__*/React.createElement("span", { className: "mut", style: { fontSize: 10 } }, "/ El cliente acepta recibir SMS")
+      )
+    ),
+    /*#__PURE__*/React.createElement("div", { className: "row g10", style: { alignItems: "center" } },
+      /*#__PURE__*/React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 12, cursor: "pointer" } },
+        /*#__PURE__*/React.createElement("input", {
+          type: "checkbox",
+          checked: f.whatsapp_opted_in || false,
+          onChange: function(e) { set("whatsapp_opted_in", e.target.checked); },
+          style: { width: 14, height: 14, cursor: "pointer" }
+        }),
+        "Customer consents to WhatsApp updates",
+        /*#__PURE__*/React.createElement("span", { className: "mut", style: { fontSize: 10 } }, "/ El cliente acepta recibir WhatsApp")
+      )
     )
   ),
   /*#__PURE__*/React.createElement("div", {
@@ -28322,7 +28365,12 @@ setOrders(function (prev) {
             React.createElement("tbody", null,
               visible.map(function(r, i) {
                 return React.createElement("tr", { key: r.id, id: "queue-row-" + r.id, style: { borderBottom: "1px solid var(--border2)", background: i % 2 === 0 ? "transparent" : "var(--bg3)" } },
-                  React.createElement("td", { style: { padding: "8px 12px" } }, mqStatusBadge(r.status, _mqLang)),
+                  React.createElement("td", { style: { padding: "8px 12px" } },
+                    /* R6: show opted-out badge when blocked due to consent */
+                    (r.status === "blocked" && r.error_message && r.error_message.toLowerCase().indexOf("opted") !== -1)
+                      ? React.createElement("span", { className: "badge ba", title: r.error_message }, "\uD83D\uDEAB Opted Out")
+                      : mqStatusBadge(r.status, _mqLang)
+                  ),
                   React.createElement("td", { style: { padding: "8px 12px" } }, React.createElement("span", { className: "badge bt" }, r.channel.toUpperCase())),
                   React.createElement("td", { style: { padding: "8px 12px", color: "var(--text2)", fontSize: 11 } }, r.template_name || r.template_key),
                   React.createElement("td", { style: { padding: "8px 12px", fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "var(--text3)" } }, r.recipient_phone),
