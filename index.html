@@ -5344,7 +5344,7 @@ var OrdersPage = function OrdersPage(_ref31) {
           ),
           /*#__PURE__*/React.createElement("div", { className: "mob-card-row" },
             /*#__PURE__*/React.createElement("span", { className: "mob-card-lbl" }, t("Box","Caja")),
-            /*#__PURE__*/React.createElement("span", { className: "mob-card-val" }, t(o.boxType, ES[o.boxType]||o.boxType))
+            /*#__PURE__*/React.createElement("span", { className: "mob-card-val" }, resolveBoxTypeLabel(null, o))
           ),
           /*#__PURE__*/React.createElement("div", { className: "mob-card-row" },
             /*#__PURE__*/React.createElement("span", { className: "mob-card-lbl" }, t("Status","Estado")),
@@ -7117,7 +7117,7 @@ var PaymentsPage = function PaymentsPage(_ref45) {
       ),
       /*#__PURE__*/React.createElement("div", { className: "mob-card-row" },
         /*#__PURE__*/React.createElement("span", { className: "mob-card-lbl" }, t("Box","Caja")),
-        /*#__PURE__*/React.createElement("span", { className: "mob-card-val" }, t(o.boxType, ES[o.boxType]||o.boxType))
+        /*#__PURE__*/React.createElement("span", { className: "mob-card-val" }, resolveBoxTypeLabel(null, o))
       ),
       /*#__PURE__*/React.createElement("div", { className: "mob-card-row" },
         /*#__PURE__*/React.createElement("span", { className: "mob-card-lbl" }, t("Charged","Cobrado")),
@@ -9722,7 +9722,7 @@ var OWDashboard = function OWDashboard(_ref58) {
       }
     }, /*#__PURE__*/React.createElement("span", {
       className: "tag"
-    }, o.boxType), o.assignedDriver && /*#__PURE__*/React.createElement("span", {
+    }, resolveBoxTypeLabel(null, o)), o.assignedDriver && /*#__PURE__*/React.createElement("span", {
       className: "tag tag-b"
     }, o.assignedDriver), o.pickupWindow && /*#__PURE__*/React.createElement("span", {
       className: "xs mut"
@@ -10353,7 +10353,7 @@ var CustomerPortal = function CustomerPortal(_ref59) {
             ),
             /*#__PURE__*/React.createElement("div", { className: "mob-card-row" },
               /*#__PURE__*/React.createElement("span", { className: "mob-card-lbl" }, t("Box","Caja")),
-              /*#__PURE__*/React.createElement("span", { className: "mob-card-val" }, t(o.boxType, ES[o.boxType]||o.boxType))
+              /*#__PURE__*/React.createElement("span", { className: "mob-card-val" }, resolveBoxTypeLabel(null, o))
             ),
             /*#__PURE__*/React.createElement("div", { className: "mob-card-row" },
               /*#__PURE__*/React.createElement("span", { className: "mob-card-lbl" }, t("Destination","Destino")),
@@ -10730,7 +10730,7 @@ var TrackingConfirmModal = function TrackingConfirmModal(_ref70) {
       color: "var(--text3)",
       marginTop: 6
     }
-  }, order.name, " \xB7 ", order.destination, " \xB7 ", order.boxType)), /*#__PURE__*/React.createElement("div", {
+  }, order.name, " \xB7 ", order.destination, " \xB7 ", resolveBoxTypeLabel(null, order))), /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--bg2)",
       border: "1px solid var(--border)",
@@ -11066,7 +11066,7 @@ var CustomerTrackPage = function CustomerTrackPage(_ref74) {
       fontSize: 11,
       color: "#94A3B8"
     }
-  }, order.boxType, " \xB7 ", order.boxCount || 1, " box"))), eta && /*#__PURE__*/React.createElement("div", {
+  }, resolveBoxTypeLabel(null, order), " \xB7 ", order.boxCount || 1, " box"))), eta && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 14,
       padding: "10px 14px",
@@ -24643,7 +24643,7 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
       var unitPrice = BOX_PRICES[box.boxType] || 200;
       return {
         itemSequence: idx + 1,
-        description: 'Box ' + (idx + 1) + ' - ' + (box.boxType || 'Standard'),
+        description: 'Box ' + (idx + 1) + ' - ' + (resolveBoxTypeLabel(box, selectedOrder) || 'Standard'),
         boxType: box.boxType,
         unitPriceCents: unitPrice * 100,
         quantity: 1,
