@@ -21,7 +21,7 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet"/ crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" crossorigin="anonymous"/>
   <style>html{font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif}</style>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -5971,21 +5971,26 @@ var AVG_STOP_MIN = 6; // interaction time per stop
 var DriverRoutePage = function DriverRoutePage(_ref36) {
   var orders = _ref36.orders,
     driverName = _ref36.driverName,
+    driverUserId = _ref36.driverUserId,
     onStatusChange = _ref36.onStatusChange,
     onReceipt = _ref36.onReceipt,
     onRunningLate = _ref36.onRunningLate;
+  function driverMatch(o) {
+    if (o.assignedDriverUserId) return o.assignedDriverUserId === driverUserId;
+    return o.assignedDriver === driverName;
+  }
   var t = useT();
   var myPickups = orders.filter(function (o) {
-    return o.status === "ready_pickup" && o.assignedDriver === driverName;
+    return o.status === "ready_pickup" && driverMatch(o);
   });
   var myDropoffs = orders.filter(function (o) {
-    return o.status === "need_box" && o.assignedDriver === driverName;
+    return o.status === "need_box" && driverMatch(o);
   });
   var myDone = orders.filter(function (o) {
-    return ["in_warehouse", "box_dropped_off"].includes(o.status) && o.assignedDriver === driverName;
+    return ["in_warehouse", "box_dropped_off"].includes(o.status) && driverMatch(o);
   });
   var myAttempted = orders.filter(function (o) {
-    return o.status === "attempted" && o.assignedDriver === driverName;
+    return o.status === "attempted" && driverMatch(o);
   });
   var _React$useState = React.useState(null),
     _React$useState2 = _slicedToArray(_React$useState, 2),
@@ -6357,7 +6362,7 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
 
   // ── CASH RECONCILIATION ───────────────────────────────
   var allMyOrders = orders.filter(function (o) {
-    return o.assignedDriver === driverName;
+    return driverMatch(o);
   });
   var cashExpected = allMyOrders.filter(function (o) {
     return ["in_warehouse", "box_dropped_off"].includes(o.status) && o.payment.method === "cash";
@@ -23510,7 +23515,10 @@ var _db = {
       .from(table)
       .upsert([row], { onConflict: "id,tenant_id" })
       .then(function(res) {
-        if (res.error) console.error("[db] upsert error", table, id, res.error.message);
+        if (res.error) {
+          console.error("[db] upsert error", table, id, res.error.message);
+          throw res.error;
+        }
       });
   },
 
@@ -23522,7 +23530,10 @@ var _db = {
       .eq("id", id)
       .eq("tenant_id", _db._tenantId)
       .then(function(res) {
-        if (res.error) console.error("[db] delete error", table, id, res.error.message);
+        if (res.error) {
+          console.error("[db] delete error", table, id, res.error.message);
+          throw res.error;
+        }
       });
   },
 
@@ -23532,6 +23543,7 @@ var _db = {
       .from("tenant_settings")
       .select("data")
       .eq("config_key", key)
+      .eq("tenant_id", _db._tenantId)
       .maybeSingle()
       .then(function(res) {
         if (res.error) return null;
@@ -23546,7 +23558,10 @@ var _db = {
       .from("tenant_settings")
       .upsert([{ id: id, tenant_id: _db._tenantId, config_key: key, data: data }], { onConflict: "id" })
       .then(function(res) {
-        if (res.error) console.error("[db] saveSettings error", key, res.error.message);
+        if (res.error) {
+          console.error("[db] saveSettings error", key, res.error.message);
+          throw res.error;
+        }
       });
   },
 
@@ -23973,6 +23988,13 @@ var LoginScreen = function LoginScreen(_ref126) {
         console.error("[auth] test-login error:", err);
       });
   };
+  var promptTestLogin = function promptTestLogin(roleLabel) {
+    var testEmail = window.prompt("Enter the " + roleLabel + " test email:");
+    if (!testEmail) return;
+    var testPassword = window.prompt("Enter the " + roleLabel + " test password:");
+    if (!testPassword) return;
+    handleTestLoginAs(testEmail.trim(), testPassword);
+  };
   var handleSignUp = /*#__PURE__*/function () {
     var _ref128 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee6() {
       var data, _t2;
@@ -24283,10 +24305,8 @@ var LoginScreen = function LoginScreen(_ref126) {
       setMsg("");
     }
   }, "\u2190 Back to sign in")))),
-  /* v9.8: Debug test-login buttons (shown only when ?debug=1).
-     Each button calls real Supabase Auth via handleTestLoginAs.
-     Credentials are test-tier only — public bundle exposure is expected
-     and acceptable for test-tenant smoke testing. */
+  /* Debug test-login buttons (shown only when ?debug=1).
+     Credentials are prompted at runtime and never embedded in the bundle. */
   testLoginEnabled && /*#__PURE__*/React.createElement("div", {
     style: {
       textAlign: "center",
@@ -24310,7 +24330,7 @@ var LoginScreen = function LoginScreen(_ref126) {
       /*#__PURE__*/React.createElement("button", {
         type: "button",
         disabled: loading,
-        onClick: function(){ handleTestLoginAs("test-hq@casabekonnect.test", "casabe-smoke-2026"); },
+        onClick: function(){ promptTestLogin("HQ"); },
         style: {
           background: "linear-gradient(90deg, #d97706, #f59e0b)",
           color: "#000", border: "none", padding: "6px 12px",
@@ -24323,7 +24343,7 @@ var LoginScreen = function LoginScreen(_ref126) {
       /*#__PURE__*/React.createElement("button", {
         type: "button",
         disabled: loading,
-        onClick: function(){ handleTestLoginAs("test-office@casabekonnect.test", "casabe-smoke-2026"); },
+        onClick: function(){ promptTestLogin("Office"); },
         style: {
           background: "linear-gradient(90deg, #d97706, #f59e0b)",
           color: "#000", border: "none", padding: "6px 12px",
@@ -24336,7 +24356,7 @@ var LoginScreen = function LoginScreen(_ref126) {
       /*#__PURE__*/React.createElement("button", {
         type: "button",
         disabled: loading,
-        onClick: function(){ handleTestLoginAs("test-driver@casabekonnect.test", "casabe-smoke-2026"); },
+        onClick: function(){ promptTestLogin("Driver"); },
         style: {
           background: "linear-gradient(90deg, #d97706, #f59e0b)",
           color: "#000", border: "none", padding: "6px 12px",
@@ -25332,12 +25352,12 @@ function AppShell(_ref130) {
   }).length;
   // Driver-scoped counts (only used when roleKey === "driver")
   // Single source of truth: session.displayName || session.email (mirrors _activeDriverName)
-  var _driverScopedName = (session && (session.displayName || session.email)) || "";
+  var _driverScopedUserId = (session && session.userId) || "";
   var driverPickupCount = orders.filter(function(o) {
-    return o.status === "ready_pickup" && o.assignedDriver === _driverScopedName;
+    return o.status === "ready_pickup" && (o.assignedDriverUserId ? o.assignedDriverUserId === _driverScopedUserId : o.assignedDriver === ((session && (session.displayName || session.email)) || ""));
   }).length;
   var driverDropoffCount = orders.filter(function(o) {
-    return o.status === "need_box" && o.assignedDriver === _driverScopedName;
+    return o.status === "need_box" && (o.assignedDriverUserId ? o.assignedDriverUserId === _driverScopedUserId : o.assignedDriver === ((session && (session.displayName || session.email)) || ""));
   }).length;
   var newCount = orders.filter(function (o) {
     return o.status === "order_placed";
@@ -28479,6 +28499,7 @@ setOrders(function (prev) {
   /* Derive the active driver identity from session for role-scoped filtering.
        Uses display_name from members table, falls back to email. Never hardcoded. */
     var _activeDriverName = (session && (session.displayName || session.email)) || "";
+    var _activeDriverUserId = (session && session.userId) || "";
 
     var renderPage = function renderPage() {
     // HQ pages
@@ -28928,7 +28949,7 @@ setOrders(function (prev) {
     });
     if (page === "pickup_list") return /*#__PURE__*/React.createElement(PickupListPage, {
       orders: roleKey === "driver" ? orders.filter(function (o) {
-        return o.assignedDriver === _activeDriverName;
+        return o.assignedDriverUserId ? o.assignedDriverUserId === _activeDriverUserId : o.assignedDriver === _activeDriverName;
       }) : orders,
       onStatusChange: changeStatus,
       onSelect: setSelectedOrder,
@@ -28940,7 +28961,7 @@ setOrders(function (prev) {
     });
     if (page === "dropoff_list") return /*#__PURE__*/React.createElement(DropOffListPage, {
       orders: roleKey === "driver" ? orders.filter(function (o) {
-        return o.assignedDriver === _activeDriverName;
+        return o.assignedDriverUserId ? o.assignedDriverUserId === _activeDriverUserId : o.assignedDriver === _activeDriverName;
       }) : orders,
       onStatusChange: changeStatus,
       onSelect: setSelectedOrder
@@ -28957,6 +28978,7 @@ setOrders(function (prev) {
     if (page === "driver_route") return /*#__PURE__*/React.createElement(DriverRoutePage, {
       orders: orders,
       driverName: _activeDriverName,
+      driverUserId: _activeDriverUserId,
       onStatusChange: changeStatus,
       onReceipt: setReceiptOrder,
       onRunningLate: function onRunningLate(id) {
@@ -28970,7 +28992,7 @@ setOrders(function (prev) {
     }, /*#__PURE__*/React.createElement("div", {
       className: "tbl"
     }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Order"), /*#__PURE__*/React.createElement("th", null, "Customer"), /*#__PURE__*/React.createElement("th", null, "Status"), /*#__PURE__*/React.createElement("th", null, "Office"))), /*#__PURE__*/React.createElement("tbody", null, orders.filter(function (o) {
-      return ["in_warehouse", "delivered"].includes(o.status) && o.assignedDriver === _activeDriverName;
+      return ["in_warehouse", "delivered"].includes(o.status) && (o.assignedDriverUserId ? o.assignedDriverUserId === _activeDriverUserId : o.assignedDriver === _activeDriverName);
     }).map(function (o) {
       return /*#__PURE__*/React.createElement("tr", {
         key: o.id
@@ -28991,7 +29013,7 @@ setOrders(function (prev) {
     }, /*#__PURE__*/React.createElement("div", {
       className: "alert alert-a mb12"
     }, "\u26A0\uFE0F ", /*#__PURE__*/React.createElement("strong", null, "Attempted Stops"), " \u2014 these customers were not home. Call to reschedule before your next run."), orders.filter(function (o) {
-      return o.status === "attempted" && (roleKey !== "driver" || o.assignedDriver === _activeDriverName);
+      return o.status === "attempted" && (roleKey !== "driver" || (o.assignedDriverUserId ? o.assignedDriverUserId === _activeDriverUserId : o.assignedDriver === _activeDriverName));
     }).length === 0 ? /*#__PURE__*/React.createElement("div", {
       style: {
         textAlign: "center",
@@ -29005,7 +29027,7 @@ setOrders(function (prev) {
         gap: 10
       }
     }, orders.filter(function (o) {
-      return o.status === "attempted" && (roleKey !== "driver" || o.assignedDriver === _activeDriverName);
+      return o.status === "attempted" && (roleKey !== "driver" || (o.assignedDriverUserId ? o.assignedDriverUserId === _activeDriverUserId : o.assignedDriver === _activeDriverName));
     }).map(function (o) {
       return /*#__PURE__*/React.createElement("div", {
         key: o.id,
