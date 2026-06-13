@@ -797,7 +797,7 @@ BEGIN
     ('merge_stripe_payment_completed(text,text,text,text,text,numeric)'),
     ('merge_stripe_payment_status(text,text,text)'),
     ('claim_stripe_event(text,text,text,text)'),
-    ('finalize_stripe_event(text,text,text[],timestamptz,text)'),
+    ('finalize_stripe_event(text,text,text[],timestamp with time zone,text)'),
     ('get_checkout_authorized_member(text)')
   LOOP
     -- Resolve function OID and owner OID
