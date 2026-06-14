@@ -5,15 +5,24 @@
 -- Author  : Forge (Dev Lead)
 -- Reviewer: Delta (QA Lead)
 -- Date    : 2026-06-14
--- Status  : PENDING — Use only if r2-address-book-schema.sql must be undone
+-- Updated : 2026-06-14 (V2 — policy names updated to match v2 migration)
+-- Status  : PENDING — Use only if r2-address-book-schema-v2.sql must be undone
 --
 -- SCOPE:
---   Removes ONLY what r2-address-book-schema.sql created:
+--   Removes ONLY what r2-address-book-schema-v2.sql created:
 --     • address_book table (including all policies, indexes, triggers)
 --     • campaign_audiences table (including all policies, indexes, triggers)
 --     • v_campaign_audience_contacts view
 --     • import_contacts_from_orders() function
 --     • set_updated_at() trigger function (only if unused by other tables)
+--
+-- V2 POLICY NAME CHANGES (reflected here):
+--   campaign_audiences:
+--     REMOVED: ca_driver_anon_blocked (was a single permissive policy, now split)
+--     ADDED:   ca_driver_blocked (RESTRICTIVE, for driver role)
+--              ca_anon_blocked   (RESTRICTIVE, for anon role)
+--   address_book:
+--     ab_anon_blocked  now RESTRICTIVE (name unchanged, but policy type changed)
 --
 -- SAFETY:
 --   • Does NOT touch the campaigns table or any pre-existing data.
@@ -41,9 +50,12 @@ DROP FUNCTION IF EXISTS public.import_contacts_from_orders(TEXT);
 -- STEP 3: Drop campaign_audiences (policies and indexes drop automatically)
 -- ────────────────────────────────────────────────────────────────────────────
 -- Drop policies first (explicit, defensive)
-DROP POLICY IF EXISTS ca_hq_office_all       ON public.campaign_audiences;
+-- V2 policy names on campaign_audiences:
+DROP POLICY IF EXISTS ca_hq_office_all  ON public.campaign_audiences;
+DROP POLICY IF EXISTS ca_driver_blocked ON public.campaign_audiences;  -- V2 name (was ca_driver_anon_blocked)
+DROP POLICY IF EXISTS ca_anon_blocked   ON public.campaign_audiences;
+-- Also drop old V1 name defensively (no-op if already removed or never applied)
 DROP POLICY IF EXISTS ca_driver_anon_blocked ON public.campaign_audiences;
-DROP POLICY IF EXISTS ca_anon_blocked        ON public.campaign_audiences;
 
 -- Drop trigger
 DROP TRIGGER IF EXISTS trg_ca_updated_at ON public.campaign_audiences;
@@ -55,6 +67,7 @@ DROP TABLE IF EXISTS public.campaign_audiences CASCADE;
 -- STEP 4: Drop address_book (policies and indexes drop automatically)
 -- ────────────────────────────────────────────────────────────────────────────
 -- Drop policies first (explicit, defensive)
+-- V2 policy names on address_book (names unchanged, but ab_anon_blocked is now RESTRICTIVE):
 DROP POLICY IF EXISTS ab_hq_office_all  ON public.address_book;
 DROP POLICY IF EXISTS ab_driver_select  ON public.address_book;
 DROP POLICY IF EXISTS ab_anon_blocked   ON public.address_book;
@@ -72,7 +85,7 @@ DROP TABLE IF EXISTS public.address_book CASCADE;
 -- R3 migration added it elsewhere), this DROP will fail safely due to
 -- dependencies. Review before applying.
 --
--- Uncomment only if set_updated_at() was ONLY created by r2-address-book-schema.sql
+-- Uncomment only if set_updated_at() was ONLY created by r2-address-book-schema-v2.sql
 -- and is confirmed unused by any other trigger in the DB.
 
 -- DROP FUNCTION IF EXISTS public.set_updated_at();
@@ -109,3 +122,9 @@ WHERE proname = 'import_contacts_from_orders'
 -- Expected: 1 row
 SELECT tablename FROM pg_tables
 WHERE schemaname = 'public' AND tablename = 'campaigns';
+
+-- RB-V6: Confirm no V2 policies remain on either table.
+-- Expected: 0 rows (tables are dropped, policies dropped with them)
+SELECT tablename, policyname
+FROM pg_policies
+WHERE tablename IN ('address_book', 'campaign_audiences');
