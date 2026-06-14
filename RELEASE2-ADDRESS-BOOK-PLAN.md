@@ -525,3 +525,85 @@ V2 is structurally sound, security-correct, and ready for Codex re-audit and Jef
 ---
 
 *Forge + Delta — V2 ready for Jeffrey Gonzalez sign-off.*
+
+---
+
+## 10. V3 Delta Review — Consent Import Fix
+
+**Delta (QA Lead) — V3 Patch Review**
+**Date:** 2026-06-14
+**Source file:** `migrations/r2-address-book-schema-v3.sql`
+**Triggered by:** Codex re-audit returning 1 remaining NO-GO on V2 (consent import query structure)
+**Scope:** Single change — `import_contacts_from_orders()` FOR rec IN query block only.
+
+---
+
+### 10.1 Finding Summary
+
+**Codex NO-GO:** The V2 `FOR rec IN` loop used `DISTINCT ON` with a complex `CASE` expression key evaluated directly against `public.orders` top-level columns (`o.phone`, `o.name`, `o.address`, `o.sms_opted_in`, `o.whatsapp_opted_in`, `o.consent_recorded_at`).
+
+**Two root problems:**
+
+1. **Wrong schema reference:** The `orders` table stores customer fields in `data JSONB` (established R1 pattern: `data->>'phone'`, `data->>'sms_opted_in'`, etc.), not as direct top-level columns. V2 referenced `o.sms_opted_in` and `o.phone` as if they were direct columns — these would fail or silently resolve to NULL.
+
+2. **Brittle DISTINCT ON key:** A complex `CASE` expression used directly as the `DISTINCT ON` key (at the same level as consent column selection) introduces query-planner ambiguity about which row consent columns come from. PostgreSQL's `DISTINCT ON` guarantees are strongest when the dedup key is a simple column reference.
+
+---
+
+### 10.2 V3 Fix — Canonical Two-Level Pattern
+
+**What changed (V3):**
+
+The `FOR rec IN ... LOOP` query was replaced with a two-level pattern:
+
+**Inner subquery** (`sub`): Extracts all fields from `data JSONB` into typed scalar columns:
+- `data->>'phone'` → `phone`
+- `(data->>'sms_opted_in')::boolean` → `sms_consent`
+- `(data->>'whatsapp_opted_in')::boolean` → `whatsapp_consent`
+- `(data->>'consent_recorded_at')::timestamptz` → `consent_updated_at`
+- Computes `dedup_key` as a named alias (digits-only phone when ≥7 digits; else `name|address`)
+- Preserves `created_at` from `orders` for recency ordering
+
+**Outer SELECT**: `SELECT DISTINCT ON (sub.dedup_key) ... FROM (...) sub ORDER BY sub.dedup_key, sub.created_at DESC`
+
+- `DISTINCT ON (sub.dedup_key)` — simple column reference, not a CASE expression
+- `ORDER BY sub.dedup_key, sub.created_at DESC` — at the **same query level** as `DISTINCT ON`
+- `sub.sms_consent` and `sub.whatsapp_consent` — simple column references from the inner subquery, unambiguously from the `DISTINCT ON`-selected row
+
+No CTEs. No outer aggregates. No `bool_or`, `MAX`, or any aggregate touches consent.
+
+---
+
+### 10.3 Delta Confirmation Checklist
+
+| Check | Result |
+|---|---|
+| `DISTINCT ON` and `ORDER BY` at the same query level (not separated by CTE/outer aggregate) | ✅ CONFIRMED — both on outer SELECT, inner subquery has no ORDER BY |
+| `sms_consent` and `whatsapp_consent` come from the same row as `DISTINCT ON` selects | ✅ CONFIRMED — `sub.sms_consent` and `sub.whatsapp_consent` are simple column refs from inner sub; PostgreSQL assigns them from the `DISTINCT ON`-selected row |
+| No `bool_or`, `MAX`, or aggregate touches consent after row selection | ✅ CONFIRMED — no aggregate in outer SELECT or inner subquery on consent columns |
+| `dedup_key` is a simple column reference in `DISTINCT ON` (not a CASE expression at the outer level) | ✅ CONFIRMED — CASE is computed once in inner subquery as `dedup_key`; outer uses `sub.dedup_key` |
+| Consent fields from `data JSONB` (not direct columns) | ✅ CONFIRMED — `(data->>'sms_opted_in')::boolean`, `(data->>'whatsapp_opted_in')::boolean` |
+| V2 not overwritten | ✅ CONFIRMED — output file is `r2-address-book-schema-v3.sql`; v2 unchanged |
+| All other sections identical to V2 (tables, RLS, view, indexes, triggers, verifications) | ✅ CONFIRMED — diff is limited to Section 4 function body only |
+
+---
+
+### 10.4 Delta Sign-Off
+
+**Delta sign-off: APPROVED**
+
+The V3 consent import fix correctly implements the canonical PostgreSQL `DISTINCT ON` + inner subquery pattern. All three Codex criteria are satisfied:
+1. `DISTINCT ON` and `ORDER BY` are at the same query level ✅
+2. `sms_consent` and `whatsapp_consent` come from the same row as the `DISTINCT ON` selection ✅
+3. No aggregate (`bool_or`, `MAX`, or otherwise) touches consent after row selection ✅
+
+V3 is ready for Codex re-audit and Jeffrey Gonzalez final approval before apply.
+
+**Remaining pre-apply checks (carried from V1/V2 — unchanged):**
+- Confirm `campaigns.id` is UUID before adding formal FK on `campaign_audiences.campaign_id`
+- Confirm `set_updated_at()` does not already exist with conflicting logic
+- Driver RLS subquery performance — post-deploy smoke test (flag for R2 smoke checklist)
+
+---
+
+*Forge + Delta — V3 consent import fix ready for Codex re-audit and Jeffrey Gonzalez sign-off.*
