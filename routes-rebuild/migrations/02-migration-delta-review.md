@@ -174,3 +174,142 @@ All six technical findings PASS. Migration 02 v2 is structurally correct, securi
 
 — Delta, QA Lead  
 2026-06-14
+
+---
+
+# Migration 02 v3 — Delta QA Review
+**File:** `02-orders-delivery-address-v3.sql`
+**Reviewer:** Delta
+**Review Date:** 2026-06-14
+**Status:** APPROVED
+
+---
+
+## Scope of V3 Change
+
+Single targeted fix addressing the Codex re-audit NO-GO finding:
+
+> **Finding:** `trg_route_stops_no_tape_direct` fired `BEFORE INSERT` only (v2).  
+> An existing `route_stops` row could have its `order_id` UPDATE'd to point to  
+> a Tape Direct order after insertion, bypassing the invariant entirely.
+
+V3 changes exactly one line in the migration:
+
+| | v2 | v3 |
+|---|---|---|
+| Trigger declaration | `BEFORE INSERT ON public.route_stops` | `BEFORE INSERT OR UPDATE ON public.route_stops` |
+
+All other content is identical to v2.
+
+---
+
+## Finding V3-1 — Trigger Covers BEFORE INSERT OR UPDATE: CORRECT ✅
+
+**Check:** Does the trigger now fire on both INSERT and UPDATE?
+
+```sql
+-- V3 CHANGE: BEFORE INSERT OR UPDATE (was BEFORE INSERT in v2)
+CREATE TRIGGER trg_route_stops_no_tape_direct
+  BEFORE INSERT OR UPDATE ON public.route_stops
+  FOR EACH ROW EXECUTE FUNCTION public.check_no_tape_direct_stop();
+```
+
+**Finding:** `BEFORE INSERT OR UPDATE` is present. PostgreSQL fires this trigger for both `INSERT` and `UPDATE` DML on `route_stops`. The UPDATE bypass that existed in v2 is now closed at the database level.
+
+**Result: PASS**
+
+---
+
+## Finding V3-2 — Function Body Correct for UPDATE Path: CORRECT ✅
+
+**Check:** Does `check_no_tape_direct_stop()` work correctly when invoked on UPDATE?
+
+```sql
+SELECT delivery_address
+  INTO v_delivery_address
+  FROM public.orders
+ WHERE id        = NEW.order_id
+   AND tenant_id = NEW.tenant_id;
+```
+
+**Finding:** The function body is unchanged from v2. In PostgreSQL, `NEW` is available for both INSERT and UPDATE row-level triggers — it always reflects the incoming row state (the new values being written). `NEW.order_id` and `NEW.tenant_id` correctly refer to the post-update values of the row being modified, which is exactly what we want: if someone UPDATEs a `route_stops` row to point at a different `order_id`, the trigger reads that new `order_id` and checks it against the Tape Direct address. The logic is sound for both paths.
+
+No function body change is required.
+
+**Result: PASS**
+
+---
+
+## Finding V3-3 — Verify Step 5 Updated (INSERT OR UPDATE catalog check): CORRECT ✅
+
+**Check:** Does verify step 5 confirm the trigger covers both INSERT and UPDATE?
+
+```sql
+-- 5. Tape Direct trigger exists on route_stops — covers BOTH INSERT and UPDATE (V3)
+--    SELECT trigger_name, event_manipulation
+--    FROM information_schema.triggers
+--    WHERE event_object_schema = 'public'
+--      AND event_object_table = 'route_stops'
+--      AND trigger_name = 'trg_route_stops_no_tape_direct'
+--    ORDER BY event_manipulation;
+--    EXPECTED: 2 rows — one for INSERT and one for UPDATE
+```
+
+**Finding:** Verify step 5 has been updated to query `event_manipulation` and expect **2 rows** (one for INSERT, one for UPDATE). This correctly reflects how `information_schema.triggers` represents multi-event triggers in PostgreSQL — one row per event per trigger name. A reviewer running this check against the v2-applied DB would only see 1 row; against v3 they will see 2, confirming the fix landed.
+
+**Result: PASS**
+
+---
+
+## Finding V3-4 — Verify Step 6b Present (UPDATE Smoke Test): CORRECT ✅
+
+**Check:** Is a step 6b present that proves the UPDATE bypass is blocked?
+
+**Finding:** Step 6b is present and correctly structured:
+
+1. Inserts a `route_stops` row against a **non**-Tape-Direct order (should succeed — baseline)
+2. Changes that order's `delivery_address` to the Tape Direct warehouse address
+3. `UPDATE`s the `route_stops` row's `order_id` to that order
+4. **Expected:** `ERROR — 'route_stops: order ... has delivery_address matching Tape Direct warehouse'`
+5. Wrapped in `BEGIN`/`ROLLBACK` — safe to run in a production-like environment
+
+This test directly exercises the bypass path that was open in v2. If the trigger were still INSERT-only, step 4 would silently succeed (wrong). The test will only pass when `BEFORE INSERT OR UPDATE` is in place.
+
+**Result: PASS**
+
+---
+
+## Finding V3-5 — V3 Change Summary Block: PRESENT ✅
+
+**Check:** Is the change documented at the top of the file for future reviewers?
+
+**Finding:** A `-- V3 CHANGE SUMMARY` block is present immediately after the status header. It documents:
+- What was wrong in v2 (INSERT-only trigger, UPDATE bypass)
+- What changed in v3 (trigger declaration: `INSERT OR UPDATE`)
+- What did NOT change (function body — unchanged, works for both paths)
+- Why the function body is correct for UPDATE (`NEW` is valid in both INSERT and UPDATE triggers)
+
+**Result: PASS**
+
+---
+
+## Remaining Concerns Before Jeffrey Approves Apply
+
+**None blocking.**
+
+One advisory (carried forward from v2, unchanged):
+
+> **Advisory:** The behavioral verify tests (steps 6 and 6b) require an existing order row. On a freshly migrated database with no order data, the UPDATE in step 6b will be a no-op and the final `UPDATE public.route_stops` will match zero rows. In that case, the trigger guard cannot be behaviorally verified until seed/real order data exists. Catalog check (step 5, expecting 2 rows) confirms the trigger is registered correctly regardless of data.
+
+---
+
+## Delta Sign-Off
+
+**APPROVED**
+
+Single targeted fix. All V3 findings PASS. The Tape Direct invariant now covers `BEFORE INSERT OR UPDATE` on `route_stops`. The function body requires no change — `NEW.order_id` and `NEW.tenant_id` are correct for both INSERT and UPDATE row transitions. Verify step 6b provides an explicit UPDATE smoke test that proves the bypass is closed.
+
+Migration 02 v3 is structurally correct, security-hardened, and safe to apply once Codex re-audit confirms and Jeffrey provides explicit approval.
+
+— Delta, QA Lead  
+2026-06-14
