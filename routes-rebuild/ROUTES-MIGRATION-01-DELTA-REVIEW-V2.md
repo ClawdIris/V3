@@ -175,3 +175,99 @@ No blockers. The four awareness items above are noted for design continuity but 
 
 *Delta — QA Lead, Casabe Konnect Route Optimizer*  
 *Review completed: 2026-06-14*
+
+---
+
+# V3 Delta Review — Migration 01 v3
+## `01-routes-schema-v3.sql`
+**Reviewer:** Delta (QA)  
+**Date:** 2026-06-14  
+**Reviewed against:** `01-routes-schema-v3.sql` (Forge — Codex audit finding resolution)  
+**Codex Audit Finding:** Tape Direct trigger references `orders.delivery_address` before Migration 02 creates that column — `undefined_column` hard error, not silent NULL.  
+**Status: ✅ APPROVED — Migration 01 v3 ready for Codex re-audit**
+
+---
+
+## Finding Resolution Verification
+
+### Trigger Removed from Migration 01 ✅
+
+| Item | v2 | v3 | Correct? |
+|---|---|---|---|
+| `check_no_tape_direct_stop()` function | Present | **Removed** | ✅ |
+| `trg_route_stops_no_tape_direct` trigger | Present | **Removed** | ✅ |
+| Forward reference to `orders.delivery_address` | Present (unsafe) | **Absent** | ✅ |
+| Rollback drops trigger/function | Yes | Removed — nothing to drop | ✅ |
+
+**Delta confirms:** The trigger and its supporting function are completely absent from v3. No forward reference to `orders.delivery_address` exists anywhere in Migration 01 v3.
+
+### Where the Trigger Now Lives ✅
+
+The trigger is documented as moving to **Migration 02 (`02-orders-delivery-address.sql`)**, co-located with the `orders.delivery_address` column it depends on. This is the correct and safe placement. The v3 header, `routes.start_address` column comment, POST-COMMIT verify item 5/8, and the acceptance test 12 note all consistently point to Migration 02 as the trigger's home.
+
+### No Other Forward References to Columns Not Yet Created ✅
+
+Delta audited every SELECT, INSERT, UPDATE, and reference in v3 against the column set created by Migration 01 alone:
+
+| Scope | Columns referenced | All exist after Migration 01? |
+|---|---|---|
+| `routes` table DDL | `id, tenant_id, office_id, driver_user_id, start_address, status, optimized_at, dispatched_at, waypoint_order, created_by, created_at, updated_at, is_active` | ✅ All created here |
+| `route_stops` table DDL | `id, route_id, order_id, tenant_id, stop_sequence, driver_user_id, status, created_at, updated_at` | ✅ All created here |
+| RLS policies | `tenant_id, office_id, driver_user_id` on routes; `tenant_id, route_id, order_id` on route_stops | ✅ All present |
+| Trigger function `set_updated_at()` | `updated_at` (NEW.updated_at) | ✅ Present on both tables |
+| Indexes | All reference columns from `routes` and `route_stops` | ✅ No external column refs |
+| `orders.delivery_address` | **Not referenced anywhere** | ✅ Absence confirmed |
+
+**No forward references found. Migration 01 v3 is self-contained.**
+
+---
+
+## V2 Fixes Preserved ✅
+
+All five fixes from v2 are intact and unmodified in v3:
+
+| Fix | Description | Status |
+|---|---|---|
+| Fix 1 | `get_user_office_ids()` + `= ANY(...)` in all 4 RLS clauses | ✅ Preserved |
+| Fix 2 | `routes.driver_user_id` column, index, dual-path driver policy | ✅ Preserved |
+| Fix 3 | Expanded status CHECK (`in_progress`, `cancelled`) | ✅ Preserved |
+| Fix 4 (partial) | `start_address` DEFAULT + column comment + contract language | ✅ Preserved (trigger portion moved to Migration 02) |
+| Fix 5 | `can_access_order(order_id)` TEXT-safe driver RLS, rebased tests | ✅ Preserved |
+
+---
+
+## Documentation Consistency ✅
+
+| Document location | Consistent with trigger-in-Migration-02? |
+|---|---|
+| V3 revision note block at file top | ✅ |
+| `routes.start_address` COMMENT ON COLUMN | ✅ |
+| Placeholder comment block where trigger was | ✅ |
+| POST-COMMIT verify item 5 (trigger count = 2) | ✅ |
+| POST-COMMIT verify item 8 (Migration 02 concern) | ✅ |
+| ROLLBACK section (no trigger/function to drop) | ✅ |
+| Acceptance Test 12 note (Migration 02 concern) | ✅ |
+
+---
+
+## Delta Sign-Off
+
+| Check | Result |
+|---|---|
+| Tape Direct trigger absent from Migration 01 v3 | ✅ Confirmed |
+| No forward references to columns not yet created | ✅ Confirmed |
+| All v2 fixes preserved | ✅ Confirmed |
+| Trigger documented as living in Migration 02 | ✅ Confirmed |
+| Rollback and verify blocks updated correctly | ✅ Confirmed |
+| v2 file NOT overwritten (v3 is a new file) | ✅ Confirmed |
+
+**Delta verdict: ✅ APPROVED.**
+
+Migration 01 v3 is structurally correct and self-contained. The Codex audit finding is resolved. This file is ready for Codex re-audit and Jeffrey sign-off before apply.
+
+**Remaining action:** Migration 02 (`02-orders-delivery-address.sql`) must be updated by Forge to include `check_no_tape_direct_stop()` and `trg_route_stops_no_tape_direct` before that migration is finalized — the trigger guard is not lost, only relocated.
+
+---
+
+*Delta — QA Lead, Casabe Konnect Route Optimizer*  
+*V3 Review completed: 2026-06-14*
