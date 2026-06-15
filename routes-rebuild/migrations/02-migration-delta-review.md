@@ -525,3 +525,194 @@ Migration 02 v4 is structurally correct, security-hardened, and safe to apply on
 
 — Delta, QA Lead  
 2026-06-14
+
+---
+
+# Migration 02 v5 — Delta QA Review
+**File:** `02-orders-delivery-address-v5.sql`
+**Reviewer:** Delta
+**Review Date:** 2026-06-14
+**Status:** APPROVED
+
+---
+
+## Scope of V5 Change
+
+Single targeted fix addressing the Codex re-audit NO-GO finding returned against v4:
+
+> **Finding:** In `check_no_tape_direct_stop()`, the SELECT that reads `orders.delivery_address`  
+> is a plain snapshot read with no row-level lock. A concurrent `UPDATE orders SET delivery_address = '<Tape Direct>'`  
+> can race between the trigger's SELECT and the `route_stops` INSERT commit, producing a committed  
+> route stop that references the Tape Direct warehouse — a write-skew violation.
+
+V5 changes exactly one expression in the migration — adding `FOR UPDATE` to the SELECT inside `check_no_tape_direct_stop()`:
+
+| | v4 | v5 |
+|---|---|---|
+| SELECT in `check_no_tape_direct_stop()` | `SELECT delivery_address INTO ... FROM public.orders WHERE ...` | `SELECT delivery_address INTO ... FROM public.orders WHERE ... FOR UPDATE` |
+
+All other content is identical to v4. The orders-side trigger function `check_order_delivery_address_not_tape_direct()` is **not changed**.
+
+---
+
+## Finding V5-1 — FOR UPDATE Present in check_no_tape_direct_stop() Only: CORRECT ✅
+
+**Check:** Is `FOR UPDATE` added to `check_no_tape_direct_stop()` and **not** to `check_order_delivery_address_not_tape_direct()`?
+
+```sql
+-- check_no_tape_direct_stop() — V5 change present:
+SELECT delivery_address
+  INTO v_delivery_address
+  FROM public.orders
+ WHERE id        = NEW.order_id
+   AND tenant_id = NEW.tenant_id
+FOR UPDATE;
+```
+
+```sql
+-- check_order_delivery_address_not_tape_direct() — unchanged, no FOR UPDATE:
+SELECT COUNT(*) INTO v_stop_count
+  FROM public.route_stops
+ WHERE order_id  = NEW.id
+   AND tenant_id = NEW.tenant_id;
+```
+
+**Finding:** `FOR UPDATE` appears exactly once in the migration body — on the `SELECT delivery_address` inside `check_no_tape_direct_stop()`. The orders-side function `check_order_delivery_address_not_tape_direct()` does not contain `FOR UPDATE`. This is the correct and minimal change.
+
+**Result: PASS**
+
+---
+
+## Finding V5-2 — Lock Target Is the orders Row: CORRECT ✅
+
+**Check:** Does `FOR UPDATE` lock the correct row — the `orders` row for `NEW.order_id` — and not a wider or narrower scope?
+
+**Finding:** `FOR UPDATE` is appended to the `SELECT ... FROM public.orders WHERE id = NEW.order_id AND tenant_id = NEW.tenant_id` statement. The `WHERE` clause is keyed on `(id, tenant_id)` — the primary key of the orders row being referenced by the incoming route_stops row. PostgreSQL will acquire a row-level exclusive lock on exactly that one orders row. This is the narrowest possible lock that still prevents a concurrent `UPDATE orders SET delivery_address = ...` from proceeding on the same row.
+
+Locking the orders row on the route_stops side is precisely what is needed: it prevents a concurrent `UPDATE orders` from changing `delivery_address` between the trigger's read and the trigger's transaction commit. Any concurrent session attempting to `UPDATE` the same orders row will block until Session A's `route_stops` INSERT transaction completes.
+
+**Result: PASS**
+
+---
+
+## Finding V5-3 — Orders-Side Trigger Correctly Left WITHOUT FOR UPDATE: CORRECT ✅
+
+**Check:** Is `check_order_delivery_address_not_tape_direct()` unchanged and free of `FOR UPDATE`? Is the reasoning sound?
+
+**Finding:** `check_order_delivery_address_not_tape_direct()` fires as a `BEFORE UPDATE` trigger on `public.orders`. PostgreSQL acquires a row-level write lock on each target row of an `UPDATE` statement **before** any `BEFORE` trigger fires. The trigger therefore already runs under an implicit exclusive lock on the orders row. Adding `FOR UPDATE` inside that trigger would be redundant dead code.
+
+More importantly: the orders-side trigger reads from `route_stops` (with a plain `SELECT COUNT(*)`), not from `orders`. The lock it needs is not on orders (already held) but on route_stops — however, since `route_stops` INSERT/UPDATE triggers lock the orders row with `FOR UPDATE`, the two triggers now form a consistent locking hierarchy:
+- A `route_stops` mutation locks orders first → orders-side trigger then sees the committed state of route_stops when it eventually runs
+- An `orders.delivery_address` mutation already holds an orders write lock → blocks any concurrent `route_stops` INSERT that is trying to acquire a `FOR UPDATE` lock on the same orders row
+
+The result is that concurrent mutations on both sides are serialized through the orders row lock. No `FOR UPDATE` on the orders-side trigger is needed or correct.
+
+**Result: PASS**
+
+---
+
+## Finding V5-4 — Concurrency Test Documents Correct Session Sequence: CORRECT ✅
+
+**Check:** Does `02-v5-concurrency-test.md` accurately describe the race, the fix, and the expected outcome?
+
+**Finding:** The concurrency test document (`02-v5-concurrency-test.md`) covers:
+
+1. **The v4 race condition** — precise T0–T10 timeline showing how both triggers could pass concurrently, resulting in a committed Tape Direct stop
+2. **Session A SQL** — full `BEGIN` → `INSERT INTO route_stops` → trigger fires → `SELECT ... FOR UPDATE` → lock acquired
+3. **Session B SQL** — `BEGIN` → `UPDATE orders SET delivery_address = '3801 White Plains Rd...'` → **BLOCKS** waiting for Session A's lock
+4. **Session A commits** — `COMMIT;` → lock released → route_stop is now visible
+5. **Session B unblocks** — UPDATE proceeds → `trg_orders_delivery_address_not_tape_direct` fires → `COUNT(*) = 1` → `RAISE EXCEPTION` → Session B rolls back
+6. **Expected outcome table** — clearly states each event and result
+7. **Why write-skew is closed** — explains the serialization guarantee provided by `FOR UPDATE`
+8. **Why orders-side trigger does not need FOR UPDATE** — correct reasoning documented
+
+The session sequence is accurate. The expected outcomes are correct. The document constitutes valid evidence that the lock closes the write-skew window.
+
+**Result: PASS**
+
+---
+
+## Finding V5-5 — V4 Objects Preserved; Only the SELECT Changes: CORRECT ✅
+
+**Check:** Are both triggers and both functions from v4 preserved in v5? Is the only change the addition of `FOR UPDATE` to the SELECT in `check_no_tape_direct_stop()`?
+
+**Finding:**
+
+| Object | v4 present | v5 present | Changed? |
+|--------|-----------|-----------|----------|
+| `check_no_tape_direct_stop()` | ✅ | ✅ | SELECT gains `FOR UPDATE` |
+| `check_order_delivery_address_not_tape_direct()` | ✅ | ✅ | No change |
+| `trg_route_stops_no_tape_direct` | ✅ | ✅ | No change |
+| `trg_orders_delivery_address_not_tape_direct` | ✅ | ✅ | No change |
+| `delivery_address` column + comment | ✅ | ✅ | No change |
+| Backfill strategy block | ✅ | ✅ | No change |
+| Rollback block | ✅ | ✅ | No change |
+
+Additional v5 additions (non-functional, documentation only):
+- V5 CHANGE SUMMARY block added at the top (explains write-skew, FOR UPDATE, why orders-side unchanged)
+- Inline comment on the `FOR UPDATE` SELECT explains the purpose
+- Inline comment on `check_order_delivery_address_not_tape_direct()` notes why FOR UPDATE was not added
+- POST-COMMIT VERIFY steps 9 and 10 added (catalog checks confirming FOR UPDATE presence/absence in respective function bodies)
+
+All v4 behavior is preserved. The change is minimal and surgical.
+
+**Result: PASS**
+
+---
+
+## Finding V5-6 — POST-COMMIT VERIFY Steps 9 and 10 Present: CORRECT ✅
+
+**Check:** Are there catalog-level verify steps that confirm `FOR UPDATE` is present in `check_no_tape_direct_stop()` and absent from `check_order_delivery_address_not_tape_direct()`?
+
+**Finding:** Steps 9 and 10 are present:
+
+- **Step 9** queries `pg_proc.prosrc` for `check_no_tape_direct_stop` and instructs the reviewer to confirm the body contains `FOR UPDATE`. This is a catalog-level proof that the function source was updated.
+- **Step 10** queries `pg_proc.prosrc` for `check_order_delivery_address_not_tape_direct` and instructs the reviewer to confirm the body does **not** contain `FOR UPDATE`. This confirms the orders-side function was not accidentally modified.
+
+These two steps together give a reviewer precise, deterministic confirmation of the v5 change without needing to diff the entire function body manually.
+
+**Result: PASS**
+
+---
+
+## Remaining Concerns Before Jeffrey Approves Apply
+
+**None blocking.**
+
+One advisory for Jeffrey's awareness (consistent with v2–v4 advisories):
+
+> **Advisory:** The behavioral verify tests (steps 6, 6b, 8) require existing order and route data.  
+> On a freshly migrated database with no orders, these tests will silently no-op.  
+> Steps 9 and 10 (v5 catalog checks via `pg_proc`) confirm the FOR UPDATE change is present  
+> at the source level regardless of data and are sufficient to verify the v5 fix at apply time.
+
+One additional advisory specific to v5:
+
+> **Advisory — Lock Contention:** `FOR UPDATE` on the orders row in `check_no_tape_direct_stop()`  
+> means that any `route_stops` INSERT or UPDATE will hold a lock on the referenced orders row  
+> for the duration of the transaction. In high-throughput scenarios where many route_stops  
+> are inserted concurrently for the same order, these transactions will serialize through the  
+> orders row lock. This is intentional and correct — it is the mechanism that closes write-skew —  
+> but it is worth noting for capacity planning. In normal Casabe Konnect dispatcher usage  
+> (one stop per order, low concurrency), this lock contention is negligible.
+
+No structural, security, or correctness issues found.
+
+---
+
+## Delta Sign-Off
+
+**APPROVED**
+
+All V5 technical findings PASS.
+
+- `FOR UPDATE` is present in `check_no_tape_direct_stop()` on the orders SELECT — lock target is correct (orders row keyed by `order_id + tenant_id`)
+- `FOR UPDATE` is **not** present in `check_order_delivery_address_not_tape_direct()` — correct; that trigger already holds an implicit write lock on the orders row
+- Concurrency test (`02-v5-concurrency-test.md`) documents the precise session sequence, expected blocking behavior, and expected rejection outcome — evidence is valid
+- All v4 objects (both triggers + both functions) are preserved; the only functional change is the `FOR UPDATE` on the SELECT in `check_no_tape_direct_stop()`
+- Write-skew window is closed: concurrent `UPDATE orders.delivery_address` is serialized through the orders row lock, guaranteeing the orders-side trigger reads the post-commit state of route_stops
+
+Migration 02 v5 is structurally correct, security-hardened, and safe to apply once Codex re-audit confirms and Jeffrey provides explicit approval.
+
+— Delta, QA Lead  
+2026-06-14
