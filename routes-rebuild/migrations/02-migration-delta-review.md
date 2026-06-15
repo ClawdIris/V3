@@ -313,3 +313,215 @@ Migration 02 v3 is structurally correct, security-hardened, and safe to apply on
 
 — Delta, QA Lead  
 2026-06-14
+
+---
+
+# Migration 02 v4 — Delta QA Review
+**File:** `02-orders-delivery-address-v4.sql`
+**Reviewer:** Delta
+**Review Date:** 2026-06-14
+**Status:** APPROVED
+
+---
+
+## Scope of V4 Change
+
+Single targeted fix addressing the Codex re-audit NO-GO finding returned against v3:
+
+> **Finding:** `trg_route_stops_no_tape_direct` guards `route_stops` on `BEFORE INSERT OR UPDATE`  
+> — so a stop cannot point to a Tape Direct order. But there is a complementary  
+> bypass vector on the ORDERS side: an order's `delivery_address` can be changed  
+> to the Tape Direct address AFTER a stop has already been inserted referencing  
+> that order. The `route_stops` trigger only fires on mutations to `route_stops`,  
+> not to `orders`. Invariant bypassed with no trigger ever firing.
+
+V4 adds exactly two new objects to the migration:
+
+| Object | Type | Table | Fires on |
+|---|---|---|---|
+| `check_order_delivery_address_not_tape_direct()` | FUNCTION | `public.orders` | trigger |
+| `trg_orders_delivery_address_not_tape_direct` | TRIGGER | `public.orders` | `BEFORE UPDATE OF delivery_address` |
+
+All v3 content is preserved unchanged.
+
+---
+
+## Finding V4-1 — Trigger is Column-Specific (`BEFORE UPDATE OF delivery_address`): CORRECT ✅
+
+**Check:** Does the trigger fire only on `delivery_address` changes, not on every `orders` UPDATE?
+
+```sql
+CREATE TRIGGER trg_orders_delivery_address_not_tape_direct
+  BEFORE UPDATE OF delivery_address ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.check_order_delivery_address_not_tape_direct();
+```
+
+**Finding:** `BEFORE UPDATE OF delivery_address` is the column-specific trigger syntax in PostgreSQL. This trigger fires only when `delivery_address` is included in the `SET` clause of an `UPDATE` against `public.orders`. Updates to other columns (e.g., `status`, `tenant_id`, `updated_at`) do not invoke this trigger. This is the correct and minimal scope — no unnecessary overhead on unrelated order mutations.
+
+**Result: PASS**
+
+---
+
+## Finding V4-2 — Function is SECURITY DEFINER with SET search_path = '': CORRECT ✅
+
+**Check:** Is `check_order_delivery_address_not_tape_direct()` declared SECURITY DEFINER with a pinned search_path?
+
+```sql
+CREATE OR REPLACE FUNCTION public.check_order_delivery_address_not_tape_direct()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+```
+
+**Finding:** Both `SECURITY DEFINER` and `SET search_path = ''` are present. This is the hardened pattern required by Casabe Konnect's security policy, consistent with `check_no_tape_direct_stop()` and all other trigger functions in this codebase. The empty `search_path` prevents search_path injection attacks. All table references inside the function body use the fully-qualified `public.` schema prefix (`public.route_stops`), which is required when `search_path = ''`.
+
+**Result: PASS**
+
+---
+
+## Finding V4-3 — Check Only Fires When New Address = Tape Direct (No-Op Otherwise): CORRECT ✅
+
+**Check:** Does the function short-circuit and return `NEW` immediately when the new address is not Tape Direct?
+
+```sql
+IF lower(trim(NEW.delivery_address)) =
+   lower(trim('3801 White Plains Rd, Bronx, NY 10467'))
+THEN
+  -- ... check for route_stops ...
+END IF;
+
+RETURN NEW;
+```
+
+**Finding:** The entire stop-count check is nested inside the `IF` block that compares the new address to the Tape Direct constant. If the new `delivery_address` is anything other than `'3801 White Plains Rd, Bronx, NY 10467'` (case-insensitive, trimmed), the `IF` is false, the body is skipped entirely, and the function immediately `RETURN NEW`. This is a no-op for normal address corrections. The trigger adds zero overhead to the vast majority of `delivery_address` updates.
+
+Both sides of the comparison are wrapped in `lower(trim(...))`, consistent with the address comparison in `check_no_tape_direct_stop()`. Case and whitespace variations are handled.
+
+**Result: PASS**
+
+---
+
+## Finding V4-4 — Free Address Change Allowed When No route_stops Reference the Order: CORRECT ✅
+
+**Check:** If an order is not yet in any route, can its `delivery_address` be set to the Tape Direct address freely?
+
+```sql
+SELECT COUNT(*) INTO v_stop_count
+  FROM public.route_stops
+ WHERE order_id  = NEW.id
+   AND tenant_id = NEW.tenant_id;
+
+IF v_stop_count > 0 THEN
+  RAISE EXCEPTION ...;
+END IF;
+```
+
+**Finding:** The `RAISE EXCEPTION` only fires when `v_stop_count > 0`. If no `route_stops` row references this order, `COUNT(*)` returns 0, the `IF` is false, and `RETURN NEW` is reached — the address change proceeds normally. An order not yet assigned to any route is not subject to the Tape Direct address restriction. This is the correct semantic: the guard only activates once the order is part of a live route.
+
+**Result: PASS**
+
+---
+
+## Finding V4-5 — Rollback Drop Order is Correct (Trigger Before Function): CORRECT ✅
+
+**Check:** Does the rollback drop the V4 trigger before the V4 function, and both before the column?
+
+```sql
+-- V4 additions: drop orders-side trigger and function first
+DROP TRIGGER IF EXISTS trg_orders_delivery_address_not_tape_direct ON public.orders;
+DROP FUNCTION IF EXISTS public.check_order_delivery_address_not_tape_direct();
+
+-- route_stops trigger and function (present since V2)
+DROP TRIGGER IF EXISTS trg_route_stops_no_tape_direct ON public.route_stops;
+DROP FUNCTION IF EXISTS public.check_no_tape_direct_stop();
+
+-- Column drop last (triggers and functions reference it)
+ALTER TABLE public.orders DROP COLUMN IF EXISTS delivery_address;
+```
+
+**Finding:** The V4 rollback block follows the correct dependency order:
+1. V4 trigger dropped first (removes reference to V4 function)
+2. V4 function dropped (safe — no trigger references it now)
+3. V3 trigger dropped (removes reference to `check_no_tape_direct_stop`)
+4. V3 function dropped (safe — no trigger references it now)
+5. Column dropped last (both functions reference `orders.delivery_address`; column drop is safe only after all dependent objects are removed)
+
+All DROP statements use `IF EXISTS`, making rollback safe to run even if the migration partially failed. The rollback comment explicitly documents the correct dependency reasoning.
+
+**Result: PASS**
+
+---
+
+## Finding V4-6 — Both Triggers Together Form a Complete Guard: CORRECT ✅
+
+**Check:** Do `trg_route_stops_no_tape_direct` (route_stops) and `trg_orders_delivery_address_not_tape_direct` (orders) together close all bypass paths?
+
+**Finding:** The two triggers guard complementary mutation surfaces:
+
+| Trigger | Table | Fires on | Blocks |
+|---|---|---|---|
+| `trg_route_stops_no_tape_direct` | `route_stops` | `BEFORE INSERT OR UPDATE` | Inserting or rerouting a stop to a Tape Direct order |
+| `trg_orders_delivery_address_not_tape_direct` | `orders` | `BEFORE UPDATE OF delivery_address` | Changing a routed order's address to Tape Direct |
+
+**Attack surface analysis:**
+
+- **INSERT into route_stops** → blocked by route_stops trigger (v3)
+- **UPDATE route_stops.order_id** → blocked by route_stops trigger (v3, INSERT OR UPDATE)
+- **UPDATE orders.delivery_address on a routed order** → blocked by orders trigger (v4) ← previously open
+- **INSERT a new order with Tape Direct address, then insert a stop** → blocked by route_stops trigger reading the order's address at stop-insert time (v2+)
+- **Set delivery_address to Tape Direct BEFORE inserting the stop** → blocked by route_stops trigger at INSERT time
+
+No residual bypass paths identified. The combination of both triggers makes the Tape Direct-as-stop invariant complete at the database layer.
+
+**Result: PASS**
+
+---
+
+## Finding V4-7 — POST-COMMIT VERIFY Steps 7 and 8 Present: CORRECT ✅
+
+**Check:** Are V4-specific verify steps present and correctly structured?
+
+**Finding:**
+
+- **Step 7** queries `information_schema.routines` for `check_order_delivery_address_not_tape_direct` and expects 1 row. This confirms the function was created in the `public` schema.
+- **Step 8** is a transactional behavioral test (wrapped in `BEGIN`/`ROLLBACK`) that:
+  1. Sets an order to a normal address and inserts a route stop (should succeed)
+  2. Attempts `UPDATE public.orders SET delivery_address = '3801 White Plains Rd...'`
+  3. Expects the `RAISE EXCEPTION` from `check_order_delivery_address_not_tape_direct()`
+  4. ROLLBACKs — safe to run in production-like environments
+
+This test directly exercises the v3 bypass path. If the trigger were absent, step 2 would silently succeed (wrong). The test only passes when `trg_orders_delivery_address_not_tape_direct` is active.
+
+**Result: PASS**
+
+---
+
+## Remaining Concerns Before Jeffrey Approves Apply
+
+**None blocking.**
+
+One advisory for Jeffrey's awareness (consistent with v2/v3 advisories):
+
+> **Advisory:** The behavioral verify tests (steps 7 and 8) require an existing order row  
+> with a non-Tape-Direct address and an existing route_stops row referencing it.  
+> On a freshly migrated database with no order or route data, step 8 will silently  
+> no-op (UPDATE 0) and the trigger cannot be behaviorally verified until real or seed  
+> data exists. Catalog check (step 7) confirms the function object is registered  
+> regardless of data.
+
+No structural, security, or correctness issues found.
+
+---
+
+## Delta Sign-Off
+
+**APPROVED**
+
+All V4 technical findings PASS. The orders-side bypass that was open in v3 is now closed by `trg_orders_delivery_address_not_tape_direct` — a column-specific, SECURITY DEFINER trigger with a pinned `search_path`. Together with `trg_route_stops_no_tape_direct`, the Tape Direct warehouse invariant is now complete: no route stop can reach the Tape Direct address regardless of which side of the relationship is mutated.
+
+Migration 02 v4 is structurally correct, security-hardened, and safe to apply once Codex re-audit confirms and Jeffrey provides explicit approval.
+
+— Delta, QA Lead  
+2026-06-14
