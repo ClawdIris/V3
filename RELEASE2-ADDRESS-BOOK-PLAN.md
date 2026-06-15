@@ -607,3 +607,156 @@ V3 is ready for Codex re-audit and Jeffrey Gonzalez final approval before apply.
 ---
 
 *Forge + Delta — V3 consent import fix ready for Codex re-audit and Jeffrey Gonzalez sign-off.*
+
+---
+
+## 11. V4 Delta Review — Codex Re-Audit Fixes
+
+**Delta (QA Lead) — V4 Patch Review**
+**Date:** 2026-06-14
+**Source file:** `migrations/r2-address-book-schema-v4.sql`
+**Triggered by:** Codex re-audit returning 4 NO-GO findings on V3
+**Scope:** ab_driver_select policy + import_contacts_from_orders() function body only.
+All other sections (tables, view, indexes, triggers, campaign_audiences, verifications) are IDENTICAL to V3.
+
+---
+
+### 11.1 Fix 1 — Driver RLS policy uses correct JSONB column references
+
+**What changed:**
+
+**`ab_driver_select` policy (Section 1 RLS):**
+- V3: Used `o.phone` and `o.whatsapp` as direct top-level column references in the driver subquery.
+  These columns do not exist on `public.orders` — customer details live in `orders.data` JSONB.
+  The subquery always returned empty results; drivers could never see any contacts.
+- V4: Replaced with `o.data->>'phone'` and `o.data->>'whatsapp'` (JSONB extracts).
+  Added explicit `AND o.data->>'phone' IS NOT NULL` and `AND o.data->>'whatsapp' IS NOT NULL`
+  guards so subqueries return only non-null values.
+  Restructured from UNION into two separate IN subqueries connected by OR for clarity and
+  correct NULL-safety (UNION with NULLs can produce unexpected matches).
+
+**Confirmed:** `o.data->>'phone'` used in phone subquery, `o.data->>'whatsapp'` used in whatsapp subquery.
+Both subqueries include `IS NOT NULL` guard. Policy name `ab_driver_select` unchanged.
+
+**Delta verdict:** ✅ CORRECT — driver SELECT policy now references actual live schema columns.
+
+---
+
+### 11.2 Fix 2 — Consent fields use direct top-level columns
+
+**What changed:**
+
+**`import_contacts_from_orders()` inner subquery:**
+- V3: Read consent as JSONB: `(data->>'sms_opted_in')::boolean`, `(data->>'whatsapp_opted_in')::boolean`,
+  `(data->>'consent_recorded_at')::timestamptz`. These fail or return NULL when the live
+  orders table has these as real columns, not JSONB keys.
+- V4: Replaced with direct column references:
+  - `COALESCE(o.sms_opted_in, false)` AS sms_consent
+  - `COALESCE(o.whatsapp_opted_in, false)` AS whatsapp_consent
+  - `o.consent_recorded_at` AS consent_updated_at
+- Inner subquery `FROM public.orders` aliased as `o` to match.
+- **ASSUMPTION DOCUMENTED:** If `consent_recorded_at` does not exist as a live column,
+  replace with `o.updated_at`. This assumption is noted inline in the SQL and must be
+  confirmed before apply (Verification query V9 added for this purpose).
+
+**Confirmed:** `o.sms_opted_in`, `o.whatsapp_opted_in`, `o.consent_recorded_at` used as direct
+column references (not JSONB). COALESCE applied to boolean columns; consent_recorded_at is
+nullable TIMESTAMPTZ (acceptable — NULL means no explicit consent event recorded).
+
+**Delta verdict:** ✅ CORRECT — consent fields now read from live top-level columns.
+Pre-apply gate: run V9 verification query to confirm all three columns exist in live schema.
+
+---
+
+### 11.3 Fix 3 — Consent ordering prioritizes consent_updated_at DESC NULLS LAST
+
+**What changed:**
+
+**`import_contacts_from_orders()` outer SELECT ORDER BY:**
+- V3: `ORDER BY sub.dedup_key, sub.created_at DESC`
+  — ordered only by order creation date; stale consent could win if a newer order
+  (by created_at) had not yet recorded a consent update.
+- V4: `ORDER BY sub.dedup_key, sub.consent_updated_at DESC NULLS LAST, sub.created_at DESC`
+  — within each dedup group, the row with the most recent `consent_updated_at` is selected
+  first by DISTINCT ON. NULLS LAST: orders with no consent timestamp (consent_updated_at IS NULL)
+  fall back to created_at DESC as the tiebreaker.
+
+**Why this is correct:**
+DISTINCT ON selects the FIRST row per dedup group as determined by ORDER BY. With the V4 ordering:
+1. `sub.dedup_key` — groups rows by customer (required for DISTINCT ON semantics)
+2. `sub.consent_updated_at DESC NULLS LAST` — most recent explicit consent event first
+3. `sub.created_at DESC` — tiebreaker for rows with no consent timestamp
+
+This guarantees the imported consent state reflects the customer's most recent explicit
+opt-in or opt-out decision, not the most recently created order.
+
+**Confirmed:** ORDER BY is `sub.dedup_key, sub.consent_updated_at DESC NULLS LAST, sub.created_at DESC`.
+DISTINCT ON is `sub.dedup_key`. Both at the same query level (outer SELECT). ✅
+
+**Delta verdict:** ✅ CORRECT — consent ordering is now semantically correct for consent events.
+
+---
+
+### 11.4 Fix 4 — Phone-less fallback rows reach dedup logic
+
+**What changed:**
+
+**`import_contacts_from_orders()` inner subquery WHERE clause:**
+- V3: Included `AND data->>'phone' IS NOT NULL`, which excluded all orders without a phone
+  number before they could reach the dedup_key CASE. The name|address fallback in dedup_key
+  was therefore unreachable for phone-less orders.
+- V4: Removed `AND data->>'phone' IS NOT NULL`. Orders without a phone now flow through to
+  the inner subquery. The dedup_key CASE handles them:
+  - If norm_phone has ≥7 digits → use normalized phone as dedup key (unchanged)
+  - Else → `lower(trim(name)) || '|' || lower(trim(address))` as dedup key
+
+**Post-DISTINCT blank-row guard (the ONLY exclusion guard):**
+After DISTINCT ON, the LOOP body checks:
+```sql
+IF (rec.norm_phone IS NULL OR length(rec.norm_phone) = 0)
+   AND (rec.name IS NULL OR trim(rec.name) = '')
+THEN
+  v_skipped := v_skipped + 1;
+  CONTINUE;
+END IF;
+```
+This skips truly empty dedup groups (no phone AND no name). This is the only phone-related
+exclusion — not a pre-filter in the subquery. The `AND trim(COALESCE(data->>'name', '')) <> ''`
+pre-filter is retained (a name is still required to enter the inner subquery at all).
+
+**Confirmed:** `AND data->>'phone' IS NOT NULL` removed from inner subquery WHERE.
+Blank-row guard present in LOOP body after DISTINCT ON, not as inner-subquery pre-filter. ✅
+Verification query V10 updated to count phone-less rows that now participate in dedup. ✅
+
+**Delta verdict:** ✅ CORRECT — phone-less orders now reach name|address dedup; no contact
+information is silently discarded before the dedup logic runs.
+
+---
+
+### 11.5 Delta Sign-Off
+
+| # | Finding | Fix Applied | Location | Status |
+|---|---------|-------------|----------|--------|
+| 1 | Driver RLS subquery used `o.phone`/`o.whatsapp` (nonexistent columns) | `o.data->>'phone'` / `o.data->>'whatsapp'` + IS NOT NULL guards | `ab_driver_select` policy | ✅ APPROVED |
+| 2 | Consent read from JSONB; live schema has top-level columns | `o.sms_opted_in`, `o.whatsapp_opted_in`, `o.consent_recorded_at` direct refs | `import_contacts_from_orders()` inner subquery | ✅ APPROVED |
+| 3 | ORDER BY used `created_at DESC` only; consent event ordering lost | `consent_updated_at DESC NULLS LAST, created_at DESC` | `import_contacts_from_orders()` outer SELECT ORDER BY | ✅ APPROVED |
+| 4 | `phone IS NOT NULL` pre-filter excluded phone-less rows from dedup | Pre-filter removed; blank-row guard moved post-DISTINCT to LOOP body | `import_contacts_from_orders()` inner subquery + LOOP | ✅ APPROVED |
+
+**All 4 V4 Codex NO-GO findings are resolved.**
+
+**Pre-apply gates (carried from V1/V2/V3 + new V4 item):**
+- Confirm `campaigns.id` is UUID before adding formal FK on `campaign_audiences.campaign_id`
+- Confirm `set_updated_at()` does not already exist with conflicting logic
+- **NEW V4:** Run V9 verification query to confirm `orders.sms_opted_in`, `orders.whatsapp_opted_in`,
+  and `orders.consent_recorded_at` exist as top-level columns in live schema. If `consent_recorded_at`
+  is absent, substitute `o.updated_at` in the inner subquery before apply.
+- Driver RLS subquery performance — post-deploy smoke test (unchanged from V1/V2/V3)
+
+**Delta sign-off: APPROVED**
+
+V4 is structurally sound, security-correct, and ready for Codex re-audit and Jeffrey Gonzalez
+final approval before apply.
+
+---
+
+*Forge + Delta — V4 Codex re-audit fixes ready for Jeffrey Gonzalez sign-off.*

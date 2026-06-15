@@ -5,24 +5,33 @@
 -- Author  : Forge (Dev Lead)
 -- Reviewer: Delta (QA Lead)
 -- Date    : 2026-06-14
--- Updated : 2026-06-14 (V2 — policy names updated to match v2 migration)
--- Status  : PENDING — Use only if r2-address-book-schema-v2.sql must be undone
+-- Updated : 2026-06-14 (V4 — header updated; policy names unchanged from V2/V3/V4)
+-- Status  : PENDING — Use only if r2-address-book-schema-v4.sql must be undone
+--
+-- V4 NOTE:
+--   V4 changes are confined to (a) the ab_driver_select RLS policy body
+--   (JSONB column refs fixed — policy name unchanged) and (b) the
+--   import_contacts_from_orders() function body (consent columns + ordering +
+--   phone filter — function signature unchanged). No new policy names or
+--   view definitions were introduced in V4. This rollback file covers V4
+--   rollback identically to V3/V2 rollback — all DROP statements remain valid.
 --
 -- SCOPE:
---   Removes ONLY what r2-address-book-schema-v2.sql created:
+--   Removes ONLY what r2-address-book-schema-v4.sql created:
 --     • address_book table (including all policies, indexes, triggers)
 --     • campaign_audiences table (including all policies, indexes, triggers)
 --     • v_campaign_audience_contacts view
 --     • import_contacts_from_orders() function
 --     • set_updated_at() trigger function (only if unused by other tables)
 --
--- V2 POLICY NAME CHANGES (reflected here):
+-- POLICY NAMES (V2 through V4 — all identical):
 --   campaign_audiences:
---     REMOVED: ca_driver_anon_blocked (was a single permissive policy, now split)
---     ADDED:   ca_driver_blocked (RESTRICTIVE, for driver role)
---              ca_anon_blocked   (RESTRICTIVE, for anon role)
+--     REMOVED in V2: ca_driver_anon_blocked (was single permissive, split into two)
+--     CURRENT:  ca_driver_blocked (RESTRICTIVE, for driver role)
+--               ca_anon_blocked   (RESTRICTIVE, for anon role)
 --   address_book:
---     ab_anon_blocked  now RESTRICTIVE (name unchanged, but policy type changed)
+--     ab_anon_blocked  RESTRICTIVE (name unchanged from V2 onward)
+--     ab_driver_select  name unchanged; V4 fixed JSONB column refs in body only
 --
 -- SAFETY:
 --   • Does NOT touch the campaigns table or any pre-existing data.
