@@ -30023,7 +30023,10 @@ setOrders(function (prev) {
   var h = React.createElement;
 
   // ── Config ──
-  var TURNSTILE_SITE_KEY = "";  // ← set Cloudflare Turnstile site key here before go-live
+  var TURNSTILE_SITE_KEY = "%%TURNSTILE_SITE_KEY%%";  // injected by Netlify build substitution
+  // Configured only when the build replaced the placeholder with a real key.
+  var TURNSTILE_CONFIGURED = !!TURNSTILE_SITE_KEY && TURNSTILE_SITE_KEY.indexOf("%%") === -1;
+  var _tsWidgetId = null; // Turnstile widget handle (single public page instance)
   var CONSENT_VERSION = "casabe-track-sms-v1-2026-06";
   var EFFECTIVE_DATE_EN = "June 17, 2026";       // FIXED — tied to consent version
   var EFFECTIVE_DATE_ES = "17 de junio de 2026"; // FIXED — tied to consent version
@@ -30126,6 +30129,11 @@ setOrders(function (prev) {
     var _ss = useState("idle"), submitState = _ss[0], setSubmitState = _ss[1];
     var _se = useState(null), submitCode = _se[0], setSubmitCode = _se[1];
     var _ts = useState(null), tsToken = _ts[0], setTsToken = _ts[1];
+    var _tss = useState("idle"), tsStatus = _tss[0], setTsStatus = _tss[1]; // idle|pending|ready|error
+    var retryTurnstile = function () {
+      setTsToken(null); setTsStatus("pending");
+      try { if (window.turnstile && _tsWidgetId != null) window.turnstile.reset(_tsWidgetId); } catch (e) {}
+    };
 
     var doLookup = function () {
       var qn = (query || "").trim().toUpperCase();
@@ -30141,18 +30149,19 @@ setOrders(function (prev) {
 
     // Turnstile: render the widget once the signup form is visible.
     useEffect(function () {
-      if (lookupState !== "found" || !TURNSTILE_SITE_KEY) return;
+      if (lookupState !== "found" || !TURNSTILE_CONFIGURED) return;
       var renderWidget = function () {
         var el = document.getElementById("cf-turnstile-box");
         if (!el || !window.turnstile || el.dataset.rendered) return;
         el.dataset.rendered = "1";
-        window.turnstile.render(el, {
+        setTsStatus("pending");
+        _tsWidgetId = window.turnstile.render(el, {
           sitekey: TURNSTILE_SITE_KEY,
           theme: "dark",
           action: "track_sms_optin",
-          callback: function (tok) { setTsToken(tok); },
-          "expired-callback": function () { setTsToken(null); },
-          "error-callback": function () { setTsToken(null); }
+          callback: function (tok) { setTsToken(tok); setTsStatus("ready"); },
+          "expired-callback": function () { setTsToken(null); setTsStatus("error"); },
+          "error-callback": function () { setTsToken(null); setTsStatus("error"); }
         });
       };
       if (window.turnstile) { renderWidget(); return; }
@@ -30166,7 +30175,7 @@ setOrders(function (prev) {
       } else { s.addEventListener("load", renderWidget); }
     }, [lookupState]);
 
-    var captchaReady = TURNSTILE_SITE_KEY ? !!tsToken : false;
+    var captchaReady = TURNSTILE_CONFIGURED ? !!tsToken : false;
     var canSubmit = lookupState === "found" && order &&
       firstName.trim() && lastName.trim() && isValidPhone(phone) && zip.trim() && txn === true &&
       captchaReady && submitState !== "submitting";
@@ -30300,17 +30309,25 @@ setOrders(function (prev) {
           h("div", { className: "divider" }),
 
           h("label", { style: { display: "flex", gap: 9, alignItems: "flex-start", cursor: "pointer", marginBottom: 12, fontSize: 12, lineHeight: 1.5, color: "var(--text2)" } },
-            h("input", { type: "checkbox", checked: txn, onChange: function (e) { setTxn(e.target.checked); }, style: { marginTop: 2, flexShrink: 0, accentColor: "var(--amber)", width: 16, height: 16 } }),
-            h("span", null, h("strong", { style: { color: "var(--text)" } }, T("Package alerts (required for text signup): ", "Alertas del paquete (requerido para registrarte): ")), txnLabel)),
-
-          h("label", { style: { display: "flex", gap: 9, alignItems: "flex-start", cursor: "pointer", marginBottom: 14, fontSize: 12, lineHeight: 1.5, color: "var(--text2)" } },
             h("input", { type: "checkbox", checked: mkt, onChange: function (e) { setMkt(e.target.checked); }, style: { marginTop: 2, flexShrink: 0, accentColor: "var(--amber)", width: 16, height: 16 } }),
             h("span", null, h("strong", { style: { color: "var(--text)" } }, T("Marketing (optional): ", "Marketing (opcional): ")), mktCopy)),
 
-          // Cloudflare Turnstile widget mount point
-          TURNSTILE_SITE_KEY
-            ? h("div", { id: "cf-turnstile-box", style: { marginBottom: 12 } })
-            : h("div", { className: "alert alert-a", style: { fontSize: 11.5 } }, T("Text signup verification is being configured. Tracking still works above.", "La verificación del registro por texto se está configurando. El rastreo sigue funcionando arriba.")),
+          h("label", { style: { display: "flex", gap: 9, alignItems: "flex-start", cursor: "pointer", marginBottom: 14, fontSize: 12, lineHeight: 1.5, color: "var(--text2)" } },
+            h("input", { type: "checkbox", checked: txn, onChange: function (e) { setTxn(e.target.checked); }, style: { marginTop: 2, flexShrink: 0, accentColor: "var(--amber)", width: 16, height: 16 } }),
+            h("span", null, h("strong", { style: { color: "var(--text)" } }, T("Package alerts (required for text signup): ", "Alertas del paquete (requerido para registrarte): ")), txnLabel)),
+
+          // Cloudflare Turnstile widget + explicit verification status
+          TURNSTILE_CONFIGURED
+            ? h("div", { style: { marginBottom: 10 } },
+                h("div", { id: "cf-turnstile-box", style: { marginBottom: 8 } }),
+                tsStatus === "ready"
+                  ? h("div", { style: { fontSize: 11.5, color: "var(--green)", fontWeight: 600 } }, "\u2713 " + T("Verification complete", "Verificación completa"))
+                  : tsStatus === "error"
+                    ? h("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                        h("span", { style: { fontSize: 11.5, color: "var(--red)" } }, T("Verification failed.", "La verificación falló.")),
+                        h("button", { type: "button", className: "btn btn-ghost btn-sm", onClick: retryTurnstile }, T("Retry", "Reintentar")))
+                    : h("div", { style: { fontSize: 11.5, color: "var(--text3)" } }, T("Verifying\u2026", "Verificando\u2026")))
+            : h("div", { className: "alert alert-a", style: { fontSize: 11.5 } }, T("Text signup is temporarily unavailable. Please try again later.", "El registro por texto no está disponible por el momento. Inténtalo más tarde.")),
 
           submitState === "error" ? h("div", { className: "alert alert-r" }, submitErrMsg(submitCode)) : null,
 
@@ -30376,6 +30393,15 @@ setOrders(function (prev) {
            : publicView === "privacy" ? PublicPrivacyPage
            : PublicTrackingAlertsPage;
 
+  // Public routes skip AppShell, which is what normally injects the platform CSS.
+  // Inject it here (plus a scroll unlock) so Track/Terms/Privacy get the dark theme.
+  if (!document.getElementById("casabe-public-css")) {
+    var _pst = document.createElement("style");
+    _pst.id = "casabe-public-css";
+    _pst.textContent = ((typeof CSS !== "undefined") ? CSS : "") +
+      "\nhtml,body,#root{height:auto!important;min-height:100%!important;overflow-y:auto!important}\nbody{background:var(--bg)!important;color:var(--text)}\n";
+    document.head.appendChild(_pst);
+  }
   window.__publicTrackerMounted = true;
   ReactDOM.createRoot(document.getElementById("root")).render(h(Page));
 })();
