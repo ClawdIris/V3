@@ -25603,23 +25603,36 @@ setOrders(function (prev) {
         });
       });
     }
-    // Persist to Supabase
+    // Persist to Supabase, then confirm success ONLY after the write lands.
+    // A failed write must not show "Order Created" or leave a phantom order that
+    // disappears on refresh — revert the optimistic change and keep the form open.
+    var _persist = Promise.resolve();
     if (session && session.tenantId) {
       _db.init(session.tenantId);
-      _db.upsert("orders", order.id, order).catch(function() {
-        notify("⚠️ Order saved locally but failed to sync — check connection");
-      });
+      _persist = _db.upsert("orders", order.id, order);
     }
-    setShowNewOrder(false);
-    setEditOrder(null);
-    if (isNew) {
-      setNewOrderConfirm(order);
-    } else {
-      var rule = AUTOMATION_RULES.find(function (r) {
-        return r.trigger === order.status;
-      });
-      if (rule) notify("\u26A1 ".concat(rule.action));else notify("\u2713 Order ".concat(order.id, " updated"));
-    }
+    return _persist.then(function () {
+      setShowNewOrder(false);
+      setEditOrder(null);
+      if (isNew) {
+        setNewOrderConfirm(order);
+      } else {
+        var rule = AUTOMATION_RULES.find(function (r) {
+          return r.trigger === order.status;
+        });
+        if (rule) notify("\u26A1 ".concat(rule.action));else notify("\u2713 Order ".concat(order.id, " updated"));
+      }
+    }).catch(function (e) {
+      console.error("[order save]", e);
+      // Roll back the optimistic local change so the UI matches the database.
+      if (isNew) {
+        setOrders(function (prev) { return prev.filter(function (o) { return o.id !== order.id; }); });
+      } else if (prevOrder) {
+        setOrders(function (prev) { return prev.map(function (o) { return o.id === order.id ? prevOrder : o; }); });
+      }
+      // Keep the form open so the user can retry; do NOT show the success confirmation.
+      notify("\u26A0 Order did NOT save \u2014 " + ((e && e.message) ? e.message : "sync failed") + ". Please retry.");
+    });
   }, [notify, orders, shipments]);
 
   // ── Auto-optimize cross-driver dupes on order changes (when toggle is on) ─
@@ -29982,6 +29995,391 @@ setOrders(function (prev) {
   }, renderPage())))));
 }
 
+// ════════════════════════════════════════════════════════════════════
+// PUBLIC: Track & Text Alerts  (no login)   [v2 — hardened]
+//   Routes (query-param based, same pattern as ?number=):
+//     /?public=track    → tracking lookup + SMS alert opt-in (Twilio evidence URL)
+//     /?public=terms    → public Terms of Service
+//     /?public=privacy  → public Privacy Policy
+//   Tracking works WITHOUT consent. The package-alert (transactional) checkbox
+//   is required only to submit the SMS signup. Marketing checkbox is optional.
+//   Both checkboxes start unchecked.
+//   SECURITY: signup posts to the `track-sms-optin` Edge Function, which verifies
+//   Cloudflare Turnstile + rate-limits per IP, then calls the service_role RPC.
+//   The RPC owns ALL consent evidence (text, version, Terms/Privacy/source URLs)
+//   server-side — none of it is trusted from the browser.
+//
+//   CONFIG (must be set before go-live):
+//     • TURNSTILE_SITE_KEY below  (Cloudflare Turnstile site key — public)
+//     • Edge Function env TURNSTILE_SECRET + IP_HASH_SALT (Supabase dashboard)
+//   The displayed consent copy below is version-locked to consent program
+//   'casabe-track-sms-v1-2026-06' and MUST stay identical to consent_program_text.
+// ════════════════════════════════════════════════════════════════════
+(function () {
+  var _pp = new URLSearchParams(window.location.search);
+  var publicView = _pp.get("public");
+  if (publicView !== "track" && publicView !== "terms" && publicView !== "privacy") return;
+
+  var h = React.createElement;
+
+  // ── Config ──
+  var TURNSTILE_SITE_KEY = "";  // ← set Cloudflare Turnstile site key here before go-live
+  var CONSENT_VERSION = "casabe-track-sms-v1-2026-06";
+  var EFFECTIVE_DATE_EN = "June 17, 2026";       // FIXED — tied to consent version
+  var EFFECTIVE_DATE_ES = "17 de junio de 2026"; // FIXED — tied to consent version
+  var TERMS_URL = "/?public=terms";
+  var PRIVACY_URL = "/?public=privacy";
+  var EDGE_URL = SUPABASE_URL + "/functions/v1/track-sms-optin";
+
+  var STATUS_LABELS_EN = {
+    order_placed: "Order Placed", need_box: "Need a Box", box_dropped_off: "Box Dropped Off",
+    ready_pickup: "Ready for Pickup", picked_up: "Picked Up", in_warehouse: "In Warehouse",
+    loaded_container: "Loaded in Container", en_route: "En Route", in_transit: "In Transit",
+    in_customs: "In Customs", customs_released: "Released from Customs", sorting: "Sorting / Preparing",
+    out_for_delivery: "Out for Delivery", delivered: "Delivered", attempted: "Delivery Attempted",
+    rerouted: "Rerouted", cancelled: "Cancelled"
+  };
+  var STATUS_LABELS_ES = {
+    order_placed: "Orden Creada", need_box: "Necesita Caja", box_dropped_off: "Caja Entregada",
+    ready_pickup: "Listo para Recoger", picked_up: "Recogido", in_warehouse: "En Almacén",
+    loaded_container: "Cargado en Contenedor", en_route: "En Camino", in_transit: "En Tránsito",
+    in_customs: "En Aduana", customs_released: "Liberado de Aduana", sorting: "Clasificando / Preparando",
+    out_for_delivery: "En Entrega", delivered: "Entregado", attempted: "Intento de Entrega",
+    rerouted: "Redirigido", cancelled: "Cancelado"
+  };
+  var statusDot = function (s) {
+    if (["delivered", "customs_released"].indexOf(s) >= 0) return "var(--green)";
+    if (["en_route", "in_transit", "in_customs", "sorting", "out_for_delivery", "loaded_container"].indexOf(s) >= 0) return "var(--amber)";
+    if (["cancelled", "attempted", "rerouted"].indexOf(s) >= 0) return "var(--red)";
+    return "var(--blue)";
+  };
+
+  var phoneDigits = function (p) { return (p || "").replace(/\D/g, ""); };
+  var isValidPhone = function (p) {
+    var d = phoneDigits(p);
+    if ((p || "").charAt(0) === "+") return d.length >= 8 && d.length <= 15;
+    if (d.length === 10) return true;
+    if (d.length === 11 && d.charAt(0) === "1") return true;
+    return false;
+  };
+  var fmtUSPhone = function (p) {
+    var d = phoneDigits(p);
+    if (d.length === 11 && d.charAt(0) === "1") d = d.slice(1);
+    if (d.length !== 10) return p;
+    return "(" + d.slice(0, 3) + ") " + d.slice(3, 6) + "-" + d.slice(6);
+  };
+
+  function PublicHeader(props) {
+    var lang = props.lang, setLang = props.setLang;
+    return h("div", { style: { background: "var(--bg2)", borderBottom: "1px solid var(--border)", padding: "14px 20px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 10 } },
+      h("a", { href: "/?public=track", style: { display: "flex", alignItems: "center", gap: 10, textDecoration: "none" } },
+        h("div", { style: { width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg,var(--amber),#D97706)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 16, color: "var(--bg)" } }, "C"),
+        h("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 17, color: "var(--text)" } }, "Casabe Konnect")),
+      h("div", { style: { marginLeft: "auto", display: "flex", gap: 4, background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 8, padding: 3 } },
+        ["en", "es"].map(function (lc) {
+          return h("button", {
+            key: lc, onClick: function () { setLang(lc); },
+            style: { padding: "4px 11px", borderRadius: 5, border: "none", cursor: "pointer", fontFamily: "'IBM Plex Sans',sans-serif", fontSize: 11, fontWeight: 700, background: lang === lc ? "var(--amber)" : "transparent", color: lang === lc ? "var(--bg)" : "var(--text3)" }
+          }, lc === "en" ? "EN" : "ES");
+        })));
+  }
+
+  function PublicShell(props) {
+    return h("div", { style: { minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "'IBM Plex Sans',sans-serif" } },
+      h(PublicHeader, { lang: props.lang, setLang: props.setLang }),
+      h("div", { style: { maxWidth: 640, margin: "0 auto", padding: "24px 18px 60px" } }, props.children),
+      h("div", { style: { maxWidth: 640, margin: "0 auto", padding: "0 18px 40px", color: "var(--text4)", fontSize: 11, textAlign: "center" } },
+        h("a", { href: "/?public=terms", style: { color: "var(--text3)" } }, props.lang === "es" ? "Términos" : "Terms"),
+        "  ·  ",
+        h("a", { href: "/?public=privacy", style: { color: "var(--text3)" } }, props.lang === "es" ? "Política de Privacidad" : "Privacy Policy"),
+        h("div", { style: { marginTop: 8 } }, "© ", new Date().getFullYear(), " Casabe Konnect")));
+  }
+
+  function PublicTrackingAlertsPage() {
+    var _l = useState((navigator.language || "en").toLowerCase().indexOf("es") === 0 ? "es" : "en"),
+        lang = _l[0], setLang = _l[1];
+    var T = function (en, es) { return lang === "es" ? es : en; };
+    var statusLabel = function (s) {
+      var m = lang === "es" ? STATUS_LABELS_ES : STATUS_LABELS_EN;
+      return m[s] || s || T("Unknown", "Desconocido");
+    };
+
+    // Displayed consent copy — version-locked, must match consent_program_text.
+    var txnCopy = T(
+      "I agree to receive text messages from Casabe Konnect about this specific package, including pickup, transit, customs, delivery, delay, and attempted-delivery updates. Message frequency varies by shipment status. Message and data rates may apply. Reply STOP to unsubscribe or HELP for help. Consent is not required to track my package online. See Terms and Privacy Policy.",
+      "Acepto recibir mensajes de texto de Casabe Konnect sobre este paquete específico, incluidas actualizaciones de recogida, tránsito, aduana, entrega, demoras e intentos de entrega. La frecuencia de los mensajes varía según el estado del envío. Pueden aplicarse tarifas de mensajes y datos. Responde STOP para cancelar o HELP para ayuda. No es necesario dar consentimiento para rastrear mi paquete en línea. Consulta los Términos y la Política de Privacidad.");
+    var mktCopy = T(
+      "I agree to receive optional marketing text messages from Casabe Konnect, including promotions, offers, and service updates. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe or HELP for help. This is optional and not required for package alerts.",
+      "Acepto recibir mensajes de texto de marketing opcionales de Casabe Konnect, incluidas promociones, ofertas y novedades del servicio. La frecuencia de los mensajes varía. Pueden aplicarse tarifas de mensajes y datos. Responde STOP para cancelar o HELP para ayuda. Esto es opcional y no es necesario para las alertas de paquetes.");
+
+    var _q = useState(""), query = _q[0], setQuery = _q[1];
+    var _ls = useState("idle"), lookupState = _ls[0], setLookupState = _ls[1];
+    var _od = useState(null), order = _od[0], setOrder = _od[1];
+
+    var _fn = useState(""), firstName = _fn[0], setFirstName = _fn[1];
+    var _ln = useState(""), lastName = _ln[0], setLastName = _ln[1];
+    var _ph = useState(""), phone = _ph[0], setPhone = _ph[1];
+    var _zp = useState(""), zip = _zp[0], setZip = _zp[1];
+    var _mk = useState(false), mkt = _mk[0], setMkt = _mk[1];
+    var _tx = useState(false), txn = _tx[0], setTxn = _tx[1];
+
+    var _ss = useState("idle"), submitState = _ss[0], setSubmitState = _ss[1];
+    var _se = useState(null), submitCode = _se[0], setSubmitCode = _se[1];
+    var _ts = useState(null), tsToken = _ts[0], setTsToken = _ts[1];
+
+    var doLookup = function () {
+      var qn = (query || "").trim().toUpperCase();
+      if (!qn) return;
+      setLookupState("loading"); setOrder(null); setSubmitState("idle"); setSubmitCode(null);
+      _supabase.rpc("lookup_tracking", { p_query: qn }).then(function (res) {
+        if (res.error) { setLookupState("error"); return; }
+        var rows = res.data || [];
+        if (!rows.length) { setLookupState("notfound"); return; }
+        setOrder(rows[0]); setLookupState("found");
+      }).catch(function () { setLookupState("error"); });
+    };
+
+    // Turnstile: render the widget once the signup form is visible.
+    useEffect(function () {
+      if (lookupState !== "found" || !TURNSTILE_SITE_KEY) return;
+      var renderWidget = function () {
+        var el = document.getElementById("cf-turnstile-box");
+        if (!el || !window.turnstile || el.dataset.rendered) return;
+        el.dataset.rendered = "1";
+        window.turnstile.render(el, {
+          sitekey: TURNSTILE_SITE_KEY,
+          theme: "dark",
+          action: "track_sms_optin",
+          callback: function (tok) { setTsToken(tok); },
+          "expired-callback": function () { setTsToken(null); },
+          "error-callback": function () { setTsToken(null); }
+        });
+      };
+      if (window.turnstile) { renderWidget(); return; }
+      var s = document.getElementById("cf-turnstile-script");
+      if (!s) {
+        s = document.createElement("script");
+        s.id = "cf-turnstile-script";
+        s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js";
+        s.async = true; s.defer = true; s.onload = renderWidget;
+        document.head.appendChild(s);
+      } else { s.addEventListener("load", renderWidget); }
+    }, [lookupState]);
+
+    var captchaReady = TURNSTILE_SITE_KEY ? !!tsToken : false;
+    var canSubmit = lookupState === "found" && order &&
+      firstName.trim() && lastName.trim() && isValidPhone(phone) && zip.trim() && txn === true &&
+      captchaReady && submitState !== "submitting";
+
+    var doSubmit = function () {
+      if (!canSubmit) return;
+      setSubmitState("submitting"); setSubmitCode(null);
+      fetch(EDGE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY },
+        body: JSON.stringify({
+          tracking: query.trim().toUpperCase(),
+          firstName: firstName.trim(), lastName: lastName.trim(),
+          phone: phone.trim(), zip: zip.trim(),
+          transactional: true, marketing: mkt, lang: lang,
+          turnstileToken: tsToken
+        })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        d = d || {};
+        if (d.ok) { setSubmitState("success"); return; }
+        setSubmitState("error"); setSubmitCode(d.code || "error");
+        // require a fresh captcha solve after a failed attempt
+        setTsToken(null);
+        try { if (window.turnstile) window.turnstile.reset(); } catch (e) {}
+      }).catch(function () {
+        setSubmitState("error"); setSubmitCode("error");
+        setTsToken(null);
+        try { if (window.turnstile) window.turnstile.reset(); } catch (e) {}
+      });
+    };
+
+    var submitErrMsg = function (code) {
+      switch (code) {
+        case "zip_mismatch": return T("That ZIP code doesn't match our records for this package. Please check and try again.", "Ese código postal no coincide con nuestros registros para este paquete. Verifícalo e inténtalo de nuevo.");
+        case "not_found": return T("We couldn't find that package anymore. Please re-check the tracking number.", "Ya no encontramos ese paquete. Verifica el número de rastreo.");
+        case "invalid_phone": return T("Please enter a valid mobile number.", "Ingresa un número de móvil válido.");
+        case "consent_required": return T("Please check the package-alerts box to receive text updates.", "Marca la casilla de alertas del paquete para recibir actualizaciones por texto.");
+        case "missing_fields": return T("Please enter your first and last name.", "Ingresa tu nombre y apellido.");
+        case "rate_limited": return T("Too many attempts. Please wait a little while and try again.", "Demasiados intentos. Espera un momento e inténtalo de nuevo.");
+        case "captcha_required": case "captcha_failed": case "captcha_error": return T("Please complete the verification and try again.", "Completa la verificación e inténtalo de nuevo.");
+        case "captcha_unconfigured": return T("Text signup is temporarily unavailable. Please try again later.", "El registro por texto no está disponible por el momento. Inténtalo más tarde.");
+        default: return T("Something went wrong. Please try again.", "Algo salió mal. Inténtalo de nuevo.");
+      }
+    };
+
+    var txnLabel = (function () {
+      var seeIdx = lang === "es" ? txnCopy.indexOf("Consulta los Términos") : txnCopy.indexOf("See Terms");
+      var head = seeIdx >= 0 ? txnCopy.slice(0, seeIdx) : txnCopy;
+      return h("span", null, head,
+        seeIdx >= 0 ? h("span", null,
+          T("See ", "Consulta los "),
+          h("a", { href: TERMS_URL, style: { color: "var(--amber)" } }, T("Terms", "Términos")),
+          T(" and ", " y la "),
+          h("a", { href: PRIVACY_URL, style: { color: "var(--amber)" } }, T("Privacy Policy", "Política de Privacidad")),
+          ".") : null);
+    })();
+
+    var fieldStyle = { marginBottom: 0 };
+
+    return h(PublicShell, { lang: lang, setLang: setLang },
+      h("h1", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, marginBottom: 4 } }, T("Track your package", "Rastrea tu paquete")),
+      h("p", { style: { color: "var(--text3)", fontSize: 13, marginBottom: 18 } }, T("Enter your tracking number to see the latest status. Text alerts are optional.", "Ingresa tu número de rastreo para ver el estado más reciente. Las alertas por texto son opcionales.")),
+
+      h("div", { className: "card", style: { marginBottom: 16 } },
+        h("div", { className: "card-bd" },
+          h("label", { className: "fl" }, T("Tracking number", "Número de rastreo")),
+          h("div", { style: { display: "flex", gap: 8 } },
+            h("input", {
+              className: "fi mono", value: query, autoFocus: true, placeholder: "CX-100245",
+              onChange: function (e) { setQuery(e.target.value); },
+              onKeyDown: function (e) { if (e.key === "Enter") doLookup(); },
+              style: { textTransform: "uppercase", flex: 1 }
+            }),
+            h("button", { className: "btn btn-primary", onClick: doLookup, disabled: lookupState === "loading" },
+              lookupState === "loading" ? T("Searching…", "Buscando…") : T("Track", "Rastrear"))))),
+
+      lookupState === "error" ? h("div", { className: "alert alert-r" }, T("Lookup failed. Please try again.", "La búsqueda falló. Inténtalo de nuevo.")) : null,
+      lookupState === "notfound" ? h("div", { className: "alert alert-a" }, T("No package found for that tracking number. Double-check it and try again.", "No se encontró ningún paquete con ese número de rastreo. Verifícalo e inténtalo de nuevo.")) : null,
+
+      lookupState === "found" && order ? h("div", { className: "card", style: { marginBottom: 16 } },
+        h("div", { className: "card-hd" },
+          h("div", null,
+            h("div", { className: "card-title" }, T("Package status", "Estado del paquete")),
+            h("div", { className: "card-sub mono" }, order.id)),
+          h("span", { className: "badge", style: { background: "rgba(245,158,11,.1)", color: statusDot(order.status) } },
+            h("span", { style: { width: 5, height: 5, borderRadius: "50%", background: statusDot(order.status), display: "inline-block", marginRight: 5 } }),
+            statusLabel(order.status))),
+        h("div", { className: "card-bd" },
+          h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
+            h("div", null,
+              h("div", { className: "fl" }, T("Current status", "Estado actual")),
+              h("div", { style: { fontWeight: 600 } }, statusLabel(order.status))),
+            order.destination ? h("div", null,
+              h("div", { className: "fl" }, T("Destination", "Destino")),
+              h("div", { style: { fontWeight: 600 } }, order.destination)) : null,
+            order.updated_at ? h("div", null,
+              h("div", { className: "fl" }, T("Last update", "Última actualización")),
+              h("div", { style: { fontWeight: 600 } }, new Date(order.updated_at).toLocaleString(lang === "es" ? "es" : "en-US", { dateStyle: "medium", timeStyle: "short" }))) : null,
+            order.box_type ? h("div", null,
+              h("div", { className: "fl" }, T("Box type", "Tipo de caja")),
+              h("div", { style: { fontWeight: 600 } }, order.box_type)) : null))) : null,
+
+      lookupState === "found" && order && submitState !== "success" ? h("div", { className: "card" },
+        h("div", { className: "card-hd" },
+          h("div", { className: "card-title" }, T("Get text alerts for this package", "Recibe alertas por texto de este paquete"))),
+        h("div", { className: "card-bd" },
+          h("div", { className: "fr", style: { marginBottom: 12 } },
+            h("div", { className: "fg", style: fieldStyle },
+              h("label", { className: "fl" }, T("First name", "Nombre")),
+              h("input", { className: "fi", value: firstName, onChange: function (e) { setFirstName(e.target.value); } })),
+            h("div", { className: "fg", style: fieldStyle },
+              h("label", { className: "fl" }, T("Last name", "Apellido")),
+              h("input", { className: "fi", value: lastName, onChange: function (e) { setLastName(e.target.value); } }))),
+          h("div", { className: "fr", style: { marginBottom: 4 } },
+            h("div", { className: "fg", style: fieldStyle },
+              h("label", { className: "fl" }, T("Mobile phone", "Teléfono móvil")),
+              h("input", {
+                className: "fi", value: phone, type: "tel", placeholder: "(407) 555-0123",
+                onChange: function (e) { setPhone(e.target.value); },
+                onBlur: function () { if (isValidPhone(phone)) setPhone(fmtUSPhone(phone)); }
+              }),
+              phone && !isValidPhone(phone) ? h("div", { style: { color: "var(--red)", fontSize: 10.5, marginTop: 4 } }, T("Enter a valid mobile number.", "Ingresa un número válido.")) : null),
+            h("div", { className: "fg", style: fieldStyle },
+              h("label", { className: "fl" }, T("ZIP code", "Código postal")),
+              h("input", {
+                className: "fi mono", value: zip, inputMode: "numeric", maxLength: 10, placeholder: "33020",
+                onChange: function (e) { setZip(e.target.value); }
+              }),
+              h("div", { style: { color: "var(--text4)", fontSize: 10.5, marginTop: 4 } }, T("Must match the ZIP on the order.", "Debe coincidir con el código postal de la orden.")))),
+
+          h("div", { className: "divider" }),
+
+          h("label", { style: { display: "flex", gap: 9, alignItems: "flex-start", cursor: "pointer", marginBottom: 12, fontSize: 12, lineHeight: 1.5, color: "var(--text2)" } },
+            h("input", { type: "checkbox", checked: txn, onChange: function (e) { setTxn(e.target.checked); }, style: { marginTop: 2, flexShrink: 0, accentColor: "var(--amber)", width: 16, height: 16 } }),
+            h("span", null, h("strong", { style: { color: "var(--text)" } }, T("Package alerts (required for text signup): ", "Alertas del paquete (requerido para registrarte): ")), txnLabel)),
+
+          h("label", { style: { display: "flex", gap: 9, alignItems: "flex-start", cursor: "pointer", marginBottom: 14, fontSize: 12, lineHeight: 1.5, color: "var(--text2)" } },
+            h("input", { type: "checkbox", checked: mkt, onChange: function (e) { setMkt(e.target.checked); }, style: { marginTop: 2, flexShrink: 0, accentColor: "var(--amber)", width: 16, height: 16 } }),
+            h("span", null, h("strong", { style: { color: "var(--text)" } }, T("Marketing (optional): ", "Marketing (opcional): ")), mktCopy)),
+
+          // Cloudflare Turnstile widget mount point
+          TURNSTILE_SITE_KEY
+            ? h("div", { id: "cf-turnstile-box", style: { marginBottom: 12 } })
+            : h("div", { className: "alert alert-a", style: { fontSize: 11.5 } }, T("Text signup verification is being configured. Tracking still works above.", "La verificación del registro por texto se está configurando. El rastreo sigue funcionando arriba.")),
+
+          submitState === "error" ? h("div", { className: "alert alert-r" }, submitErrMsg(submitCode)) : null,
+
+          h("button", {
+            className: "btn btn-primary", onClick: doSubmit, disabled: !canSubmit,
+            style: { width: "100%", justifyContent: "center", padding: "10px", opacity: canSubmit ? 1 : 0.45, cursor: canSubmit ? "pointer" : "not-allowed" }
+          }, submitState === "submitting" ? T("Signing up…", "Registrando…") : T("Sign up for text alerts", "Registrarme para alertas por texto")),
+          h("div", { style: { color: "var(--text4)", fontSize: 10.5, marginTop: 8, textAlign: "center" } }, T("Consent is not required to track your package.", "No es necesario dar consentimiento para rastrear tu paquete.")))) : null,
+
+      submitState === "success" ? h("div", { className: "alert alert-g", style: { fontSize: 13, lineHeight: 1.6 } },
+        h("div", null,
+          h("strong", null, T("You're signed up for text alerts for this package. ", "Estás registrado para recibir alertas por texto de este paquete. ")),
+          T("Reply STOP to unsubscribe.", "Responde STOP para cancelar."))) : null
+    );
+  }
+
+  function PublicTermsPage() {
+    var _l = useState((navigator.language || "en").toLowerCase().indexOf("es") === 0 ? "es" : "en"),
+        lang = _l[0], setLang = _l[1];
+    var T = function (en, es) { return lang === "es" ? es : en; };
+    var P = function (txt) { return h("p", { style: { color: "var(--text2)", fontSize: 13, lineHeight: 1.7, marginBottom: 12 } }, txt); };
+    var H = function (txt) { return h("h2", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 15, margin: "18px 0 8px" } }, txt); };
+    return h(PublicShell, { lang: lang, setLang: setLang },
+      h("h1", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, marginBottom: 6 } }, T("Terms of Service", "Términos del Servicio")),
+      h("div", { style: { color: "var(--text4)", fontSize: 11, marginBottom: 16 } }, T("Effective", "Vigente desde"), ": ", T(EFFECTIVE_DATE_EN, EFFECTIVE_DATE_ES), "  ·  ", T("Version", "Versión"), " ", CONSENT_VERSION),
+      P(T("These terms govern your use of the Casabe Konnect package tracking and text-alert service. By using this page you agree to them.", "Estos términos rigen tu uso del servicio de rastreo de paquetes y alertas por texto de Casabe Konnect. Al usar esta página, los aceptas.")),
+      H(T("Package tracking", "Rastreo de paquetes")),
+      P(T("You can look up the status of a package using its tracking number without creating an account or providing consent to receive messages.", "Puedes consultar el estado de un paquete usando su número de rastreo sin crear una cuenta ni dar consentimiento para recibir mensajes.")),
+      H(T("Text alerts (SMS)", "Alertas por texto (SMS)")),
+      P(T("If you opt in, we send text messages about the specific package you signed up for: pickup, transit, customs, delivery, delay, and attempted-delivery updates. Message frequency varies by shipment status. Message and data rates may apply. Reply STOP to unsubscribe at any time, or HELP for help. Consent is not a condition of any purchase.", "Si te registras, enviamos mensajes de texto sobre el paquete específico para el que te registraste: actualizaciones de recogida, tránsito, aduana, entrega, demoras e intentos de entrega. La frecuencia varía según el estado del envío. Pueden aplicarse tarifas de mensajes y datos. Responde STOP para cancelar en cualquier momento o HELP para ayuda. El consentimiento no es condición de ninguna compra.")),
+      P(T("Carriers are not liable for delayed or undelivered messages.", "Los operadores no son responsables de mensajes demorados o no entregados.")),
+      H(T("Marketing messages", "Mensajes de marketing")),
+      P(T("Marketing texts are optional and separate from package alerts. You can opt out of marketing at any time by replying STOP.", "Los mensajes de marketing son opcionales y están separados de las alertas del paquete. Puedes cancelar el marketing en cualquier momento respondiendo STOP.")),
+      H(T("Contact", "Contacto")),
+      P(h("span", null, T("Questions? Email ", "¿Preguntas? Escribe a "), h("a", { href: "mailto:hello@casabekonnect.com", style: { color: "var(--amber)" } }, "hello@casabekonnect.com"), ".")));
+  }
+
+  function PublicPrivacyPage() {
+    var _l = useState((navigator.language || "en").toLowerCase().indexOf("es") === 0 ? "es" : "en"),
+        lang = _l[0], setLang = _l[1];
+    var T = function (en, es) { return lang === "es" ? es : en; };
+    var P = function (txt) { return h("p", { style: { color: "var(--text2)", fontSize: 13, lineHeight: 1.7, marginBottom: 12 } }, txt); };
+    var H = function (txt) { return h("h2", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 15, margin: "18px 0 8px" } }, txt); };
+    var LI = function (txt) { return h("li", { style: { color: "var(--text2)", fontSize: 13, lineHeight: 1.7, marginBottom: 6 } }, txt); };
+    return h(PublicShell, { lang: lang, setLang: setLang },
+      h("h1", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, marginBottom: 6 } }, T("Privacy Policy", "Política de Privacidad")),
+      h("div", { style: { color: "var(--text4)", fontSize: 11, marginBottom: 16 } }, T("Effective", "Vigente desde"), ": ", T(EFFECTIVE_DATE_EN, EFFECTIVE_DATE_ES), "  ·  ", T("Version", "Versión"), " ", CONSENT_VERSION),
+      P(T("This policy explains how Casabe Konnect handles information collected through the package tracking and text-alert service.", "Esta política explica cómo Casabe Konnect maneja la información recopilada a través del servicio de rastreo de paquetes y alertas por texto.")),
+      H(T("What we collect", "Qué recopilamos")),
+      P(T("When you sign up for text alerts we collect your first name, last name, mobile phone number, and ZIP code, along with a record of your consent.", "Cuando te registras para recibir alertas por texto, recopilamos tu nombre, apellido, número de teléfono móvil y código postal, junto con un registro de tu consentimiento.")),
+      H(T("How your mobile number is used", "Cómo se usa tu número de móvil")),
+      h("ul", { style: { paddingLeft: 20, marginBottom: 12 } },
+        LI(T("Mobile numbers are collected for package alerts and, if you choose, optional marketing.", "Los números de móvil se recopilan para las alertas de paquetes y, si lo eliges, marketing opcional.")),
+        LI(T("We do not sell, rent, or share your SMS consent or mobile number with third parties for their own marketing.", "No vendemos, alquilamos ni compartimos tu consentimiento de SMS ni tu número de móvil con terceros para su propio marketing.")),
+        LI(T("You can opt out at any time by replying STOP. Reply HELP for assistance.", "Puedes cancelar en cualquier momento respondiendo STOP. Responde HELP para obtener ayuda."))),
+      H(T("Data sharing", "Compartir datos")),
+      P(T("Text messages are delivered through our messaging provider solely to send the alerts you requested. SMS consent and phone numbers are never sold, rented, or shared for third-party marketing.", "Los mensajes de texto se entregan a través de nuestro proveedor de mensajería únicamente para enviar las alertas que solicitaste. El consentimiento de SMS y los números de teléfono nunca se venden, alquilan ni comparten para marketing de terceros.")),
+      H(T("Contact", "Contacto")),
+      P(h("span", null, T("Questions about your data? Email ", "¿Preguntas sobre tus datos? Escribe a "), h("a", { href: "mailto:hello@casabekonnect.com", style: { color: "var(--amber)" } }, "hello@casabekonnect.com"), ".")));
+  }
+
+  var Page = publicView === "terms" ? PublicTermsPage
+           : publicView === "privacy" ? PublicPrivacyPage
+           : PublicTrackingAlertsPage;
+
+  window.__publicTrackerMounted = true;
+  ReactDOM.createRoot(document.getElementById("root")).render(h(Page));
+})();
+
 // Public tracking: ?number=TRACKING_ID loads TrackingPage without auth
 // Sets window.__publicTrackerMounted so the normal App mount below skips
 // (otherwise App mounts on top of the public tracker and shows login screen).
@@ -30723,12 +31121,20 @@ if (typeof STRIPE_CHECKOUT_URL === "undefined") {
   /* ──── RESULTS ──── */
   window.__R4TestResults = _results;
   window.__R4TestSummary = { pass: _pass, fail: _fail, total: _pass + _fail };
-  console.group("[R4 Tests] " + _pass + "/" + (_pass + _fail) + " passed");
-  _results.forEach(function(r) {
-    if (r.ok) console.log("✓ " + r.name);
-    else console.error("✗ " + r.name, r.info || "");
-  });
-  console.groupEnd();
+  /* Diagnostics logging must never crash the app: some webviews lack console.group */
+  try {
+    if (typeof console !== "undefined") {
+      var _hdr = "[R4 Tests] " + _pass + "/" + (_pass + _fail) + " passed";
+      if (typeof console.group === "function") console.group(_hdr);
+      else if (typeof console.log === "function") console.log(_hdr);
+      _results.forEach(function(r) {
+        if (r.ok) { if (typeof console.log === "function") console.log("✓ " + r.name); }
+        else if (typeof console.error === "function") console.error("✗ " + r.name, r.info || "");
+        else if (typeof console.log === "function") console.log("✗ " + r.name, r.info || "");
+      });
+      if (typeof console.groupEnd === "function") console.groupEnd();
+    }
+  } catch (_e) { /* swallow — diagnostics output is non-essential */ }
   return window.__R4TestSummary;
 })();
 
