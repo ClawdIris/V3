@@ -19211,7 +19211,8 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
 ════════════════════════════════════════════ */
 var CustomerProfilePage = function CustomerProfilePage(_ref113) {
   var orders = _ref113.orders,
-    onImportCustomers = _ref113.onImportCustomers;
+    onImportCustomers = _ref113.onImportCustomers,
+    onOpenOrder = _ref113.onOpenOrder;
   var t = useT();
   var _React$useState29 = React.useState(""),
     _React$useState30 = _slicedToArray(_React$useState29, 2),
@@ -19683,7 +19684,10 @@ var CustomerProfilePage = function CustomerProfilePage(_ref113) {
       className: "tbl"
     }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "ID"), /*#__PURE__*/React.createElement("th", null, "Date"), /*#__PURE__*/React.createElement("th", null, "Box"), /*#__PURE__*/React.createElement("th", null, "Destination"), /*#__PURE__*/React.createElement("th", null, "Status"), /*#__PURE__*/React.createElement("th", null, "Paid"), /*#__PURE__*/React.createElement("th", null, "Balance"))), /*#__PURE__*/React.createElement("tbody", null, c.orders.slice().reverse().map(function (o) {
       return /*#__PURE__*/React.createElement("tr", {
-        key: o.id
+        key: o.id,
+        onClick: function () { if (onOpenOrder) onOpenOrder(o); },
+        style: { cursor: "pointer" },
+        title: "Open order " + o.id
       }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
         className: "tamb"
       }, o.id)), /*#__PURE__*/React.createElement("td", {
@@ -22343,11 +22347,6 @@ var ROLES = {
         l: "Bulk Status Update",
         ls: "Actualización Masiva",
         i: "⌨️"
-      }, {
-        k: "track",
-        l: "Track Package",
-        ls: "Rastrear Paquete",
-        i: "📍"
       }]
     }, {
       grp: "Finance & Growth",
@@ -28646,6 +28645,7 @@ setOrders(function (prev) {
     if (page === "receipts_invoices") return /*#__PURE__*/React.createElement(ReceiptsInvoicesApp, { orders: orders, notify: notify, roleKey: roleKey, session: session, tenant: tenant, setPage: setPage });
     if (page === "customers") return /*#__PURE__*/React.createElement(CustomerProfilePage, {
       orders: orders,
+      onOpenOrder: setSelectedOrder,
       onImportCustomers: function onImportCustomers(imported) {
         return setOrders(function (prev) {
           return [].concat(_toConsumableArray(prev), _toConsumableArray(imported));
