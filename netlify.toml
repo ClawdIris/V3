@@ -1,0 +1,22 @@
+# netlify.toml — Casabe Konnect build configuration
+#
+# Browser key substitution pattern:
+#   At build time, sed replaces the literal placeholder %%GOOGLE_MAPS_KEY%%
+#   in index.html with the value of the GOOGLE_MAPS_API_KEY env var set in
+#   the Netlify dashboard (Site settings → Environment variables).
+#
+#   The placeholder in index.html must be exactly: %%GOOGLE_MAPS_KEY%%
+#   Example: const GOOGLE_MAPS_API_KEY = '%%GOOGLE_MAPS_KEY%%';
+#
+#   The real key is NEVER committed to source control.
+#   sed -i.bak creates a backup (.bak) file — acceptable for Netlify build.
+#
+#   Server-side keys (GOOGLE_GEOCODING_KEY, GOOGLE_ROUTES_KEY) go in
+#   Supabase Edge Function secrets ONLY — never here, never in index.html.
+
+[build]
+  command = "echo 'Substituting environment variables...' && sed -i.bak 's/%%GOOGLE_MAPS_KEY%%/$GOOGLE_MAPS_API_KEY/g' index.html && echo 'Done.'"
+  publish = "."
+
+[build.environment]
+  NODE_VERSION = "18"

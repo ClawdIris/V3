@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Mobile Driver Status Update — Casabe Konnect (Delivered / No Answer)</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+    :root {
+      --bg:          #0a0e17;
+      --surface:     #111827;
+      --surface-2:   #1a2235;
+      --surface-3:   #0f1928;
+      --border:      #1e2d45;
+      --amber:       #f5a623;
+      --blue:        #4a90e2;
+      --green:       #27ae60;
+      --red:         #e74c3c;
+      --yellow:      #f39c12;
+      --text:        #e8eaf0;
+      --text-muted:  #7a8899;
+      --font-mono:   'SF Mono', 'Fira Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .app-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 14px;
+      height: 52px;
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0;
+    }
+    .logo { width:28px;height:28px;background:var(--amber);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#000; }
+    .title-block { flex:1; }
+    .title-block h1 { font-size:14px;font-weight:700;color:var(--amber);line-height:1.1; }
+    .title-block span { font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em; }
+    .hdr-btn { background:transparent;border:1px solid var(--border);color:var(--text-muted);border-radius:7px;padding:5px 9px;font-size:12px;cursor:pointer; }
+
+    /* ── Driver ID strip ── */
+    .driver-strip {
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 14px;
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0;
+    }
+    .driver-avatar {
+      width: 32px; height: 32px;
+      background: var(--amber);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 14px; color: #000;
+    }
+    .driver-info { flex: 1; }
+    .driver-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .driver-route { font-size: 11px; color: var(--text-muted); }
+    .driver-status-pill {
+      padding: 3px 10px; border-radius: 12px;
+      font-size: 11px; font-weight: 600;
+      background: #0e3a1f; color: var(--green); border: 1px solid #1c6033;
+    }
+
+    /* ── Scrollable content ── */
+    .scroll-area {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .scroll-area::-webkit-scrollbar { width: 3px; }
+    .scroll-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Section headers ── */
+    .section-hdr {
+      font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    /* ── Current stop card (prominent) ── */
+    .current-stop-card {
+      background: var(--surface);
+      border: 1.5px solid var(--amber);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .csc-header {
+      background: rgba(245,166,35,0.08);
+      padding: 10px 14px;
+      display: flex; align-items: center; gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .csc-header .seq-circle {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--amber); color: #000;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; flex-shrink: 0;
+    }
+    .csc-header .stop-label { font-size: 12px; font-weight: 700; color: var(--amber); }
+    .csc-header .stop-of { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+
+    .csc-body { padding: 12px 14px; }
+    .csc-name { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .csc-addr { font-size: 13px; color: var(--text-muted); line-height: 1.4; margin-bottom: 8px; }
+    .tracking-link {
+      font-size: 12px; font-family: var(--font-mono);
+      color: var(--amber); text-decoration: none;
+      display: inline-block; margin-bottom: 8px;
+    }
+    .csc-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+
+    .status-badge {
+      display: inline-flex; align-items: center;
+      padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: 600;
+    }
+    .badge-pickup { background:#3d2a00;color:#f59e0b;border:1px solid #7a5500; }
+    .badge-dropbox { background:#0d2040;color:var(--blue);border:1px solid #1a4080; }
+    .badge-confirmed { background:#0d2e1a;color:var(--green);border:1px solid #145522; }
+    .badge-warn { background:#2d2000;color:var(--yellow);border:1px solid #5a4000; }
+    .badge-pending { background:#1a2235;color:var(--text-muted);border:1px solid var(--border); }
+    .badge-delivered { background:#0d2e1a;color:var(--green);border:1px solid #145522; }
+
+    /* Google Maps navigate button */
+    .nav-btn {
+      width: 100%;
+      padding: 11px;
+      border-radius: 9px;
+      font-size: 13px; font-weight: 700;
+      background: #102040; border: 1px solid var(--blue);
+      color: var(--blue); cursor: pointer; text-align: center;
+      margin-bottom: 8px;
+    }
+
+    /* ── RPC Status Update Flow ── */
+    .rpc-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .rpc-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .rpc-header h3 { font-size: 13px; font-weight: 700; color: var(--text); flex: 1; }
+    .rpc-header .rpc-badge {
+      padding: 2px 8px; border-radius: 10px;
+      font-size: 10px; font-weight: 600;
+      background: var(--surface-2); color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .rpc-body { padding: 12px 14px; }
+
+    /* Status options — big tap targets */
+    .status-options {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .status-option {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface-2);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .status-option:hover, .status-option.selected {
+      border-color: var(--amber);
+    }
+    .status-option.selected { background: rgba(245,166,35,0.06); }
+    .status-option .so-icon {
+      font-size: 22px; width: 32px; text-align: center; flex-shrink: 0;
+    }
+    .status-option .so-info { flex: 1; }
+    .status-option .so-label { font-size: 13px; font-weight: 600; color: var(--text); }
+    .status-option .so-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .status-option .so-radio {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid var(--border); flex-shrink: 0;
+    }
+    .status-option.selected .so-radio {
+      border-color: var(--amber);
+      background: var(--amber);
+    }
+
+    /* Optional note field */
+    .note-field {
+      margin-top: 10px;
+    }
+    .note-field label {
+      font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-muted);
+      display: block; margin-bottom: 5px;
+    }
+    .note-field textarea {
+      width: 100%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 9px 10px;
+      font-size: 13px;
+      resize: none;
+      height: 70px;
+      font-family: inherit;
+    }
+    .note-field textarea::placeholder { color: var(--text-muted); }
+    .note-field textarea:focus { outline: none; border-color: var(--amber); }
+
+    /* Submit button */
+    .submit-btn {
+      width: 100%; padding: 13px;
+      border-radius: 10px; font-size: 14px; font-weight: 700;
+      background: var(--amber); border: none; color: #000;
+      cursor: pointer; margin-top: 12px;
+    }
+    .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Queue progress ── */
+    .progress-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .progress-header {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .progress-header h3 { font-size: 13px; font-weight: 700; color: var(--text); }
+    .progress-header span { font-size: 12px; color: var(--text-muted); }
+
+    .progress-bar-wrap {
+      background: var(--surface-2);
+      border-radius: 6px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      background: linear-gradient(90deg, var(--green), #48d97a);
+    }
+
+    /* Mini stop row list (completed + upcoming) */
+    .mini-stop {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .mini-stop:last-child { border-bottom: none; }
+    .mini-seq {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; flex-shrink: 0;
+    }
+    .mini-seq.done { background: var(--green); color: #fff; }
+    .mini-seq.curr { background: var(--amber); color: #000; }
+    .mini-seq.next { background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); }
+    .mini-name { flex: 1; font-size: 12px; color: var(--text); }
+    .mini-status { font-size: 10px; color: var(--text-muted); }
+
+    /* ── Bottom bar ── */
+    .bottom-bar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 10px 14px;
+      flex-shrink: 0;
+      display: flex; gap: 8px;
+    }
+    .bb-btn {
+      flex: 1; padding: 10px;
+      border-radius: 9px; font-size: 12px; font-weight: 700;
+      cursor: pointer; text-align: center;
+      border: 1px solid var(--border);
+      background: var(--surface-2); color: var(--text-muted);
+    }
+    .bb-btn.amber { background: var(--amber); border-color: var(--amber); color: #000; }
+
+    /* ── Mobile nav ── */
+    .mobile-nav {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex; flex-shrink: 0;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 7px 0; gap: 3px; cursor: pointer;
+      color: var(--text-muted);
+      font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
+    }
+    .nav-item.active { color: var(--amber); }
+    .nav-item .ni { font-size: 17px; line-height: 1; }
+
+    /* Mockup note */
+    .mockup-note {
+      position: fixed; top: 60px; right: 10px;
+      background: rgba(0,0,0,0.88);
+      border: 1px dashed var(--amber);
+      border-radius: 8px; padding: 5px 9px;
+      font-size: 10px; color: var(--amber);
+      max-width: 155px; pointer-events: none; z-index: 100;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="logo">C</div>
+    <div class="title-block">
+      <h1>Driver Status Update</h1>
+      <span>R4 · Driver Portal · Active Route · Mark Delivered or No Answer</span>
+    </div>
+    <button class="hdr-btn">‹ Route</button>
+  </header>
+
+  <!-- DRIVER STRIP -->
+  <div class="driver-strip">
+    <div class="driver-avatar">C</div>
+    <div class="driver-info">
+      <div class="driver-name">Carlos M.</div>
+      <div class="driver-route">Bronx Route · 5 stops assigned</div>
+    </div>
+    <span class="driver-status-pill">● On Route</span>
+  </div>
+
+  <!-- MAIN SCROLL AREA -->
+  <div class="scroll-area">
+
+    <!-- CURRENT STOP -->
+    <div>
+      <div class="section-hdr">Current Stop</div>
+      <div class="current-stop-card">
+        <div class="csc-header">
+          <div class="seq-circle">2</div>
+          <div>
+            <div class="stop-label">Stop 2 of 5 — Active</div>
+          </div>
+          <div class="stop-of">Next: Ana Pérez →</div>
+        </div>
+        <div class="csc-body">
+          <div class="csc-name">José Rodríguez</div>
+          <div class="csc-addr">1185 Morris Ave, Apt 4B<br>Bronx, NY 10456</div>
+          <a class="tracking-link" href="#">CK-10437</a>
+          <div class="csc-badges">
+            <span class="status-badge badge-dropbox">■ Drop Box</span>
+            <span class="status-badge badge-confirmed">✅ Confirmed Address</span>
+          </div>
+          <button class="nav-btn">📍 Navigate in Google Maps</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATUS UPDATE RPC FLOW -->
+    <div>
+      <div class="section-hdr">Update Delivery Status</div>
+      <div class="rpc-section">
+        <div class="rpc-header">
+          <h3>What happened at this stop?</h3>
+          <span class="rpc-badge">RPC: update_stop_status</span>
+        </div>
+        <div class="rpc-body">
+          <!-- Address Issue and Skip: deferred to future release, not in Routes rebuild scope -->
+          <div class="status-options">
+            <!-- Option 1 — Delivered -->
+            <div class="status-option selected">
+              <div class="so-icon">✅</div>
+              <div class="so-info">
+                <div class="so-label">Mark Delivered</div>
+                <div class="so-desc">Package successfully delivered to customer</div>
+              </div>
+              <div class="so-radio"></div>
+            </div>
+            <!-- Option 2 — No Answer -->
+            <div class="status-option">
+              <div class="so-icon">🚪</div>
+              <div class="so-info">
+                <div class="so-label">No Answer / Not Home</div>
+                <div class="so-desc">Attempted, no one available</div>
+              </div>
+              <div class="so-radio"></div>
+            </div>
+          </div>
+
+          <!-- Note field -->
+          <div class="note-field">
+            <label>Note (optional)</label>
+            <textarea placeholder="Left at door, called customer, etc."></textarea>
+          </div>
+
+          <button class="submit-btn">✓ Confirm &amp; Continue to Stop 3</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROUTE PROGRESS -->
+    <div>
+      <div class="section-hdr">Route Progress</div>
+      <div class="progress-section">
+        <div class="progress-header">
+          <h3>Stops Complete</h3>
+          <span>1 / 5</span>
+        </div>
+        <div class="progress-bar-wrap">
+          <div class="progress-bar-fill" style="width: 20%"></div>
+        </div>
+        <div>
+          <div class="mini-stop">
+            <div class="mini-seq done">✓</div>
+            <div class="mini-name">Maria Lopez</div>
+            <div class="mini-status">Delivered ✅</div>
+          </div>
+          <div class="mini-stop">
+            <div class="mini-seq curr">2</div>
+            <div class="mini-name">José Rodríguez</div>
+            <div class="mini-status" style="color:var(--amber)">In progress…</div>
+          </div>
+          <div class="mini-stop">
+            <div class="mini-seq next">3</div>
+            <div class="mini-name">Ana Pérez</div>
+            <div class="mini-status">Pending ⚠️</div>
+          </div>
+          <div class="mini-stop">
+            <div class="mini-seq next">4</div>
+            <div class="mini-name">Luis Mendoza</div>
+            <div class="mini-status">Pending</div>
+          </div>
+          <div class="mini-stop">
+            <div class="mini-seq next">5</div>
+            <div class="mini-name">Carmen Santos</div>
+            <div class="mini-status">Pending</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Spacer -->
+    <div style="height: 4px;"></div>
+  </div>
+
+  <!-- BOTTOM BAR -->
+  <div class="bottom-bar">
+    <button class="bb-btn">🗺 Map View</button>
+    <button class="bb-btn">📋 Stop List</button>
+    <button class="bb-btn amber">⏭ Next Stop</button>
+  </div>
+
+  <!-- MOBILE NAV -->
+  <nav class="mobile-nav">
+    <div class="nav-item"><span class="ni">📦</span><span>Orders</span></div>
+    <div class="nav-item"><span class="ni">🗺</span><span>Map</span></div>
+    <div class="nav-item active"><span class="ni">🔄</span><span>Status</span></div>
+    <div class="nav-item"><span class="ni">👤</span><span>Profile</span></div>
+  </nav>
+
+  <!-- MOCKUP ANNOTATION -->
+  <div class="mockup-note">
+    📐 MOCKUP<br>
+    Driver status update<br>
+    Narrow RPC flow<br>
+    Static placeholder data
+  </div>
+
+</body>
+</html>

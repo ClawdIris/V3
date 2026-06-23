@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Mobile Route List — Casabe Konnect</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+    /* ── Tokens ── */
+    :root {
+      --bg:          #0a0e17;
+      --surface:     #111827;
+      --surface-2:   #1a2235;
+      --border:      #1e2d45;
+      --amber:       #f5a623;
+      --amber-dim:   #b87a18;
+      --blue:        #4a90e2;
+      --green:       #27ae60;
+      --red:         #e74c3c;
+      --yellow:      #f39c12;
+      --text:        #e8eaf0;
+      --text-muted:  #7a8899;
+      --text-micro:  #4a5568;
+      --font-mono:   'SF Mono', 'Fira Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Top Header ── */
+    .app-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .app-header .logo {
+      width: 30px; height: 30px;
+      background: var(--amber);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 14px; color: #000;
+    }
+    .app-header .title-block { flex: 1; }
+    .app-header .title-block h1 {
+      font-size: 15px; font-weight: 700;
+      color: var(--amber); line-height: 1.1;
+    }
+    .app-header .title-block span {
+      font-size: 10px; color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .header-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .header-btn.amber { border-color: var(--amber); color: var(--amber); }
+
+    /* ── Viewing As Banner ── */
+    .viewing-as {
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .viewing-as .label {
+      font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-muted);
+    }
+    .role-pills { display: flex; gap: 4px; margin-left: auto; }
+    .role-pill {
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .role-pill.active { background: var(--amber); border-color: var(--amber); color: #000; }
+
+    /* ── Route Meta Bar ── */
+    .route-meta {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      flex-shrink: 0;
+    }
+    .route-meta .row {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+    }
+    .route-meta .row:last-child { margin-bottom: 0; }
+    .route-meta .meta-label {
+      font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-muted);
+      width: 52px; flex-shrink: 0;
+    }
+    .route-meta .meta-value { font-size: 12px; color: var(--text); }
+    .status-badge {
+      display: inline-flex; align-items: center;
+      padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; font-weight: 600;
+    }
+    .badge-optimized { background: #0e3a1f; color: #27ae60; border: 1px solid #1c6033; }
+    .badge-draft     { background: #2d2010; color: var(--amber); border: 1px solid #6b4c14; }
+    .badge-dispatched{ background: #102040; color: var(--blue); border: 1px solid #204060; }
+    .badge-pickup    { background: #3d2a00; color: #f59e0b; border: 1px solid #7a5500; }
+    .badge-dropbox   { background: #0d2040; color: var(--blue); border: 1px solid #1a4080; }
+    .badge-pending   { background: #1a2235; color: var(--text-muted); border: 1px solid var(--border); }
+    .badge-confirmed { background: #0d2e1a; color: var(--green); border: 1px solid #145522; }
+    .badge-warn      { background: #2d2000; color: var(--yellow); border: 1px solid #5a4000; }
+    .badge-driver    {
+      margin-left: auto; background: var(--surface-2);
+      border: 1px solid var(--border);
+      padding: 2px 8px; border-radius: 10px;
+      font-size: 11px; color: var(--text-muted);
+    }
+
+    /* ── Stats Strip ── */
+    .stats-strip {
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex; gap: 0;
+      flex-shrink: 0;
+    }
+    .stat-item {
+      flex: 1; text-align: center;
+      padding: 0 4px;
+      border-right: 1px solid var(--border);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-num {
+      font-size: 18px; font-weight: 700;
+      color: var(--amber); line-height: 1;
+    }
+    .stat-lbl {
+      font-size: 9px; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ── Scrollable Stop List ── */
+    .stop-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .stop-list::-webkit-scrollbar { width: 4px; }
+    .stop-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .section-label {
+      font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-muted);
+      padding: 4px 0 2px;
+    }
+
+    /* ── Stop Card ── */
+    .stop-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      position: relative;
+    }
+    .stop-card.active-stop { border-color: var(--amber); }
+    .stop-card .card-top {
+      display: flex; align-items: flex-start; gap: 10px;
+    }
+    .seq-circle {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--surface-2); border: 2px solid var(--amber);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; color: var(--amber);
+      flex-shrink: 0;
+    }
+    .seq-circle.completed { background: var(--green); border-color: var(--green); color: #fff; }
+    .stop-info { flex: 1; min-width: 0; }
+    .stop-name { font-size: 14px; font-weight: 600; color: var(--text); }
+    .stop-address {
+      font-size: 12px; color: var(--text-muted);
+      margin-top: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .tracking-link {
+      font-size: 11px; font-family: var(--font-mono);
+      color: var(--amber); text-decoration: none;
+      display: inline-block; margin-top: 4px;
+    }
+    .tracking-link:hover { text-decoration: underline; }
+    .card-badges {
+      display: flex; flex-wrap: wrap; gap: 5px;
+      margin-top: 8px;
+    }
+    .confidence-icon { margin-left: auto; font-size: 14px; }
+    .stop-action-row {
+      display: flex; gap: 6px; margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .stop-btn {
+      flex: 1; padding: 7px 0;
+      border-radius: 7px;
+      font-size: 12px; font-weight: 600;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: center;
+    }
+    .stop-btn.primary { background: var(--amber); border-color: var(--amber); color: #000; }
+    .stop-btn.danger  { border-color: #8b1a1a; color: var(--red); }
+
+    /* ── Empty State ── */
+    .empty-state {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted);
+    }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-state h3 { font-size: 15px; color: var(--text); margin-bottom: 8px; }
+    .empty-state p { font-size: 12px; line-height: 1.5; }
+    .empty-state a { color: var(--blue); }
+
+    /* ── Bottom Action Bar ── */
+    .bottom-bar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 10px 16px;
+      flex-shrink: 0;
+    }
+    .bottom-bar .actions {
+      display: flex; gap: 8px; margin-bottom: 8px;
+    }
+    .action-btn {
+      flex: 1; padding: 11px;
+      border-radius: 9px;
+      font-size: 13px; font-weight: 700;
+      border: none; cursor: pointer;
+      text-align: center;
+    }
+    .action-btn.amber-fill { background: var(--amber); color: #000; }
+    .action-btn.outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .action-btn:disabled {
+      opacity: 0.4; cursor: not-allowed;
+    }
+    .bottom-bar .maps-link {
+      width: 100%; padding: 10px;
+      border-radius: 9px; font-size: 13px; font-weight: 600;
+      background: #102040; border: 1px solid var(--blue);
+      color: var(--blue); cursor: pointer;
+      text-align: center;
+    }
+
+    /* ── Mobile Nav ── */
+    .mobile-nav {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-shrink: 0;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .nav-item {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 8px 0;
+      gap: 3px;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 9px; text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .nav-item.active { color: var(--amber); }
+    .nav-item .nav-icon { font-size: 18px; line-height: 1; }
+
+    /* ── Dot badge on nav ── */
+    .nav-dot {
+      position: relative; display: inline-block;
+    }
+    .nav-dot::after {
+      content: '';
+      position: absolute; top: 0; right: -4px;
+      width: 6px; height: 6px;
+      background: var(--red); border-radius: 50%;
+    }
+
+    /* ── Annotation ── */
+    .mockup-note {
+      position: fixed; bottom: 80px; right: 12px;
+      background: rgba(0,0,0,0.85);
+      border: 1px dashed var(--amber);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 10px; color: var(--amber);
+      max-width: 160px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- TOP HEADER -->
+  <header class="app-header">
+    <div class="logo">C</div>
+    <div class="title-block">
+      <h1>Routes &amp; Optimization</h1>
+      <span>R4 · Driver Portal · Wed Jun 10</span>
+    </div>
+    <button class="header-btn">⚙</button>
+    <button class="header-btn amber">HQ</button>
+  </header>
+
+  <!-- VIEWING AS -->
+  <div class="viewing-as">
+    <span class="label">Viewing as</span>
+    <span style="font-size:12px;color:var(--text);">Carlos M. — Bronx Route</span>
+    <div class="role-pills">
+      <span class="role-pill">HQ</span>
+      <span class="role-pill">Office</span>
+      <span class="role-pill active">Driver</span>
+    </div>
+  </div>
+
+  <!-- ROUTE META -->
+  <div class="route-meta">
+    <div class="row">
+      <span class="meta-label">Status</span>
+      <span class="status-badge badge-dispatched">● Dispatched</span>
+      <span class="badge-driver">Carlos M.</span>
+    </div>
+    <div class="row">
+      <span class="meta-label">Start</span>
+      <span class="meta-value">3801 White Plains Rd, Bronx</span>
+    </div>
+    <div class="row">
+      <span class="meta-label">End</span>
+      <span class="meta-value">Anywhere</span>
+    </div>
+  </div>
+
+  <!-- STATS STRIP -->
+  <div class="stats-strip">
+    <div class="stat-item">
+      <div class="stat-num">6</div>
+      <div class="stat-lbl">Stops</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">18.4<span style="font-size:11px">mi</span></div>
+      <div class="stat-lbl">Distance</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">52<span style="font-size:11px">min</span></div>
+      <div class="stat-lbl">Est. Time</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">4<span style="font-size:11px">/6</span></div>
+      <div class="stat-lbl">Pending</div>
+    </div>
+  </div>
+
+  <!-- SCROLLABLE STOP LIST -->
+  <div class="stop-list">
+    <div class="section-label">Today's Stops — Optimized Order</div>
+
+    <!-- Stop 1 — Completed -->
+    <div class="stop-card">
+      <div class="card-top">
+        <div class="seq-circle completed">✓</div>
+        <div class="stop-info">
+          <div class="stop-name">Maria Lopez</div>
+          <div class="stop-address">2340 Grand Concourse, Bronx, NY 10458</div>
+          <a class="tracking-link" href="#">CK-10421</a>
+        </div>
+        <div class="confidence-icon" title="Address confirmed">✅</div>
+      </div>
+      <div class="card-badges">
+        <span class="status-badge badge-pickup">▲ Pickup</span>
+        <span class="status-badge badge-confirmed">Confirmed</span>
+        <span class="status-badge" style="background:#0d2e1a;color:var(--green);border:1px solid #145522;">Delivered</span>
+      </div>
+    </div>
+
+    <!-- Stop 2 — Active -->
+    <div class="stop-card active-stop">
+      <div class="card-top">
+        <div class="seq-circle">2</div>
+        <div class="stop-info">
+          <div class="stop-name">José Rodríguez</div>
+          <div class="stop-address">1185 Morris Ave, Bronx, NY 10456</div>
+          <a class="tracking-link" href="#">CK-10437</a>
+        </div>
+        <div class="confidence-icon" title="Address confirmed">✅</div>
+      </div>
+      <div class="card-badges">
+        <span class="status-badge badge-dropbox">■ Drop Box</span>
+        <span class="status-badge badge-confirmed">High Conf.</span>
+        <span class="status-badge badge-pending">Pending</span>
+      </div>
+      <div class="stop-action-row">
+        <button class="stop-btn outline">📋 Details</button>
+        <button class="stop-btn primary">✓ Mark Delivered</button>
+      </div>
+    </div>
+
+    <!-- Stop 3 — Pending with warning -->
+    <div class="stop-card">
+      <div class="card-top">
+        <div class="seq-circle">3</div>
+        <div class="stop-info">
+          <div class="stop-name">Ana Pérez</div>
+          <div class="stop-address">580 E 183rd St, Bronx, NY 10458</div>
+          <a class="tracking-link" href="#">CK-10449</a>
+        </div>
+        <div class="confidence-icon" title="Low confidence address">⚠️</div>
+      </div>
+      <div class="card-badges">
+        <span class="status-badge badge-pickup">▲ Pickup</span>
+        <span class="status-badge badge-warn">Low Conf.</span>
+        <span class="status-badge badge-pending">Pending</span>
+      </div>
+    </div>
+
+    <!-- Stop 4 -->
+    <div class="stop-card">
+      <div class="card-top">
+        <div class="seq-circle">4</div>
+        <div class="stop-info">
+          <div class="stop-name">Luis Mendoza</div>
+          <div class="stop-address">2740 Jerome Ave, Bronx, NY 10468</div>
+          <a class="tracking-link" href="#">CK-10455</a>
+        </div>
+        <div class="confidence-icon">✅</div>
+      </div>
+      <div class="card-badges">
+        <span class="status-badge badge-dropbox">■ Drop Box</span>
+        <span class="status-badge badge-confirmed">High Conf.</span>
+        <span class="status-badge badge-pending">Pending</span>
+      </div>
+    </div>
+
+    <!-- Stop 5 -->
+    <div class="stop-card">
+      <div class="card-top">
+        <div class="seq-circle">5</div>
+        <div class="stop-info">
+          <div class="stop-name">Carmen Santos</div>
+          <div class="stop-address">3100 Bainbridge Ave, Bronx, NY 10467</div>
+          <a class="tracking-link" href="#">CK-10461</a>
+        </div>
+        <div class="confidence-icon">✅</div>
+      </div>
+      <div class="card-badges">
+        <span class="status-badge badge-pickup">▲ Pickup</span>
+        <span class="status-badge badge-confirmed">High Conf.</span>
+        <span class="status-badge badge-pending">Pending</span>
+      </div>
+    </div>
+
+    <!-- Stop 6 -->
+    <div class="stop-card">
+      <div class="card-top">
+        <div class="seq-circle">6</div>
+        <div class="stop-info">
+          <div class="stop-name">Reinaldo Torres</div>
+          <div class="stop-address">4540 White Plains Rd, Bronx, NY 10470</div>
+          <a class="tracking-link" href="#">CK-10478</a>
+        </div>
+        <div class="confidence-icon">✅</div>
+      </div>
+      <div class="card-badges">
+        <span class="status-badge badge-dropbox">■ Drop Box</span>
+        <span class="status-badge badge-confirmed">High Conf.</span>
+        <span class="status-badge badge-pending">Pending</span>
+      </div>
+    </div>
+
+    <!-- Spacer for bottom bar -->
+    <div style="height: 8px;"></div>
+  </div>
+
+  <!-- BOTTOM ACTION BAR -->
+  <div class="bottom-bar">
+    <div class="actions">
+      <button class="action-btn outline">🗺 Map View</button>
+      <button class="action-btn amber-fill">🚗 Start Navigation</button>
+    </div>
+    <button class="maps-link">📍 Open Full Route in Google Maps</button>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="mobile-nav">
+    <div class="nav-item">
+      <span class="nav-icon">📦</span>
+      <span>Orders</span>
+    </div>
+    <div class="nav-item active">
+      <span class="nav-icon">🗺</span>
+      <span>Route</span>
+    </div>
+    <div class="nav-item">
+      <span class="nav-icon nav-dot">🔔</span>
+      <span>Alerts</span>
+    </div>
+    <div class="nav-item">
+      <span class="nav-icon">👤</span>
+      <span>Profile</span>
+    </div>
+  </nav>
+
+  <!-- MOCKUP ANNOTATION -->
+  <div class="mockup-note">
+    📐 MOCKUP<br>
+    Driver route stop list<br>
+    Static placeholder data<br>
+    Awaiting Jeffrey approval
+  </div>
+
+</body>
+</html>

@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Mobile Map View — Casabe Konnect HQ/Office</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+    :root {
+      --bg:          #0a0e17;
+      --surface:     #111827;
+      --surface-2:   #1a2235;
+      --surface-3:   #0f1928;
+      --border:      #1e2d45;
+      --amber:       #f5a623;
+      --blue:        #4a90e2;
+      --green:       #27ae60;
+      --red:         #e74c3c;
+      --yellow:      #f39c12;
+      --text:        #e8eaf0;
+      --text-muted:  #7a8899;
+      --font-mono:   'SF Mono', 'Fira Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* ── Header ── */
+    .app-header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 14px;
+      height: 52px;
+      display: flex; align-items: center; gap: 8px;
+      flex-shrink: 0;
+      z-index: 30;
+      position: relative;
+    }
+    .logo { width:28px;height:28px;background:var(--amber);border-radius:7px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#000; }
+    .title-block { flex:1; }
+    .title-block h1 { font-size:14px;font-weight:700;color:var(--amber);line-height:1.1; }
+    .title-block span { font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em; }
+    .hdr-btn {
+      background:transparent;border:1px solid var(--border);
+      color:var(--text-muted);border-radius:7px;padding:5px 9px;
+      font-size:12px;cursor:pointer;
+    }
+    .hdr-btn.amber { border-color:var(--amber);color:var(--amber); }
+
+    /* ── Role bar ── */
+    .role-bar {
+      background:var(--surface-2);border-bottom:1px solid var(--border);
+      padding:6px 14px;display:flex;align-items:center;gap:8px;
+      flex-shrink:0;z-index:30;
+    }
+    .role-bar .rl-label { font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted); }
+    .rl-pills { display:flex;gap:4px;margin-left:auto; }
+    .rl-pill {
+      padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;
+      border:1px solid var(--border);color:var(--text-muted);cursor:pointer;
+    }
+    .rl-pill.active { background:var(--amber);border-color:var(--amber);color:#000; }
+
+    /* ── MAP FILL AREA ── */
+    .map-area {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* Simulated map tiles */
+    .map-canvas {
+      width:100%;height:100%;
+      background: linear-gradient(160deg, #0a1628 0%, #0d1e38 40%, #081422 100%);
+      position:relative;
+    }
+
+    /* Grid overlay simulating street grid */
+    .map-canvas::before {
+      content:'';position:absolute;inset:0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    /* Diagonal "roads" */
+    .road { position:absolute;background:rgba(255,255,255,0.07); }
+    .road.h { height:2px;width:100%; }
+    .road.v { width:2px;height:100%; }
+    .road.diag { width:200%;height:2px;transform-origin:top left; }
+
+    /* Route polyline (SVG) */
+    .route-svg {
+      position:absolute;inset:0;width:100%;height:100%;
+      pointer-events:none;
+    }
+
+    /* Map pins */
+    .pin {
+      position:absolute;
+      display:flex;flex-direction:column;align-items:center;
+      cursor:pointer;
+      transform:translateX(-50%) translateY(-100%);
+    }
+    .pin-body {
+      width:28px;height:28px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      font-size:12px;font-weight:700;
+      border:2px solid rgba(0,0,0,0.4);
+      box-shadow:0 2px 8px rgba(0,0,0,0.5);
+    }
+    .pin-tail {
+      width:2px;height:8px;
+      background:rgba(255,255,255,0.3);
+      margin-top:-2px;
+    }
+    .pin.start .pin-body { background:var(--green);color:#fff; font-size:14px; }
+    .pin.pickup .pin-body { background:var(--amber);color:#000; }
+    .pin.dropbox .pin-body { background:var(--blue);color:#fff; }
+    .pin.warn .pin-body { background:var(--yellow);color:#000; }
+    .pin.end .pin-body { background:var(--red);color:#fff;font-size:14px; }
+
+    /* Map overlay (driver/count) */
+    .map-overlay {
+      position:absolute;top:12px;left:12px;
+      background:rgba(10,14,23,0.85);
+      border:1px solid var(--border);
+      border-radius:9px;
+      padding:8px 12px;
+      font-size:11px;
+    }
+    .map-overlay .overlay-driver { color:var(--amber);font-weight:700;font-size:12px; }
+    .map-overlay .overlay-meta { color:var(--text-muted);margin-top:2px; }
+
+    /* Zoom controls */
+    .zoom-controls {
+      position:absolute;right:12px;top:12px;
+      display:flex;flex-direction:column;gap:2px;
+    }
+    .zoom-btn {
+      width:32px;height:32px;
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:7px;color:var(--text);font-size:18px;
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer;
+    }
+
+    /* Legend pill */
+    .map-legend {
+      position:absolute;bottom:12px;left:12px;
+      display:flex;flex-wrap:wrap;gap:5px;
+    }
+    .leg-item {
+      background:rgba(10,14,23,0.88);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:3px 8px;
+      font-size:10px;color:var(--text-muted);
+      display:flex;align-items:center;gap:4px;
+    }
+    .leg-dot { width:8px;height:8px;border-radius:50%; }
+
+    /* Google Maps badge */
+    .gm-badge {
+      position:absolute;bottom:12px;right:12px;
+      background:rgba(10,14,23,0.85);border:1px solid var(--border);
+      border-radius:6px;padding:3px 7px;
+      font-size:9px;color:var(--text-muted);
+    }
+
+    /* Popup card on map */
+    .map-popup {
+      position:absolute;
+      background:var(--surface);
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:10px 12px;
+      width:200px;
+      box-shadow:0 4px 20px rgba(0,0,0,0.6);
+      z-index:20;
+    }
+    .map-popup .pop-close {
+      position:absolute;top:6px;right:8px;
+      color:var(--text-muted);font-size:14px;cursor:pointer;
+    }
+    .map-popup .pop-seq { font-size:11px;color:var(--text-muted);margin-bottom:3px; }
+    .map-popup .pop-name { font-size:13px;font-weight:700;color:var(--text); }
+    .map-popup .pop-addr { font-size:11px;color:var(--text-muted);margin:3px 0; }
+    .map-popup .pop-badges { display:flex;gap:5px;flex-wrap:wrap;margin-top:6px; }
+    .pop-actions { display:flex;gap:6px;margin-top:8px; }
+    .pop-btn {
+      flex:1;padding:6px;border-radius:6px;
+      font-size:11px;font-weight:600;
+      border:1px solid var(--border);background:var(--surface-2);
+      color:var(--text-muted);cursor:pointer;text-align:center;
+    }
+    .pop-btn.amber { background:var(--amber);border-color:var(--amber);color:#000; }
+
+    /* ── BOTTOM DRAWER ── */
+    .bottom-drawer {
+      position:absolute;
+      bottom:0;left:0;right:0;
+      background:var(--surface);
+      border-top:2px solid var(--border);
+      border-radius:16px 16px 0 0;
+      z-index:40;
+      transition:transform 0.3s ease;
+      max-height:70vh;
+      display:flex;
+      flex-direction:column;
+    }
+    .drawer-handle {
+      width:36px;height:4px;background:var(--border);
+      border-radius:2px;margin:8px auto 0;
+    }
+    .drawer-header {
+      padding:10px 14px 8px;
+      display:flex;align-items:center;gap:8px;
+      border-bottom:1px solid var(--border);
+      flex-shrink:0;
+    }
+    .drawer-header h2 { font-size:14px;font-weight:700;color:var(--amber);flex:1; }
+
+    .status-badge {
+      display:inline-flex;align-items:center;
+      padding:2px 8px;border-radius:10px;
+      font-size:11px;font-weight:600;
+    }
+    .badge-optimized { background:#0e3a1f;color:var(--green);border:1px solid #1c6033; }
+    .badge-pickup { background:#3d2a00;color:#f59e0b;border:1px solid #7a5500; }
+    .badge-dropbox { background:#0d2040;color:var(--blue);border:1px solid #1a4080; }
+    .badge-warn { background:#2d2000;color:var(--yellow);border:1px solid #5a4000; }
+    .badge-pending { background:#1a2235;color:var(--text-muted);border:1px solid var(--border); }
+
+    /* Tabs inside drawer */
+    .drawer-tabs {
+      display:flex;border-bottom:1px solid var(--border);
+      flex-shrink:0;
+    }
+    .dtab {
+      flex:1;padding:8px 0;text-align:center;
+      font-size:11px;font-weight:600;color:var(--text-muted);
+      border-bottom:2px solid transparent;
+      cursor:pointer;
+    }
+    .dtab.active { color:var(--amber);border-bottom-color:var(--amber); }
+
+    /* Drawer scroll content */
+    .drawer-scroll {
+      overflow-y:auto;
+      flex:1;
+      padding:10px;
+      display:flex;flex-direction:column;gap:8px;
+    }
+    .drawer-scroll::-webkit-scrollbar { width:3px; }
+    .drawer-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+    /* Compact stop row in drawer */
+    .drawer-stop {
+      background:var(--surface-2);border:1px solid var(--border);
+      border-radius:8px;padding:10px;
+      display:flex;align-items:flex-start;gap:8px;
+    }
+    .dr-seq {
+      width:24px;height:24px;border-radius:50%;
+      background:var(--surface-3);border:1.5px solid var(--amber);
+      display:flex;align-items:center;justify-content:center;
+      font-size:11px;font-weight:700;color:var(--amber);flex-shrink:0;
+    }
+    .dr-info { flex:1;min-width:0; }
+    .dr-name { font-size:12px;font-weight:600;color:var(--text); }
+    .dr-addr { font-size:11px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .dr-badges { display:flex;gap:4px;flex-wrap:wrap;margin-top:4px; }
+
+    /* ── Driver selector in drawer ── */
+    .driver-selector {
+      background:var(--surface-2);border:1px solid var(--border);
+      border-radius:8px;padding:10px;
+      display:flex;align-items:center;gap:8px;
+      flex-shrink:0;
+    }
+    .driver-selector label { font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);white-space:nowrap; }
+    .driver-selector select {
+      flex:1;background:var(--surface);border:1px solid var(--border);
+      color:var(--text);border-radius:6px;padding:6px 8px;font-size:12px;
+    }
+
+    /* Stats in drawer */
+    .drawer-stats {
+      display:flex;gap:0;
+      background:var(--surface-2);border:1px solid var(--border);
+      border-radius:8px;overflow:hidden;
+      flex-shrink:0;
+    }
+    .dst { flex:1;text-align:center;padding:8px 4px;border-right:1px solid var(--border); }
+    .dst:last-child { border-right:none; }
+    .dst-num { font-size:16px;font-weight:700;color:var(--amber);line-height:1; }
+    .dst-lbl { font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-top:2px; }
+
+    /* Drawer actions */
+    .drawer-actions {
+      padding:10px;border-top:1px solid var(--border);flex-shrink:0;
+      display:flex;flex-direction:column;gap:7px;
+    }
+    .da-row { display:flex;gap:7px; }
+    .da-btn {
+      flex:1;padding:10px;border-radius:8px;font-size:12px;font-weight:700;
+      border:none;cursor:pointer;text-align:center;
+    }
+    .da-btn.amber { background:var(--amber);color:#000; }
+    .da-btn.outline { background:transparent;border:1px solid var(--border);color:var(--text-muted); }
+    .da-btn.blue { background:#102040;border:1px solid var(--blue);color:var(--blue); }
+    .da-btn:disabled { opacity:.4;cursor:not-allowed; }
+
+    /* FAB — opens drawer */
+    .fab {
+      position:absolute;right:14px;
+      width:48px;height:48px;border-radius:50%;
+      background:var(--amber);
+      border:none;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      font-size:22px;
+      box-shadow:0 4px 16px rgba(245,166,35,0.4);
+      z-index:30;
+    }
+
+    /* Mobile nav */
+    .mobile-nav {
+      background:var(--surface);border-top:1px solid var(--border);
+      display:flex;flex-shrink:0;
+      padding-bottom:env(safe-area-inset-bottom,0px);
+      position:relative;z-index:50;
+    }
+    .nav-item {
+      flex:1;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;
+      padding:7px 0;gap:3px;cursor:pointer;
+      color:var(--text-muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em;
+    }
+    .nav-item.active { color:var(--amber); }
+    .nav-item .ni { font-size:17px;line-height:1; }
+
+    /* Mockup note */
+    .mockup-note {
+      position:fixed;top:62px;right:10px;
+      background:rgba(0,0,0,0.88);border:1px dashed var(--amber);
+      border-radius:8px;padding:5px 9px;font-size:10px;color:var(--amber);
+      max-width:155px;pointer-events:none;z-index:100;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="logo">C</div>
+    <div class="title-block">
+      <h1>Routes &amp; Optimization</h1>
+      <span>R4 · HQ Portal · Wed Jun 10</span>
+    </div>
+    <button class="hdr-btn">↺ Reset</button>
+    <button class="hdr-btn amber">HQ</button>
+  </header>
+
+  <!-- ROLE BAR -->
+  <div class="role-bar">
+    <span class="rl-label">Viewing as</span>
+    <span style="font-size:12px;color:var(--text);">Head Office / Owner</span>
+    <div class="rl-pills">
+      <span class="rl-pill active">HQ</span>
+      <span class="rl-pill">Office</span>
+      <span class="rl-pill">Driver</span>
+    </div>
+  </div>
+
+  <!-- MAP AREA (fills remaining space) -->
+  <div class="map-area">
+    <div class="map-canvas">
+      <!-- Road grid lines (simulated) -->
+      <div class="road h" style="top:30%"></div>
+      <div class="road h" style="top:55%"></div>
+      <div class="road h" style="top:72%"></div>
+      <div class="road v" style="left:25%"></div>
+      <div class="road v" style="left:60%"></div>
+
+      <!-- Route polyline SVG -->
+      <svg class="route-svg" viewBox="0 0 400 500" preserveAspectRatio="none">
+        <polyline
+          points="80,440 120,320 180,240 260,170 310,100 350,50"
+          fill="none"
+          stroke="#f5a623"
+          stroke-width="3"
+          stroke-dasharray="8,4"
+          opacity="0.7"
+        />
+      </svg>
+
+      <!-- Start pin (warehouse) -->
+      <div class="pin start" style="left:20%;top:88%">
+        <div class="pin-body">🏭</div>
+        <div class="pin-tail"></div>
+      </div>
+
+      <!-- Stop pins (pickup = amber, dropbox = blue) -->
+      <div class="pin pickup" style="left:30%;top:64%">
+        <div class="pin-body">1</div>
+        <div class="pin-tail"></div>
+      </div>
+      <div class="pin dropbox" style="left:45%;top:48%">
+        <div class="pin-body">2</div>
+        <div class="pin-tail"></div>
+      </div>
+      <div class="pin warn" style="left:65%;top:34%">
+        <div class="pin-body">⚠</div>
+        <div class="pin-tail"></div>
+      </div>
+      <div class="pin pickup" style="left:78%;top:20%">
+        <div class="pin-body">4</div>
+        <div class="pin-tail"></div>
+      </div>
+      <div class="pin dropbox" style="left:88%;top:10%">
+        <div class="pin-body">5</div>
+        <div class="pin-tail"></div>
+      </div>
+
+      <!-- Popup on stop 2 -->
+      <div class="map-popup" style="left:15px;top:120px;">
+        <span class="pop-close">✕</span>
+        <div class="pop-seq">Stop 2</div>
+        <div class="pop-name">José Rodríguez</div>
+        <div class="pop-addr">1185 Morris Ave, Bronx, NY 10456</div>
+        <div class="pop-badges">
+          <span class="status-badge badge-dropbox" style="font-size:10px;">■ Drop Box</span>
+          <span class="status-badge badge-optimized" style="font-size:10px;">✅ Confirmed</span>
+        </div>
+        <div class="pop-actions">
+          <div class="pop-btn">Details</div>
+          <div class="pop-btn amber">Navigate</div>
+        </div>
+      </div>
+
+      <!-- Map overlay -->
+      <div class="map-overlay" style="top:auto;bottom:70px;">
+        <div class="overlay-driver">Carlos M. — Bronx Route</div>
+        <div class="overlay-meta">5 stops · 18.4 mi · 52 min</div>
+      </div>
+
+      <!-- Zoom controls -->
+      <div class="zoom-controls">
+        <button class="zoom-btn">+</button>
+        <button class="zoom-btn">−</button>
+      </div>
+
+      <!-- Legend -->
+      <div class="map-legend">
+        <div class="leg-item"><div class="leg-dot" style="background:var(--green)"></div>Start</div>
+        <div class="leg-item"><div class="leg-dot" style="background:var(--amber)"></div>Pickup</div>
+        <div class="leg-item"><div class="leg-dot" style="background:var(--blue)"></div>Drop Box</div>
+        <div class="leg-item"><div class="leg-dot" style="background:var(--yellow)"></div>Unconfirmed</div>
+      </div>
+
+      <!-- Google Maps badge -->
+      <div class="gm-badge">Google Maps API</div>
+    </div>
+
+    <!-- FAB -->
+    <button class="fab" style="bottom:14px;" title="Open stop list drawer">☰</button>
+  </div>
+
+  <!-- BOTTOM DRAWER (half-open state) -->
+  <div class="bottom-drawer" style="transform:translateY(0);">
+    <div class="drawer-handle"></div>
+    <div class="drawer-header">
+      <h2>🗺 Routes &amp; Stops</h2>
+      <span class="status-badge badge-optimized">● Optimized</span>
+    </div>
+
+    <!-- Driver selector -->
+    <div style="padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div class="driver-selector">
+        <label>Driver</label>
+        <select>
+          <option>All Drivers</option>
+          <option selected>Carlos M. — Bronx Route</option>
+          <option>Marco T. — Queens Route</option>
+          <option>Luis R. — Manhattan Route</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div style="padding:8px 10px;border-bottom:1px solid var(--border);flex-shrink:0;">
+      <div class="drawer-stats">
+        <div class="dst"><div class="dst-num">5</div><div class="dst-lbl">Stops</div></div>
+        <div class="dst"><div class="dst-num">18.4<span style="font-size:9px">mi</span></div><div class="dst-lbl">Distance</div></div>
+        <div class="dst"><div class="dst-num">52<span style="font-size:9px">min</span></div><div class="dst-lbl">Est. Time</div></div>
+        <div class="dst"><div class="dst-num" style="color:var(--yellow)">1</div><div class="dst-lbl">⚠ Unconf.</div></div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="drawer-tabs">
+      <div class="dtab active">Stops (5)</div>
+      <div class="dtab">Queue (8)</div>
+      <div class="dtab">Drivers</div>
+    </div>
+
+    <!-- Stop list -->
+    <div class="drawer-scroll">
+      <div class="drawer-stop">
+        <div class="dr-seq">1</div>
+        <div class="dr-info">
+          <div class="dr-name">Maria Lopez</div>
+          <div class="dr-addr">2340 Grand Concourse, Bronx, NY 10458</div>
+          <div class="dr-badges">
+            <span class="status-badge badge-pickup" style="font-size:10px;padding:1px 6px;">▲ Pickup</span>
+            <span class="status-badge badge-optimized" style="font-size:10px;padding:1px 6px;">✅</span>
+          </div>
+        </div>
+      </div>
+      <div class="drawer-stop" style="border-color:var(--amber);">
+        <div class="dr-seq">2</div>
+        <div class="dr-info">
+          <div class="dr-name">José Rodríguez</div>
+          <div class="dr-addr">1185 Morris Ave, Bronx, NY 10456</div>
+          <div class="dr-badges">
+            <span class="status-badge badge-dropbox" style="font-size:10px;padding:1px 6px;">■ Drop Box</span>
+            <span class="status-badge badge-optimized" style="font-size:10px;padding:1px 6px;">✅</span>
+          </div>
+        </div>
+      </div>
+      <div class="drawer-stop">
+        <div class="dr-seq" style="border-color:var(--yellow);color:var(--yellow);">3</div>
+        <div class="dr-info">
+          <div class="dr-name">Ana Pérez</div>
+          <div class="dr-addr">580 E 183rd St, Bronx, NY 10458</div>
+          <div class="dr-badges">
+            <span class="status-badge badge-pickup" style="font-size:10px;padding:1px 6px;">▲ Pickup</span>
+            <span class="status-badge badge-warn" style="font-size:10px;padding:1px 6px;">⚠ Low Conf.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drawer actions -->
+    <div class="drawer-actions">
+      <div class="da-row">
+        <button class="da-btn outline">↺ Reset</button>
+        <button class="da-btn amber">⚡ Optimize Route</button>
+      </div>
+      <button class="da-btn blue" style="width:100%">📍 Assign to Driver</button>
+    </div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav class="mobile-nav">
+    <div class="nav-item"><span class="ni">📦</span><span>Orders</span></div>
+    <div class="nav-item active"><span class="ni">🗺</span><span>Map</span></div>
+    <div class="nav-item"><span class="ni">👥</span><span>Drivers</span></div>
+    <div class="nav-item"><span class="ni">⚙</span><span>Settings</span></div>
+  </nav>
+
+  <!-- MOCKUP ANNOTATION -->
+  <div class="mockup-note">
+    📐 MOCKUP<br>
+    HQ/Office map view<br>
+    Bottom drawer = sidebar<br>
+    Static placeholder data
+  </div>
+
+</body>
+</html>
