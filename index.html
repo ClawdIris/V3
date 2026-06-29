@@ -1321,6 +1321,14 @@ var ZONE_CONFIG = {
     emoji: "🟠"
   }
 };
+// CK-L1-007-ZONEMAP: canonical named zone-color map, DERIVED from ZONE_CONFIG (the SSOT)
+// so it can never drift. Every portal renderer that needs a bare zone->hex color must
+// read from ZONE_COLORS (or ZONE_CONFIG[zone].color) instead of hardcoding inline hexes.
+// Shape: { green: "#22c55e", yellow: "#ca8a04", blue: "#3b82f6", red: "#ef4444", orange: "#f97316" }
+var ZONE_COLORS = Object.keys(ZONE_CONFIG).reduce(function (acc, z) {
+  acc[z] = ZONE_CONFIG[z].color;
+  return acc;
+}, {});
 var DEST_ZONE_MAP = {
   // Green — 1-2 Days
   "Antigua": "green",
