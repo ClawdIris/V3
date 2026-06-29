@@ -19287,6 +19287,143 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
 /* ════════════════════════════════════════════
    CUSTOMER PROFILE PAGE
 ════════════════════════════════════════════ */
+var AddressBookPage = function AddressBookPage() {
+  var t = useT();
+  var h = React.createElement;
+  var _s1 = React.useState([]), contacts = _s1[0], setContacts = _s1[1];
+  var _s2 = React.useState(true), loading = _s2[0], setLoading = _s2[1];
+  var _s3 = React.useState(""), search = _s3[0], setSearch = _s3[1];
+  var _s4 = React.useState(null), editing = _s4[0], setEditing = _s4[1]; // contact object or {} for new
+  var _s5 = React.useState(false), importing = _s5[0], setImporting = _s5[1];
+  var _s6 = React.useState(""), banner = _s6[0], setBanner = _s6[1];
+
+  var reload = function reload() {
+    setLoading(true);
+    return _db.loadAddressBook().then(function (rows) {
+      setContacts(rows || []);
+      setLoading(false);
+    }).catch(function (e) {
+      setLoading(false);
+      setBanner(t("Failed to load contacts.", "Error al cargar contactos.") + " " + (e.message || ""));
+    });
+  };
+
+  React.useEffect(function () { reload(); }, []);
+
+  var doImport = function doImport() {
+    setImporting(true);
+    setBanner("");
+    _db.importContactsFromOrders().then(function (r) {
+      setImporting(false);
+      setBanner(t("Imported", "Importados") + " " + r.imported_count + " · " +
+        t("already existed", "ya existían") + " " + r.skipped_count +
+        (r.error_count ? " · " + t("errors", "errores") + " " + r.error_count : ""));
+      reload();
+    }).catch(function (e) {
+      setImporting(false);
+      setBanner(t("Import failed.", "Error al importar.") + " " + (e.message || ""));
+    });
+  };
+
+  var saveEditing = function saveEditing() {
+    if (!editing || !editing.name || !editing.name.trim()) {
+      setBanner(t("Name is required.", "El nombre es obligatorio."));
+      return;
+    }
+    var payload = Object.assign({}, editing);
+    if (typeof payload.tags === "string") {
+      payload.tags = payload.tags.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+    }
+    _db.saveContact(payload).then(function () {
+      setEditing(null);
+      setBanner(t("Contact saved.", "Contacto guardado."));
+      reload();
+    }).catch(function (e) {
+      setBanner(t("Save failed.", "Error al guardar.") + " " + (e.message || ""));
+    });
+  };
+
+  var removeContact = function removeContact(c) {
+    if (!window.confirm(t("Remove this contact from the address book?", "¿Eliminar este contacto del directorio?"))) return;
+    _db.deactivateContact(c.id).then(function () {
+      setBanner(t("Contact removed.", "Contacto eliminado."));
+      reload();
+    }).catch(function (e) {
+      setBanner(t("Remove failed.", "Error al eliminar.") + " " + (e.message || ""));
+    });
+  };
+
+  var q = (search || "").toLowerCase();
+  var filtered = contacts.filter(function (c) {
+    if (!q) return true;
+    return [c.name, c.phone, c.whatsapp, c.email, c.address, c.city, c.zip]
+      .filter(Boolean).join(" ").toLowerCase().indexOf(q) !== -1;
+  });
+
+  // ── Edit/new modal ─────────────────────────────────────────────────────────
+  var fld = function fld(label, key, ph) {
+    return h("div", { style: { marginBottom: 10 } },
+      h("label", { className: "xs mut", style: { display: "block", marginBottom: 3 } }, label),
+      h("input", {
+        className: "fi", value: editing[key] || "", placeholder: ph || "",
+        onChange: function (e) { var v = e.target.value; setEditing(function (p) { return Object.assign({}, p, _defineProperty({}, key, v)); }); }
+      }));
+  };
+
+  var modal = editing ? h("div", { className: "overlay", onClick: function () { setEditing(null); } },
+    h("div", { className: "modal", onClick: function (e) { e.stopPropagation(); } },
+      h("div", { className: "modal-hd" },
+        h("h3", null, editing.id ? t("Edit Contact", "Editar Contacto") : t("New Contact", "Nuevo Contacto")),
+        h("button", { className: "btn btn-ghost btn-sm", onClick: function () { setEditing(null); } }, "✕")),
+      h("div", { className: "modal-bd" },
+        fld(t("Full Name", "Nombre Completo") + " *", "name"),
+        h("div", { className: "row g10" }, h("div", { style: { flex: 1 } }, fld(t("Phone", "Teléfono"), "phone")), h("div", { style: { flex: 1 } }, fld("WhatsApp", "whatsapp"))),
+        fld(t("Email", "Correo"), "email"),
+        fld(t("Street Address", "Dirección"), "address"),
+        h("div", { className: "row g10" }, h("div", { style: { flex: 2 } }, fld(t("City", "Ciudad"), "city")), h("div", { style: { flex: 1 } }, fld(t("State", "Estado"), "state")), h("div", { style: { flex: 1 } }, fld(t("ZIP", "Código Postal"), "zip"))),
+        fld(t("Tags (comma-separated)", "Etiquetas (separadas por coma)"), "tags", "vip, repeat"),
+        h("div", { style: { marginBottom: 10 } },
+          h("label", { className: "xs mut", style: { display: "block", marginBottom: 3 } }, t("Preferred Language", "Idioma Preferido")),
+          h("select", { className: "fi", value: editing.preferred_language || "en", onChange: function (e) { var v = e.target.value; setEditing(function (p) { return Object.assign({}, p, { preferred_language: v }); }); } },
+            h("option", { value: "en" }, "English"),
+            h("option", { value: "es" }, "Español")))),
+      h("div", { className: "modal-ft" },
+        h("button", { className: "btn btn-ghost", onClick: function () { setEditing(null); } }, t("Cancel", "Cancelar")),
+        h("button", { className: "btn btn-primary", onClick: saveEditing }, t("Save Contact", "Guardar Contacto"))))) : null;
+
+  return h("div", { className: "fu" },
+    banner ? h("div", { className: "alert alert-b", style: { marginBottom: 12 } }, banner) : null,
+    // toolbar
+    h("div", { className: "row g10", style: { marginBottom: 14, flexWrap: "wrap" } },
+      h("input", { className: "fi", style: { flex: 1, minWidth: 200 }, placeholder: t("Search contacts…", "Buscar contactos…"), value: search, onChange: function (e) { setSearch(e.target.value); } }),
+      h("button", { className: "btn btn-green", onClick: function () { setEditing({ preferred_language: "en", country: "US", tags: [] }); } }, "+ ", t("New Contact", "Nuevo Contacto")),
+      h("button", { className: "btn btn-amber", disabled: importing, onClick: doImport }, importing ? t("Importing…", "Importando…") : "📥 " + t("Import from Orders", "Importar de Órdenes"))),
+    // stat
+    h("div", { className: "xs mut", style: { marginBottom: 8 } }, filtered.length + " " + t("contacts", "contactos")),
+    // list
+    loading ? h("div", { className: "xs mut", style: { padding: "24px 0", textAlign: "center" } }, t("Loading…", "Cargando…")) :
+      filtered.length === 0 ? h("div", { className: "card" }, h("div", { className: "card-bd xs mut", style: { textAlign: "center", padding: "32px 0" } },
+        contacts.length === 0 ? t("Your address book is empty. Use \"Import from Orders\" to add customers from your order history.", "Tu directorio está vacío. Usa \"Importar de Órdenes\" para agregar clientes de tu historial.") : t("No contacts match your search.", "Ningún contacto coincide."))) :
+      h("div", { className: "tbl" }, h("table", null,
+        h("thead", null, h("tr", null,
+          h("th", null, t("Name", "Nombre")),
+          h("th", null, t("Phone", "Teléfono")),
+          h("th", null, t("Address", "Dirección")),
+          h("th", null, t("Tags", "Etiquetas")),
+          h("th", null, t("Actions", "Acciones")))),
+        h("tbody", null, filtered.map(function (c) {
+          return h("tr", { key: c.id },
+            h("td", null, h("strong", null, c.name), c.preferred_language === "es" ? h("span", { className: "tag", style: { marginLeft: 6 } }, "ES") : null),
+            h("td", { className: "mono xs" }, c.phone || c.whatsapp || "—"),
+            h("td", { className: "xs" }, [c.address, c.city, c.state, c.zip].filter(Boolean).join(", ") || "—"),
+            h("td", null, (c.tags || []).map(function (tg) { return h("span", { key: tg, className: "tag", style: { marginRight: 4 } }, tg); })),
+            h("td", null,
+              h("button", { className: "btn btn-ghost btn-sm", onClick: function () { setEditing(Object.assign({}, c, { tags: (c.tags || []).join(", ") })); } }, t("Edit", "Editar")),
+              h("button", { className: "btn btn-ghost btn-sm", style: { marginLeft: 4, color: "var(--red)" }, onClick: function () { removeContact(c); } }, t("Remove", "Eliminar"))));
+        })))),
+    modal);
+};
+
 var CustomerProfilePage = function CustomerProfilePage(_ref113) {
   var orders = _ref113.orders,
     onImportCustomers = _ref113.onImportCustomers,
@@ -22484,6 +22621,11 @@ var ROLES = {
         l: "Customers",
         ls: "Clientes",
         i: "👤"
+      }, {
+        k: "address_book",
+        l: "Address Book",
+        ls: "Directorio",
+        i: "📇"
       }]
     }, {
       grp: "Admin",
@@ -22533,6 +22675,7 @@ var ROLES = {
       hq_ops: "HQ Operations",
       all_orders: "Orders",
       customers: "Customer Profiles",
+      address_book: "Address Book",
       onboarding: "Company Setup Wizard",
       shipments: "Shipments",
       routes: "Routes & Automation",
@@ -23819,6 +23962,69 @@ var _db = {
           sent_count:   r.sent_count,
           failed_count: r.failed_count
         });
+      });
+  },
+
+  // ── R2 Address Book (public.address_book) — GREEN contact directory ────────
+  // Pure contact/address reuse. No consent/messaging fields. Tenant-scoped by RLS.
+  loadAddressBook: function() {
+    return _supabase.from("address_book").select("*")
+      .eq("tenant_id", _db._tenantId)
+      .eq("is_active", true)
+      .order("name", { ascending: true })
+      .then(function(res) {
+        if (res.error) { console.error("[db] loadAddressBook error", res.error.message); return []; }
+        return res.data || [];
+      });
+  },
+
+  // Insert or update a contact. Returns the saved row, or throws on failure.
+  saveContact: function(contact) {
+    var row = {
+      tenant_id:          _db._tenantId,
+      name:               contact.name,
+      phone:              contact.phone || null,
+      whatsapp:           contact.whatsapp || null,
+      email:              contact.email || null,
+      address:            contact.address || null,
+      city:               contact.city || null,
+      state:              contact.state || null,
+      zip:                contact.zip || null,
+      country:            contact.country || "US",
+      tags:               contact.tags || [],
+      preferred_language: contact.preferred_language || "en",
+      source:             contact.source || "manual"
+    };
+    if (contact.id) row.id = contact.id;
+    return _supabase.from("address_book")
+      .upsert([row], { onConflict: "id" })
+      .select()
+      .single()
+      .then(function(res) {
+        if (res.error) { console.error("[db] saveContact error", res.error.message); throw new Error(res.error.message); }
+        return res.data;
+      });
+  },
+
+  // Soft-delete (no hard deletes per schema): set is_active = false.
+  deactivateContact: function(id) {
+    return _supabase.from("address_book")
+      .update({ is_active: false })
+      .eq("id", id)
+      .eq("tenant_id", _db._tenantId)
+      .then(function(res) {
+        if (res.error) { console.error("[db] deactivateContact error", res.error.message); throw new Error(res.error.message); }
+        return true;
+      });
+  },
+
+  // Call the SECURITY DEFINER import RPC. Returns { imported_count, skipped_count, error_count }.
+  importContactsFromOrders: function() {
+    return _supabase.rpc("import_contacts_from_orders", { p_tenant_id: _db._tenantId })
+      .then(function(res) {
+        if (res.error) { console.error("[db] importContactsFromOrders error", res.error.message); throw new Error(res.error.message); }
+        var r = (res.data && res.data[0]) || { imported_count: 0, skipped_count: 0, error_count: 0 };
+        return r;
       });
   },
 
@@ -28730,6 +28936,11 @@ setOrders(function (prev) {
           return [].concat(_toConsumableArray(prev), _toConsumableArray(imported));
         });
       }
+    });
+    if (page === "address_book") return /*#__PURE__*/React.createElement(AddressBookPage, {
+      t: t,
+      lang: lang,
+      notify: notify
     });
     if (page === "onboarding") return /*#__PURE__*/React.createElement(OnboardingWizard, {
       existingTenant: tenant,
