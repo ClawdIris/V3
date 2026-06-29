@@ -47,10 +47,13 @@ Deno.serve(async (req: Request) => {
   // Forward the caller's JWT so the RPC runs as the authenticated HQ/Office user
   // (confirm_order_address enforces role + tenant; SECURITY DEFINER + manual checks).
   const authHeader = req.headers.get("Authorization") ?? "";
+  const _hdrs: Record<string, string> = {};
+  _hdrs["Authorization"] = authHeader;
+  const clientOpts = { global: { headers: _hdrs } };
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
-    { global: { headers: { Authorization: authHeader } } },
+    clientOpts,
   );
 
   // --- Google Geocoding ---
@@ -64,12 +67,19 @@ Deno.serve(async (req: Request) => {
   }
   const data = await geo.json();
 
-  if (data.status === "ZERO_RESULTS" || !data.results?.length) {
+  // Distinguish "address genuinely not found" (ZERO_RESULTS) from an API/config
+  // error (REQUEST_DENIED, OVER_QUERY_LIMIT, etc.). Check status BEFORE results,
+  // otherwise a REQUEST_DENIED (0 results) is mis-reported as 'unresolvable'.
+  if (data.status === "ZERO_RESULTS") {
     return json({ success: false, order_id, confidence: "unresolvable" });
   }
   if (data.status !== "OK") {
-    // Do NOT pass through Google's error_message (can contain key context).
+    // Surface the Google status code (e.g. REQUEST_DENIED) so config problems are
+    // diagnosable, but NEVER echo error_message (can contain key/referrer context).
     return json({ error: "geocoding_failed", status: data.status }, 502);
+  }
+  if (!data.results?.length) {
+    return json({ success: false, order_id, confidence: "unresolvable" });
   }
 
   const top = data.results[0];

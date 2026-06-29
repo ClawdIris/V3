@@ -51,10 +51,13 @@ Deno.serve(async (req: Request) => {
   }
 
   const authHeader = req.headers.get("Authorization") ?? "";
+  const _hdrs: Record<string, string> = {};
+  _hdrs["Authorization"] = authHeader;
+  const clientOpts = { global: { headers: _hdrs } };
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
-    { global: { headers: { Authorization: authHeader } } },
+    clientOpts,
   );
 
   // --- Address gate: every stop must have a confirmed address ---
