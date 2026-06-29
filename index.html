@@ -49,6 +49,39 @@
     var SUPABASE_URL     = "https://exayifxbqduhsxmmsnxr.supabase.co";
     var SUPABASE_ANON_KEY = "sb_publishable_vqS6u4BduAw6fYYaLP-2aA_gfETHuH1";
     var _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // ── Google Maps BROWSER key (Maps JS + Places only) ──────────────────────
+    // Option A (Jeffrey 2026-06-29): this is the BROWSER key, HTTP-referrer-locked
+    // to casabekonnect-app.netlify.app and restricted to Maps JavaScript + Places APIs.
+    // It is SAFE to expose in page source BECAUSE of the referrer lock.
+    // The SERVER key (Geocoding + Routes) is NEVER here — it lives only in Supabase
+    // Edge Function secrets (GOOGLE_GEOCODING_KEY / GOOGLE_ROUTES_KEY).
+    var GOOGLE_MAPS_KEY = "AIzaSyCYlZis_eWus1IeOKUPNZHyhY1ZUb8pNQg";
+    // initGoogleMaps(cb): lazy-load the Maps JS API once; cb fires when ready.
+    // Graceful degradation: if the key is empty/missing, never throws — callers
+    // check window.__googleMapsReady and render the GOOGLE_MAPS_KEY_MISSING banner.
+    window.__googleMapsReady = false;
+    window.__googleMapsLoading = false;
+    window.__googleMapsCbs = [];
+    function initGoogleMaps(cb) {
+      if (window.__googleMapsReady && window.google && window.google.maps) { if (cb) cb(); return; }
+      if (cb) window.__googleMapsCbs.push(cb);
+      if (!GOOGLE_MAPS_KEY) { return; } // no key → degradation banner handles UX
+      if (window.__googleMapsLoading) return;
+      window.__googleMapsLoading = true;
+      window.__gmapsInit = function () {
+        window.__googleMapsReady = true;
+        window.__googleMapsLoading = false;
+        var cbs = window.__googleMapsCbs.splice(0);
+        cbs.forEach(function (f) { try { f(); } catch (e) { /* swallow per-callback */ } });
+      };
+      var s = document.createElement("script");
+      s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(GOOGLE_MAPS_KEY) +
+              "&libraries=places&loading=async&callback=__gmapsInit";
+      s.async = true; s.defer = true;
+      s.onerror = function () { window.__googleMapsLoading = false; /* banner handles UX */ };
+      document.head.appendChild(s);
+    }
   </script>
 </head>
 <body>
@@ -19287,6 +19320,20 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
 /* ════════════════════════════════════════════
    CUSTOMER PROFILE PAGE
 ════════════════════════════════════════════ */
+// ── Google Maps graceful-degradation banner ─────────────────────────────────
+// Renders when GOOGLE_MAPS_KEY is empty/missing OR the Maps JS API failed to load.
+// Keeps map-dependent pages usable (lists still work) instead of hard-crashing.
+var GoogleMapsKeyMissingBanner = function GoogleMapsKeyMissingBanner() {
+  var t = useT();
+  return /*#__PURE__*/React.createElement("div", {
+    className: "alert alert-a",
+    style: { marginBottom: 12 }
+  }, "\uD83D\uDDFA\uFE0F ", t(
+    "Map view is temporarily unavailable (Google Maps key not configured). Lists and stop data still work.",
+    "La vista de mapa no está disponible (falta la clave de Google Maps). Las listas y los datos de paradas siguen funcionando."
+  ));
+};
+
 var AddressBookPage = function AddressBookPage() {
   var t = useT();
   var h = React.createElement;
