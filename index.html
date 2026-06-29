@@ -22356,8 +22356,14 @@ var TENANT_DB = {
 
 // Active tenant context — in production this comes from auth session
 // Casabe Connect platform role can switch between tenants
+// CK-SMOKE-PREREQ-2: alias the canonical data slug. All live members/orders use
+// "casabe-xpress" (no "e"); the TENANT_DB display config was keyed only "casabe-express".
+// Alias so either slug resolves to the same config and the fallback matches real data.
+if (typeof TENANT_DB["casabe-xpress"] === "undefined" && TENANT_DB["casabe-express"]) {
+  TENANT_DB["casabe-xpress"] = TENANT_DB["casabe-express"];
+}
 var getActiveTenant = function getActiveTenant(tenantId) {
-  return TENANT_DB[tenantId] || TENANT_DB["casabe-express"];
+  return TENANT_DB[tenantId] || TENANT_DB["casabe-xpress"] || TENANT_DB["casabe-express"];
 };
 
 /* ════════════════════════════════════════════
@@ -25347,7 +25353,7 @@ function AppShell(_ref130) {
   // Tenant config is loaded from Supabase (tenant_settings) in the
   // data-load effect below. Seed with session.tenantId lookup from
   // TENANT_DB so the UI isn't blank on first render, but DB wins.
-  var _useState159 = useState(getActiveTenant(session.tenantId || "casabe-express")),
+  var _useState159 = useState(getActiveTenant(session.tenantId || "casabe-xpress")),
     _useState160 = _slicedToArray(_useState159, 2),
     tenant = _useState160[0],
     setTenant = _useState160[1];
