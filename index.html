@@ -6507,7 +6507,7 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
   }, gpsPos.lat.toFixed(5), ", ", gpsPos.lng.toFixed(5))), gpsStatus === "idle" && /*#__PURE__*/React.createElement("button", {
     className: "btn btn-green btn-sm",
     onClick: startGps
-  }, "\uD83D\uDCCD Start GPS"), gpsStatus === "active" && /*#__PURE__*/React.createElement("span", {
+  }, "\uD83D\uDCCD ", t("Start GPS", "Iniciar GPS")), gpsStatus === "active" && /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 11,
       color: "var(--text4)"
@@ -6517,7 +6517,7 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
     onClick: function onClick() {
       return setShiftStart(Date.now());
     }
-  }, "\uD83D\uDD50 Start Shift") : /*#__PURE__*/React.createElement("span", {
+  }, "\uD83D\uDD50 ", t("Start Shift", "Iniciar Turno")) : /*#__PURE__*/React.createElement("span", {
     style: {
       fontSize: 11,
       color: "var(--text3)",
@@ -6759,7 +6759,7 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
   })
 ), myPickups.length === 0 && myDropoffs.length === 0 && /*#__PURE__*/React.createElement("div", {
     className: "alert alert-g"
-  }, "\u2705 All stops complete! Head back to the warehouse."), myAttempted.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+  }, "\u2705 ", t("All stops complete! Head back to the warehouse.", "¡Todas las paradas completadas! Regresa al almacén.")), myAttempted.length > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: "'Syne',sans-serif",
       fontWeight: 700,
@@ -6896,7 +6896,7 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
     onClick: function onClick() {
       return setShiftStart(null);
     }
-  }, "\uD83D\uDD34 End Shift")))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+  }, "\uD83D\uDD34 ", t("End Shift", "Finalizar Turno"))))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
     className: "card mb12"
   }, /*#__PURE__*/React.createElement("div", {
     className: "card-hd"
@@ -29326,21 +29326,21 @@ setOrders(function (prev) {
       }, T("HQ Operations", "Operaciones HQ")), /*#__PURE__*/React.createElement("div", {
         className: "g3 mb12"
       }, [{
-        l: "Pickup Ready",
+        l: T("Pickup Ready", "Listos para Recoger"),
         v: orders.filter(function (o) {
           return o.status === "ready_pickup";
         }).length,
         i: "🚚",
         c: "sc-a"
       }, {
-        l: "In Transit",
+        l: T("In Transit", "En Tránsito"),
         v: orders.filter(function (o) {
           return o.status === "in_transit";
         }).length,
         i: "📦",
         c: "sc-b"
       }, {
-        l: "Completed Today",
+        l: T("Completed Today", "Completados Hoy"),
         v: orders.filter(function (o) {
           return o.status === "completed" && o.created_date === _today;
         }).length,
@@ -29361,13 +29361,13 @@ setOrders(function (prev) {
         className: "tabs"
       }, [{
         k: "pickup",
-        l: "🚚 Pickup Ready"
+        l: T("🚚 Pickup Ready", "🚚 Listos para Recoger")
       }, {
         k: "transit",
-        l: "📦 In Transit"
+        l: T("📦 In Transit", "📦 En Tránsito")
       }, {
         k: "completed",
-        l: "✅ Completed"
+        l: T("✅ Completed", "✅ Completados")
       }].map(function (tab) {
         return /*#__PURE__*/React.createElement("div", {
           key: tab.k,
@@ -29380,7 +29380,7 @@ setOrders(function (prev) {
         className: "card"
       }, /*#__PURE__*/React.createElement("div", {
         className: "card-hd"
-      }, /*#__PURE__*/React.createElement("h3", null, activeHQTab === "pickup" ? "Pickup Ready Orders" : activeHQTab === "transit" ? "In Transit Orders" : "Completed Orders")), /*#__PURE__*/React.createElement("div", {
+      }, /*#__PURE__*/React.createElement("h3", null, activeHQTab === "pickup" ? T("Pickup Ready Orders", "Órdenes Listas para Recoger") : activeHQTab === "transit" ? T("In Transit Orders", "Órdenes En Tránsito") : T("Completed Orders", "Órdenes Completadas"))), /*#__PURE__*/React.createElement("div", {
         className: "card-bd"
       }, _hqFilteredOrders.length ? /*#__PURE__*/React.createElement("div", null, _hqFilteredOrders.map(function (o) {
         var _payment = o.payment || {};
@@ -29421,10 +29421,12 @@ setOrders(function (prev) {
           className: "xs mut"
         }, o.office))));
       })) : /*#__PURE__*/React.createElement("div", {
+        className: "xs mut",
         style: {
-          color: "var(--text-muted)"
+          padding: "12px 0",
+          textAlign: "center"
         }
-      }, "No orders in this category."))), /*#__PURE__*/React.createElement("div", {
+      }, T("No orders in this category.", "No hay órdenes en esta categoría.")))), /*#__PURE__*/React.createElement("div", {
         className: "card mt12"
       }, /*#__PURE__*/React.createElement("div", {
         className: "card-hd"
