@@ -19334,6 +19334,179 @@ var GoogleMapsKeyMissingBanner = function GoogleMapsKeyMissingBanner() {
   ));
 };
 
+// ── SLICE 2: PlacesAutocomplete ──────────────────────────────────────────────
+// Google Places Autocomplete input. 3-char trigger, 300ms debounce, US-restricted.
+// Uses the browser Maps JS `places` library (loaded via initGoogleMaps). On select,
+// calls onSelect(formattedAddress). Degrades to a plain text input if Maps unavailable.
+var PlacesAutocomplete = function PlacesAutocomplete(_p) {
+  var value = _p.value, onChange = _p.onChange, onSelect = _p.onSelect, placeholder = _p.placeholder;
+  var t = useT();
+  var h = React.createElement;
+  var _s1 = React.useState([]), preds = _s1[0], setPreds = _s1[1];
+  var _s2 = React.useState(false), open = _s2[0], setOpen = _s2[1];
+  var _s3 = React.useState(false), ready = _s3[0], setReady = _s3[1];
+  var svcRef = React.useRef(null);
+  var tokenRef = React.useRef(null);
+  var debRef = React.useRef(null);
+
+  React.useEffect(function () {
+    initGoogleMaps(function () {
+      if (window.google && window.google.maps && window.google.maps.places) {
+        svcRef.current = new window.google.maps.places.AutocompleteService();
+        tokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
+        setReady(true);
+      }
+    });
+    return function () { if (debRef.current) clearTimeout(debRef.current); };
+  }, []);
+
+  var handleInput = function (v) {
+    onChange(v);
+    if (debRef.current) clearTimeout(debRef.current);
+    if (!ready || !svcRef.current || (v || "").trim().length < 3) { setPreds([]); setOpen(false); return; }
+    debRef.current = setTimeout(function () {
+      svcRef.current.getPlacePredictions({
+        input: v,
+        sessionToken: tokenRef.current,
+        componentRestrictions: { country: "us" }
+      }, function (predictions, status) {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
+          setPreds(predictions.slice(0, 5)); setOpen(true);
+        } else { setPreds([]); setOpen(false); }
+      });
+    }, 300);
+  };
+
+  var pick = function (p) {
+    setOpen(false); setPreds([]);
+    onChange(p.description);
+    // fresh session token after a selection (Places billing best-practice)
+    if (window.google && window.google.maps && window.google.maps.places) {
+      tokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
+    }
+    if (onSelect) onSelect(p.description);
+  };
+
+  return h("div", { style: { position: "relative" } },
+    h("input", {
+      className: "fi",
+      value: value || "",
+      placeholder: placeholder || t("Start typing an address…", "Escribe una dirección…"),
+      onChange: function (e) { handleInput(e.target.value); },
+      onFocus: function () { if (preds.length) setOpen(true); },
+      onBlur: function () { setTimeout(function () { setOpen(false); }, 180); }
+    }),
+    open && preds.length > 0 ? h("div", {
+      style: {
+        position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
+        background: "var(--bg2)", border: "1px solid var(--border2)",
+        borderRadius: 8, marginTop: 2, overflow: "hidden", boxShadow: "0 6px 20px rgba(0,0,0,.4)"
+      }
+    }, preds.map(function (p) {
+      var main = (p.structured_formatting && p.structured_formatting.main_text) || p.description;
+      var sec = (p.structured_formatting && p.structured_formatting.secondary_text) || "";
+      return h("div", {
+        key: p.place_id,
+        onMouseDown: function (e) { e.preventDefault(); pick(p); },
+        style: { padding: "8px 11px", cursor: "pointer", borderBottom: "1px solid var(--border)" },
+        className: "places-opt"
+      },
+        h("div", { style: { fontSize: 12.5, color: "var(--text)", fontWeight: 600 } }, main),
+        sec ? h("div", { style: { fontSize: 11, color: "var(--text3)" } }, sec) : null
+      );
+    })) : null,
+    !ready ? h("div", { className: "xs mut", style: { marginTop: 3 } },
+      t("Address autocomplete loading…", "Cargando autocompletado…")) : null
+  );
+};
+
+// ── SLICE 2: AddressConfirmationModal ────────────────────────────────────────
+// Opens when one or more selected stops fail the address-confidence gate
+// (address_confidence !== 'high'). For each flagged stop: Use suggestion (re-geocode
+// current address), Edit address (PlacesAutocomplete -> re-geocode), or Remove from route.
+// "Continue to optimize" stays disabled until all flagged stops are resolved or removed.
+// onResolve(orderId, {confidence, lat, lng, resolved_address}); onRemove(orderId);
+// onContinue() fires when zero flagged remain; onClose() dismisses.
+var AddressConfirmationModal = function AddressConfirmationModal(_p) {
+  var flagged = _p.flagged || [];        // [{ order_id, name, address, confidence }]
+  var onResolve = _p.onResolve, onRemove = _p.onRemove, onContinue = _p.onContinue,
+      onClose = _p.onClose, geocodeFn = _p.geocodeFn;
+  var t = useT();
+  var h = React.createElement;
+  var _s1 = React.useState({}), editing = _s1[0], setEditing = _s1[1];   // orderId -> draft address
+  var _s2 = React.useState({}), busy = _s2[0], setBusy = _s2[1];          // orderId -> bool
+  var _s3 = React.useState({}), errs = _s3[0], setErrs = _s3[1];          // orderId -> string
+
+  var remaining = flagged.length;
+
+  var runGeocode = function (orderId, address) {
+    setBusy(function (b) { return Object.assign({}, b, _defineProperty({}, orderId, true)); });
+    setErrs(function (e) { return Object.assign({}, e, _defineProperty({}, orderId, "")); });
+    geocodeFn(orderId, address).then(function (r) {
+      setBusy(function (b) { return Object.assign({}, b, _defineProperty({}, orderId, false)); });
+      if (r.ok && r.confidence === "high") {
+        onResolve(orderId, r);
+      } else if (r.ok) {
+        setErrs(function (e) { return Object.assign({}, e, _defineProperty({}, orderId,
+          t("Still low confidence — edit the address for a better match.",
+            "Confianza baja — edita la dirección para un mejor resultado."))); });
+      } else {
+        setErrs(function (e) { return Object.assign({}, e, _defineProperty({}, orderId,
+          t("Could not verify this address.", "No se pudo verificar la dirección."))); });
+      }
+    });
+  };
+
+  return h("div", { className: "overlay", onClick: onClose },
+    h("div", { className: "modal modal-lg", onClick: function (e) { e.stopPropagation(); } },
+      h("div", { className: "modal-title" },
+        "\uD83D\uDCCD ", t("Confirm Delivery Addresses", "Confirmar Direcciones")),
+      h("div", { className: "mut", style: { marginBottom: 14, fontSize: 12 } },
+        t("These stops need a verified address before the route can be optimized. Use the suggestion, edit the address, or remove the stop.",
+          "Estas paradas necesitan una dirección verificada antes de optimizar. Usa la sugerencia, edita la dirección o elimina la parada.")),
+      flagged.length === 0
+        ? h("div", { className: "alert alert-g" }, "\u2705 ", t("All addresses confirmed.", "Todas las direcciones confirmadas."))
+        : flagged.map(function (s) {
+            var oid = s.order_id;
+            var draft = editing[oid] != null ? editing[oid] : s.address;
+            return h("div", { key: oid, className: "card", style: { marginBottom: 10 } },
+              h("div", { className: "card-bd" },
+                h("div", { className: "row", style: { justifyContent: "space-between", marginBottom: 6 } },
+                  h("strong", null, s.name || oid),
+                  h("span", { className: "badge br" }, (s.confidence || "unresolved"))),
+                h("div", { className: "xs mut", style: { marginBottom: 8 } }, s.address || "—"),
+                editing[oid] != null
+                  ? h(PlacesAutocomplete, {
+                      value: draft,
+                      onChange: function (v) { setEditing(function (p) { return Object.assign({}, p, _defineProperty({}, oid, v)); }); },
+                      onSelect: function (addr) { runGeocode(oid, addr); }
+                    })
+                  : null,
+                errs[oid] ? h("div", { className: "xs", style: { color: "var(--red)", marginTop: 5 } }, errs[oid]) : null,
+                h("div", { className: "row g6", style: { marginTop: 9, flexWrap: "wrap" } },
+                  h("button", {
+                    className: "btn btn-green btn-sm", disabled: !!busy[oid],
+                    onClick: function () { runGeocode(oid, s.address); }
+                  }, busy[oid] ? t("Checking…", "Verificando…") : t("Use suggestion", "Usar sugerencia")),
+                  h("button", {
+                    className: "btn btn-ghost btn-sm",
+                    onClick: function () { setEditing(function (p) { return Object.assign({}, p, _defineProperty({}, oid, s.address || "")); }); }
+                  }, t("Edit address", "Editar dirección")),
+                  h("button", {
+                    className: "btn btn-red btn-sm",
+                    onClick: function () { onRemove(oid); }
+                  }, t("Remove from route", "Quitar de la ruta")))));
+          }),
+      h("div", { className: "row g10", style: { marginTop: 16, justifyContent: "flex-end" } },
+        h("button", { className: "btn btn-ghost", onClick: onClose }, t("Cancel", "Cancelar")),
+        h("button", {
+          className: "btn btn-primary", disabled: remaining > 0,
+          onClick: onContinue
+        }, remaining > 0
+          ? t("Resolve " + remaining + " stop(s) to continue", "Resuelve " + remaining + " parada(s)")
+          : t("Continue to optimize", "Continuar a optimizar")))));
+};
+
 var AddressBookPage = function AddressBookPage() {
   var t = useT();
   var h = React.createElement;
@@ -26312,12 +26485,14 @@ setOrders(function (prev) {
   }).length;
 
   /* ═══════════════════════════════════════════════════════
-     PHASE 6 — SLICE 2: MapViewPage — Geocoding + Coord Quality
-     Nominatim geocoding pipeline, coordinate status tracking,
-     "needs coordinates" filter, colored pins, manual override form.
+     MapViewPage — Geocoding + Coord Quality
+     ROUTES SLICE 2: Google geocoding via geocode-address Edge Function
+     (replaced legacy Nominatim), address-confidence gate, coordinate status
+     tracking, "needs coordinates" filter, colored pins, manual override form.
+     NOTE: the Leaflet map tiles below are removed in Slice 3 (Google Maps rebuild).
   ═══════════════════════════════════════════════════════ */
 
-  /* ── Geocoding helpers (Nominatim / OpenStreetMap — no API key) ──
+  /* ── Geocoding helpers (relational geocoded_lat/lng/address_confidence) ──
      COORD_STATUSES, coordStatusColor, coordStatusLabel, coordStatusIcon,
      hasUsableCoords are defined at module scope above AppShell so the
      test suite and any external caller can access them without a
@@ -26331,36 +26506,54 @@ setOrders(function (prev) {
   function saveGeoCache(cache) {
     try { localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(cache)); } catch(e) {}
   }
-  /* Throttled Nominatim geocoding — respects 1 req/sec usage policy */
-  var _geoQueue = [];
-  var _geoRunning = false;
-  function enqueueGeocode(address, callback) {
-    _geoQueue.push({ address: address, callback: callback });
-    if (!_geoRunning) drainGeoQueue();
+  /* ── SLICE 2: Google geocoding via geocode-address Edge Function ──
+     Replaces the legacy Nominatim queue. The Edge Function geocodes server-side
+     with the restricted server key, classifies confidence, and persists
+     geocoded_lat/lng/address_confidence to the order via confirm_order_address.
+     Returns { success, confidence, lat, lng, resolved_address } or { error }.
+     enqueueGeocode(address, callback) is kept as a thin compatibility shim so the
+     existing auto-geocode useEffect keeps working; it maps EF results into the
+     legacy cache-entry shape (status: geocoded|low_confidence|missing). */
+  function geocodeOrderAddress(orderId, address) {
+    return _supabase.functions.invoke("geocode-address", {
+      body: { order_id: orderId, address: address }
+    }).then(function (res) {
+      // supabase-js: { data, error }. EF returns 2xx with {success,...} or 4xx/5xx body.
+      var d = (res && res.data) || {};
+      if (res && res.error && !d.confidence) {
+        return { ok: false, error: (d.error || "geocode_failed") };
+      }
+      return {
+        ok: d.success === true,
+        confidence: d.confidence || null,   // 'high' | 'low' | 'unresolvable'
+        lat: d.lat != null ? d.lat : null,
+        lng: d.lng != null ? d.lng : null,
+        resolved_address: d.resolved_address || null,
+        error: d.error || null
+      };
+    }).catch(function (e) {
+      return { ok: false, error: (e && e.message) || "network_error" };
+    });
   }
-  function drainGeoQueue() {
-    if (_geoQueue.length === 0) { _geoRunning = false; return; }
-    _geoRunning = true;
-    var item = _geoQueue.shift();
-    var url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(item.address);
-    fetch(url, { headers: { "Accept-Language": "en", "User-Agent": "CasabeKonnectR4/dev" } })
-      .then(function(r) { return r.json(); })
-      .then(function(data) {
-        if (data && data.length > 0) {
-          var result = data[0];
-          var importance = parseFloat(result.importance || "0");
-          var status = importance >= 0.4 ? COORD_STATUSES.geocoded : COORD_STATUSES.low_confidence;
-          item.callback(null, { lat: parseFloat(result.lat), lon: parseFloat(result.lon), status: status, importance: importance });
-        } else {
-          item.callback(null, { lat: null, lon: null, status: COORD_STATUSES.missing });
-        }
-      })
-      .catch(function(err) {
-        item.callback(err, { lat: null, lon: null, status: COORD_STATUSES.missing });
-      })
-      .finally(function() {
-        setTimeout(drainGeoQueue, 1100); // 1.1s throttle per Nominatim ToS
+  // Map EF confidence -> legacy COORD_STATUSES used by the (Slice-3-doomed) cache/pins.
+  function _efConfidenceToStatus(confidence) {
+    if (confidence === "high") return COORD_STATUSES.geocoded;
+    if (confidence === "low")  return COORD_STATUSES.low_confidence;
+    return COORD_STATUSES.missing; // 'unresolvable' / null
+  }
+  // Compatibility shim: same signature as the old Nominatim enqueueGeocode.
+  // orderId is threaded via the address-keyed map maintained by the caller.
+  function enqueueGeocode(address, callback, orderId) {
+    if (!orderId) { callback(null, { lat: null, lon: null, status: COORD_STATUSES.missing }); return; }
+    geocodeOrderAddress(orderId, address).then(function (r) {
+      if (!r.ok) { callback(r.error || null, { lat: null, lon: null, status: COORD_STATUSES.missing }); return; }
+      callback(null, {
+        lat: r.lat, lon: r.lng,
+        status: _efConfidenceToStatus(r.confidence),
+        confidence: r.confidence,
+        resolved_address: r.resolved_address
       });
+    });
   }
 
   /* ── Haversine distance helper (km) — used by Slice 3 TSP solver, no DB writes ── */
@@ -26452,6 +26645,12 @@ setOrders(function (prev) {
 
     var _useState_gc2 = useState(false);
     var geocoding = _useState_gc2[0], setGeocoding = _useState_gc2[1];
+
+    /* ── SLICE 2: address-confirmation gate state ── */
+    var _useState_acg = useState(null); // null = closed; array of flagged stops = open
+    var addrGateStops = _useState_acg[0], setAddrGateStops = _useState_acg[1];
+    var _useState_acgPending = useState(false); // true once gate cleared, re-run preview
+    var addrGateCleared = _useState_acgPending[0], setAddrGateCleared = _useState_acgPending[1];
 
     /* ── Route preview state (Slice 3) ── */
     var _useState_rdv = useState("");
@@ -26632,7 +26831,7 @@ setOrders(function (prev) {
           });
           completed++;
           if (completed >= toGeocode.length) setGeocoding(false);
-        });
+        }, o.id);
       });
     }, [activeOrders.length]);
 
@@ -26704,7 +26903,40 @@ setOrders(function (prev) {
     };
 
     /* ── Route preview handler — nearest-neighbor TSP, client-side only, zero DB writes ── */
-    var handlePreviewRoute = function() {
+    var handlePreviewRoute = function(_opts) {
+      var skipGate = _opts && _opts.skipGate;
+      // ── SLICE 2 ADDRESS GATE ──────────────────────────────────────────────
+      // Before optimizing, every selected stop must have a HIGH-confidence,
+      // confirmed address. Stops are confirmed when the geoCache entry has
+      // confidence==='high' (set by the geocode-address Edge Function) OR a
+      // manual_override. Anything else (low/missing/unresolvable) is flagged and
+      // the AddressConfirmationModal opens. Optimization does NOT proceed and the
+      // Routes API is NOT called until the gate clears.
+      if (!skipGate) {
+        var gateCandidates = activeOrders.filter(function(o) {
+          // only stops that would actually enter the route (have an address)
+          var addr = [o.address, o.city, o.state].filter(Boolean).join(", ");
+          return addr.length > 3;
+        });
+        var flagged = [];
+        gateCandidates.forEach(function(o) {
+          var entry = geoCache[o.id];
+          var conf = entry && entry.confidence;          // 'high' | 'low' | undefined
+          var isHigh = conf === "high" || (entry && entry.status === COORD_STATUSES.manual_override);
+          if (!isHigh) {
+            flagged.push({
+              order_id: o.id,
+              name: o.name || o.id,
+              address: [o.address, o.city, o.state].filter(Boolean).join(", "),
+              confidence: conf || (entry ? entry.status : "unverified")
+            });
+          }
+        });
+        if (flagged.length > 0) {
+          setAddrGateStops(flagged);   // opens AddressConfirmationModal
+          return;
+        }
+      }
       // Issue 6: use routeStart lat/lon if set, otherwise HQ default
       // Default: DEPOT_LAT = 25.7617, DEPOT_LON = -80.1918 (Miami metro)
       var DEPOT_LAT = (routeStart && routeStart.lat != null) ? routeStart.lat : 25.7617;
@@ -26770,7 +27002,31 @@ setOrders(function (prev) {
     /* ── Render ── */
     return /*#__PURE__*/React.createElement("div", { className: "fu" },
 
-      /* ── Header row ── */
+      /* ── SLICE 2: Address Confirmation Modal (gate) ── */
+      addrGateStops && /*#__PURE__*/React.createElement(AddressConfirmationModal, {
+        flagged: addrGateStops,
+        geocodeFn: geocodeOrderAddress,
+        onResolve: function(orderId, r) {
+          // EF already persisted to DB; update local cache + drop from flagged list
+          setGeoCache(function(prev) {
+            var updated = Object.assign({}, prev);
+            updated[orderId] = { lat: r.lat, lon: r.lng, status: COORD_STATUSES.geocoded,
+                                 confidence: r.confidence, resolved_address: r.resolved_address, cachedAt: Date.now() };
+            saveGeoCache(updated);
+            return updated;
+          });
+          setAddrGateStops(function(prev) { return (prev || []).filter(function(s) { return s.order_id !== orderId; }); });
+        },
+        onRemove: function(orderId) {
+          setAddrGateStops(function(prev) { return (prev || []).filter(function(s) { return s.order_id !== orderId; }); });
+        },
+        onContinue: function() {
+          setAddrGateStops(null);
+          handlePreviewRoute({ skipGate: true });
+        },
+        onClose: function() { setAddrGateStops(null); }
+      }),
+
       /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: "wrap" } },
         /*#__PURE__*/React.createElement("h2", { style: { fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, flex: 1 } }, "\uD83D\uDDFA\uFE0F " + t("Map Preview", "Vista Previa del Mapa")),
         /*#__PURE__*/React.createElement("span", { className: "badge ba" }, activeOrders.length + " active"),

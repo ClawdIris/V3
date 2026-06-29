@@ -103,14 +103,20 @@ describe('Gate 2: Missing coordinates flagging and filter', () => {
     expect(html).toContain('All active orders have usable coordinates!');
   });
 
-  test('Nominatim geocoding is actually called (not a stub)', () => {
-    expect(html).toContain('nominatim.openstreetmap.org');
-    expect(html).toContain('enqueueGeocode');
-    expect(html).toContain('drainGeoQueue');
+  test('Slice 2: Google geocode-address Edge Function wired (Nominatim removed)', () => {
+    // Nominatim network call must be GONE
+    expect(html).not.toContain('nominatim.openstreetmap.org/search');
+    // Edge Function geocoding present
+    expect(html).toContain('geocodeOrderAddress');
+    expect(html).toContain('geocode-address');
+    expect(html).toContain('enqueueGeocode'); // compatibility shim retained
   });
 
-  test('geocoding throttle of 1.1s is enforced', () => {
-    expect(html).toContain('setTimeout(drainGeoQueue, 1100)');
+  test('Slice 2: geocoding delegates to Edge Function (no client-side throttle queue)', () => {
+    // Old Nominatim throttle removed
+    expect(html).not.toContain('setTimeout(drainGeoQueue, 1100)');
+    // New path invokes the Edge Function
+    expect(html).toContain('functions.invoke("geocode-address"');
   });
 
   test('geoCache is persisted to localStorage', () => {

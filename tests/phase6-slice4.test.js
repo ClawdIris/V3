@@ -519,8 +519,10 @@ describe('Gate 24: Regression — MapViewPage still defined (Slice 1+3)', () => 
 // GATE [25] — Regression: Geocoding helpers (Slice 2)
 // ─────────────────────────────────────────────────────────────────────────────
 describe('Gate 25: Regression — Geocoding helpers still present (Slice 2)', () => {
-  test('Nominatim geocoding pipeline comment still present', () => {
-    expect(html).toContain('Nominatim');
+  test('Google Edge Function geocoding pipeline present (Nominatim replaced)', () => {
+    expect(html).toContain('geocodeOrderAddress');
+    expect(html).toContain('geocode-address');
+    expect(html).not.toContain('nominatim.openstreetmap.org/search');
   });
 
   test('COORD_STATUSES still defined', () => {

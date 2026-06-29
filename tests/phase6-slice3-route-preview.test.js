@@ -130,7 +130,7 @@ describe('Gate 5: Preview Route button', () => {
   });
 
   test('handlePreviewRoute function is defined', () => {
-    expect(html).toContain('var handlePreviewRoute = function()');
+    expect(html).toContain('var handlePreviewRoute = function(');
   });
 });
 
@@ -345,7 +345,8 @@ describe('Gate 12: Slice 1 + Slice 2 regression', () => {
     expect(html).toContain('k: "map_view"');
   });
 
-  test('Nominatim geocoding still wired (Slice 2)', () => {
-    expect(html).toContain('nominatim.openstreetmap.org');
+  test('Slice 2: Google geocode-address Edge Function wired (Nominatim removed)', () => {
+    expect(html).not.toContain('nominatim.openstreetmap.org/search');
+    expect(html).toContain('geocodeOrderAddress');
   });
 });
