@@ -1194,6 +1194,14 @@ var STATUS_MODEL = typeof window !== "undefined" && window.CASABE_STATUS_MODEL |
     cls: "bg"
   }],
   tracker: {
+    // CK-L1-017-REGRESSION (Path 2, INTENTIONAL DIVERGENCE — do NOT unify to internal labels):
+    // These customer-facing tracker labels are deliberately friendlier than the internal
+    // admin STATUS_LABELS (e.g. "Driver Picking Up Today" vs "Ready for Pickup",
+    // "At Warehouse" vs "In Warehouse", "Order Confirmed" vs "Order Placed"). This is a
+    // product/UX decision dating to commit ce4f02a (2026-05-27), NOT a bug. ShipmentTester
+    // must only flag UNINTENDED label defects (typos like "Wareouse", raw-key leaks like
+    // "ready_for_pickup"), never friendly-copy differences between customer and admin sets.
+    // See docs/status-labels-intentional-divergence.md + the suppressions manifest.
     labels: {
       order_placed: "Order Confirmed",
       need_box: "Box Being Prepared",
@@ -8183,7 +8191,32 @@ var HQOverview = function HQOverview(_ref51) {
     );
   }(), /*#__PURE__*/React.createElement("div", {
     className: "alert alert-a mb18"
-  }, t("☀️ Today:", "☀️ Hoy:"), " ", pickups, " ", t("pickup(s) pending", "recogida(s) pendiente(s)"), ", ", dropoffs, " ", t("box drop-off(s) needed", "entrega(s) de caja pendiente(s)"), ", ", unpaid, " ", t("unpaid order(s)", "orden(es) sin pagar"), ". ", t("Batch-ready:", "Listos para lote:"), " ", /*#__PURE__*/React.createElement("strong", null, batchReady, " ", t("boxes", "cajas")), "."), /*#__PURE__*/React.createElement("div", {
+  }, t("☀️ Today:", "☀️ Hoy:"), " ", pickups, " ", t("pickup(s) pending", "recogida(s) pendiente(s)"), ", ", dropoffs, " ", t("box drop-off(s) needed", "entrega(s) de caja pendiente(s)"), ", ", unpaid, " ", t("unpaid order(s)", "orden(es) sin pagar"), ". ", t("Batch-ready:", "Listos para lote:"), " ", /*#__PURE__*/React.createElement("strong", null, batchReady, " ", t("boxes", "cajas")), "."),
+  /* CK-L1-010-PARTIAL: dedicated Drop-Off List section in HQ Operations (was summary counter only).
+     need_box orders auto-surface here, mirroring the standalone DropOffListPage. */
+  (function(){
+    var dropoffOrders = filtOrders.filter(function(o){ return o.status === "need_box"; });
+    if (!dropoffOrders.length) return null;
+    return /*#__PURE__*/React.createElement("div", { className: "card mb12" },
+      /*#__PURE__*/React.createElement("div", { className: "card-hd" },
+        /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCE6 " + t("Drop-Off List", "Lista de Entregas")),
+        /*#__PURE__*/React.createElement("span", { className: "badge bb", style: { marginLeft: 8 } }, dropoffOrders.length)),
+      /*#__PURE__*/React.createElement("div", { className: "card-bd" },
+        /*#__PURE__*/React.createElement("div", { className: "xs mut mb8" }, t("Auto-generated. This list updates instantly when any order status is set to \"Need a Box\".", "Generado autom\u00e1ticamente. Se actualiza cuando el estado es \"Necesita Caja\".")),
+        dropoffOrders.map(function(o){
+          return /*#__PURE__*/React.createElement("div", {
+            key: o.id, className: "row g10",
+            style: { padding: "8px 0", borderBottom: "1px solid rgba(28,40,64,.5)", alignItems: "center" }
+          },
+            /*#__PURE__*/React.createElement("span", { style: { fontSize: 16 } }, "\uD83D\uDCEB"),
+            /*#__PURE__*/React.createElement("div", { style: { flex: 1 } },
+              /*#__PURE__*/React.createElement("div", { style: { fontWeight: 600, fontSize: 13, color: "var(--text)" } }, o.name),
+              /*#__PURE__*/React.createElement("div", { className: "xs mut" }, (o.address || "") + (o.city ? ", " + o.city : ""))),
+            /*#__PURE__*/React.createElement("span", { className: "notranslate", style: { fontSize: 11.5, color: "var(--text2)" } }, o.destination || "\u2014"),
+            /*#__PURE__*/React.createElement("span", { className: "mono", style: { fontSize: 11, color: "var(--amber)", marginLeft: 8 } }, o.id));
+        })));
+  })(),
+  /*#__PURE__*/React.createElement("div", {
     className: "g21 mb12"
   }, /*#__PURE__*/React.createElement("div", {
     className: "g2"
@@ -11025,6 +11058,10 @@ var CustomerTrackPage = function CustomerTrackPage(_ref74) {
     }
   }, "Order not found \u2014 check your tracking link")));
   var eta = driverEtas === null || driverEtas === void 0 ? void 0 : driverEtas[order.id];
+  // CK-L1-017-REGRESSION (Path 2, INTENTIONAL customer-facing labels — do NOT unify to admin set).
+  // Friendlier copy than internal STATUS_LABELS by design (ce4f02a, 2026-05-27). ShipmentTester
+  // flags only unintended defects (typos, raw-key leaks), not these deliberate UX differences.
+  // See docs/status-labels-intentional-divergence.md.
   var STATUS_LABELS = {
     order_placed: "Order Confirmed",
     need_box: "Box Being Prepared",
@@ -30137,9 +30174,14 @@ setOrders(function (prev) {
     var _l = useState((navigator.language || "en").toLowerCase().indexOf("es") === 0 ? "es" : "en"),
         lang = _l[0], setLang = _l[1];
     var T = function (en, es) { return lang === "es" ? es : en; };
-    var statusLabel = function (s) {
+    var statusLabel = function (s, dest) {
       var m = lang === "es" ? STATUS_LABELS_ES : STATUS_LABELS_EN;
-      return m[s] || s || T("Unknown", "Desconocido");
+      var label = m[s] || s || T("Unknown", "Desconocido");
+      // CK-L1-018: interpolate destination for transit statuses (was bare "En Route").
+      if ((s === "en_route" || s === "in_transit") && dest) {
+        label = label + " " + T("to", "a") + " " + dest;
+      }
+      return label;
     };
 
     // CK-L1-006-TRACKING-BOXTYPE: map generic box key -> specific dimension label
@@ -30313,12 +30355,12 @@ setOrders(function (prev) {
             h("div", { className: "card-sub mono" }, order.id)),
           h("span", { className: "badge", style: { background: "rgba(245,158,11,.1)", color: statusDot(order.status) } },
             h("span", { style: { width: 5, height: 5, borderRadius: "50%", background: statusDot(order.status), display: "inline-block", marginRight: 5 } }),
-            statusLabel(order.status))),
+            statusLabel(order.status, order.destination))),
         h("div", { className: "card-bd" },
           h("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 } },
             h("div", null,
               h("div", { className: "fl" }, T("Current status", "Estado actual")),
-              h("div", { style: { fontWeight: 600 } }, statusLabel(order.status))),
+              h("div", { style: { fontWeight: 600 } }, statusLabel(order.status, order.destination))),
             order.destination ? h("div", null,
               h("div", { className: "fl" }, T("Destination", "Destino")),
               h("div", { style: { fontWeight: 600 } }, order.destination)) : null,

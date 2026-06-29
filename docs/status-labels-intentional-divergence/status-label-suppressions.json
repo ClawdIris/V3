@@ -1,0 +1,23 @@
+{
+  "_doc": "CK-L1-017-REGRESSION Path 2 — intentional customer/admin STATUS_LABELS divergences. ShipmentTester loads this and SKIPS these (key, admin, customer) triples when comparing the admin label set against the customer-facing label set. It must STILL flag typos, raw-key leaks, missing keys, and same-surface inconsistencies. Approved by Jeffrey 2026-06-29. Origin commit ce4f02a (2026-05-27).",
+  "assertion_mode": "flag_unintended_only",
+  "still_flag": [
+    "typos_in_any_label",
+    "raw_status_key_leaks",
+    "key_present_in_one_set_missing_in_other",
+    "same_surface_internal_inconsistency"
+  ],
+  "intentional_divergences": [
+    { "key": "order_placed",     "admin": "Order Placed",        "customer": "Order Confirmed" },
+    { "key": "need_box",         "admin": "Need a Box",          "customer": "Box Being Prepared" },
+    { "key": "box_dropped_off",  "admin": "Box Dropped Off",     "customer": "Box Delivered to You" },
+    { "key": "ready_pickup",     "admin": "Ready for Pickup",    "customer": "Driver Picking Up Today" },
+    { "key": "picked_up",        "admin": "Picked Up",           "customer": "Picked Up — At Warehouse" },
+    { "key": "in_warehouse",     "admin": "In Warehouse",        "customer": "At Warehouse" },
+    { "key": "loaded_container", "admin": "Loaded in Container", "customer": "Loaded for Shipment" },
+    { "key": "en_route",         "admin": "En Route",            "customer": "In Transit to <dest>" },
+    { "key": "in_customs",       "admin": "In Customs",          "customer": "At Customs" },
+    { "key": "in_transit",       "admin": "In Transit",          "customer": "In Transit to <dest>" },
+    { "key": "delivered",        "admin": "Delivered",           "customer": "Delivered ✅" }
+  ]
+}
