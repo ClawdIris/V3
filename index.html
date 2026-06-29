@@ -4978,7 +4978,7 @@ var OrderDetail = function OrderDetail(_ref22) {
     style: {
       marginTop: 0
     }
-  }, "Customer"), [["📞 Phone", order.phone], ["💬 WhatsApp", order.whatsapp], ["📍 Address", "".concat(order.address, ", ").concat(order.city, " ").concat(order.state, " ").concat(order.zip)], ["🏢 Office", order.office], ["📅 Created", order.createdAt]].map(function (_ref23) {
+  }, "Customer"), [["📞 Phone", order.phone], ["💬 WhatsApp", order.whatsapp], ["📍 Address", [order.address, order.city, [order.state, order.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")], ["🏢 Office", order.office], ["📅 Created", order.createdAt]].map(function (_ref23) {
     var _ref24 = _slicedToArray(_ref23, 2),
       k = _ref24[0],
       v = _ref24[1];
@@ -11078,8 +11078,8 @@ var CustomerTrackPage = function CustomerTrackPage(_ref74) {
     picked_up: "Picked Up — At Warehouse",
     in_warehouse: "At Warehouse",
     loaded_container: "Loaded for Shipment",
-    en_route: "In Transit to " + order.destination,
-    in_transit: "In Transit to " + order.destination,
+    en_route: "In Transit to " + (order.destination || "Destination"),
+    in_transit: "In Transit to " + (order.destination || "Destination"),
     in_customs: "At Customs",
     out_for_delivery: "Out for Delivery",
     delivered: "Delivered ✅",
