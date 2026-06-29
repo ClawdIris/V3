@@ -5640,7 +5640,7 @@ var PickupListPage = function PickupListPage(_ref34) {
       }
     }, /*#__PURE__*/React.createElement("span", {
       className: "mut"
-    }, "\uD83D\uDCCD ", o.address, ", ", o.city, " ", o.state), /*#__PURE__*/React.createElement("span", {
+    }, "\uD83D\uDCCD ", [o.address, o.city, o.state].filter(Boolean).join(", ") || "—"), /*#__PURE__*/React.createElement("span", {
       className: "mut"
     }, "\uD83D\uDCDE ", o.phone), o.pickupWindow && /*#__PURE__*/React.createElement("span", {
       className: "mut"
@@ -5790,7 +5790,7 @@ var DropOffListPage = function DropOffListPage(_ref35) {
       }
     }, /*#__PURE__*/React.createElement("span", {
       className: "mut"
-    }, "\uD83D\uDCCD ", o.address, ", ", o.city, " ", o.state), /*#__PURE__*/React.createElement("span", {
+    }, "\uD83D\uDCCD ", [o.address, o.city, o.state].filter(Boolean).join(", ") || "—"), /*#__PURE__*/React.createElement("span", {
       className: "mut"
     }, "\uD83D\uDCDE ", o.phone)), o.notes && /*#__PURE__*/React.createElement("div", {
       className: "mut xs",
@@ -16080,7 +16080,7 @@ var RoutesPage = function RoutesPage(_ref101) {
         style: {
           marginTop: 3
         }
-      }, "\uD83D\uDCCD ", o.address, ", ", o.city, " ", o.state, " \xA0\xB7\xA0 \uD83D\uDCDE ", o.phone)), /*#__PURE__*/React.createElement("div", {
+      }, "\uD83D\uDCCD ", [o.address, o.city, o.state].filter(Boolean).join(", ") || "—", " \xA0\xB7\xA0 \uD83D\uDCDE ", o.phone)), /*#__PURE__*/React.createElement("div", {
         className: "row g6"
       }, /*#__PURE__*/React.createElement("select", {
         className: "fi",
@@ -29475,7 +29475,7 @@ setOrders(function (prev) {
         style: {
           marginTop: 3
         }
-      }, "\uD83D\uDCCD ", o.address, ", ", o.city, " ", o.state, " \xB7 \uD83D\uDCDE ", o.phone), o.notes && /*#__PURE__*/React.createElement("div", {
+      }, "\uD83D\uDCCD ", [o.address, o.city, o.state].filter(Boolean).join(", ") || "—", " \xB7 \uD83D\uDCDE ", o.phone), o.notes && /*#__PURE__*/React.createElement("div", {
         className: "mut xs",
         style: {
           marginTop: 3,

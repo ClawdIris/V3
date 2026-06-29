@@ -19,7 +19,7 @@ full app shell on production". It predates the CK-L1-017 typo fix (`15e709e`,
 "regression" was ShipmentTester's *new, stricter* cross-portal consistency
 check surfacing a long-standing intentional design, not my fix breaking.
 
-## The 11 intentional divergences (customer label ≠ admin label, BY DESIGN)
+## The 13 intentional divergences (customer label ≠ admin label, BY DESIGN)
 
 | status key | admin (internal) | customer (friendly) |
 |---|---|---|
@@ -32,6 +32,8 @@ check surfacing a long-standing intentional design, not my fix breaking.
 | loaded_container | Loaded in Container | Loaded for Shipment |
 | en_route | En Route | In Transit to &lt;dest&gt; |
 | in_customs | In Customs | At Customs |
+| customs_released | Released from Customs | Customs Cleared |
+| sorting | Sorting / Preparing | Sorting at Local Facility |
 | in_transit | In Transit | In Transit to &lt;dest&gt; |
 | delivered | Delivered | Delivered ✅ |
 

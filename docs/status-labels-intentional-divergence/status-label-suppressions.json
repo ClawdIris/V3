@@ -17,6 +17,8 @@
     { "key": "loaded_container", "admin": "Loaded in Container", "customer": "Loaded for Shipment" },
     { "key": "en_route",         "admin": "En Route",            "customer": "In Transit to <dest>" },
     { "key": "in_customs",       "admin": "In Customs",          "customer": "At Customs" },
+    { "key": "customs_released", "admin": "Released from Customs", "customer": "Customs Cleared" },
+    { "key": "sorting",          "admin": "Sorting / Preparing",  "customer": "Sorting at Local Facility" },
     { "key": "in_transit",       "admin": "In Transit",          "customer": "In Transit to <dest>" },
     { "key": "delivered",        "admin": "Delivered",           "customer": "Delivered ✅" }
   ]
