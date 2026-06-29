@@ -1,0 +1,102 @@
+-- ============================================================================
+-- CK-L1-011 / DRIVER-UID-BACKFILL — populate assignedDriverUserId on legacy orders
+-- ============================================================================
+-- STATUS: STAGED — NOT APPLIED. Tier 3 (auth/RLS identity). Requires Jeffrey sign-off.
+-- PROJECT: app/orders project (exayifxbqduhsxmmsnxr).
+-- ACCESS USED FOR DIAGNOSIS: read-only psql via .env.local DATABASE_URL. No writes.
+--
+-- ----------------------------------------------------------------------------
+-- THE GAP
+--   RLS driver isolation is correctly enforced: orders_driver_select requires
+--   can_access_order(id), which matches data->>'assignedDriverUserId' = auth.uid().
+--   But existing orders carry a driver NAME only, with empty assignedDriverUserId,
+--   so a real driver login sees ZERO of their orders.
+--
+-- ----------------------------------------------------------------------------
+-- LIVE DATA (casabe-xpress, 2026-06-29) — THE BLOCKER FOR A NAME-MATCH BACKFILL
+--   Orders with a non-empty assignedDriver:  4, ALL named "Joe Sr."
+--     CC202606018994 (ready_pickup), CC2026051807BD (need_box),
+--     CC20260518198B (box_dropped_off), CC20260628E749 (en_route; drvid="joe-sr")
+--   Driver members in tenant: Smoke Driver A/B, Test Driver User, Test Driver B.
+--   *** There is NO member named "Joe Sr." in ANY tenant. ***
+--   => A name->members.uid backfill CANNOT match. "Joe Sr." is legacy seed data
+--      with no corresponding real driver account. Auto-matching would be a guess.
+--
+-- ----------------------------------------------------------------------------
+-- DECISION NEEDED FROM JEFFREY (pick one; do not apply blind)
+--   Option A (RECOMMENDED): Treat the 4 "Joe Sr." orders as orphaned seed data.
+--     Either (a) leave them name-only (drivers correctly see nothing — they are
+--     test/legacy orders), or (b) clear the stale assignedDriver so the UI shows
+--     "Unassigned" honestly. No identity is invented.
+--   Option B: Create a real "Joe Sr." driver member (auth user + members row),
+--     then backfill these 4 orders to that uid. This is account creation — a
+--     separate, deliberate act, not a data backfill.
+--   Option C: Reassign the 4 orders to one of the existing real driver accounts
+--     (e.g. Smoke Driver A 4dd81b60-...). Only if these are test orders meant for
+--     a known driver.
+--
+-- A GENERIC name->uid backfill IS provided below for FUTURE use (if/when orders
+-- exist whose assignedDriver name DOES match a members.display_name). It is a
+-- no-op against today's data (no name matches) and is safe by construction:
+-- it only sets uid where exactly one active member's display_name matches.
+-- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- STEP 0 (Jeffrey/Delta, read-only): preview EXACTLY what would change. Run this
+-- first and confirm the row set before applying STEP 1.
+-- ---------------------------------------------------------------------------
+-- SELECT o.id,
+--        o.data->>'assignedDriver'        AS name,
+--        o.data->>'assignedDriverUserId'  AS current_uid,
+--        m.user_id                        AS resolved_uid,
+--        m.display_name                   AS member_name
+--   FROM public.orders o
+--   JOIN public.members m
+--     ON m.tenant_id = o.tenant_id
+--    AND m.active = true
+--    AND (m.role = 'driver' OR m.app_role = 'driver')
+--    AND lower(trim(m.display_name)) = lower(trim(o.data->>'assignedDriver'))
+--  WHERE coalesce(o.data->>'assignedDriverUserId','') = ''
+--    AND coalesce(o.data->>'assignedDriver','') <> '';
+--   -- EXPECTED TODAY: 0 rows (no member named "Joe Sr.").
+
+-- ---------------------------------------------------------------------------
+-- STEP 1: backfill ONLY where a single active driver member's display_name
+-- matches the order's assignedDriver name (exact, case-insensitive). Never
+-- guesses; rows with no/ambiguous match are left untouched.
+-- ---------------------------------------------------------------------------
+-- WITH matches AS (
+--   SELECT o.id AS order_id, m.user_id::text AS uid
+--     FROM public.orders o
+--     JOIN public.members m
+--       ON m.tenant_id = o.tenant_id
+--      AND m.active = true
+--      AND (m.role = 'driver' OR m.app_role = 'driver')
+--      AND lower(trim(m.display_name)) = lower(trim(o.data->>'assignedDriver'))
+--    WHERE coalesce(o.data->>'assignedDriverUserId','') = ''
+--      AND coalesce(o.data->>'assignedDriver','') <> ''
+--    GROUP BY o.id, m.user_id
+--   HAVING count(*) OVER (PARTITION BY o.id) = 1   -- exactly one match, no ambiguity
+-- )
+-- UPDATE public.orders o
+--    SET data = jsonb_set(o.data, '{assignedDriverUserId}', to_jsonb(mt.uid), true),
+--        updated_at = now()
+--   FROM matches mt
+--  WHERE o.id = mt.order_id;
+
+-- ---------------------------------------------------------------------------
+-- ROLLBACK: re-clear the field on the affected rows (capture the id list from
+-- STEP 0 before applying so rollback is exact).
+--   UPDATE public.orders SET data = data - 'assignedDriverUserId'
+--    WHERE id IN (<ids from STEP 0 preview>);
+-- ---------------------------------------------------------------------------
+
+-- ============================================================================
+-- ASSIGN-UI WRITE PATH — VERIFIED CORRECT (no flag needed):
+--   index.html:4046-4057  onChange dual-writes assignedDriver (name) +
+--                          assignedDriverUserId (uid resolved from driver list).
+--   index.html:4061-4068  dropdown filters out UUID-less drivers.
+--   index.html:3250-3253  save() HARD-BLOCKS a name-without-uid assignment.
+--   => Going forward, no new order can be saved with a name-only driver.
+--      The 4 "Joe Sr." orders predate this guard.
+-- ============================================================================
