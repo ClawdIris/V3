@@ -26890,7 +26890,7 @@ setOrders(function (prev) {
                   " \u2192 " + log.new_data.lat + ", " + log.new_data.lon,
                   log.new_data.note ? " (" + log.new_data.note + ")" : ""
                 ),
-                /*#__PURE__*/React.createElement("div", { className: "act-time" }, log.created_at + " \u2022 old: " + (log.old_data.lat != null ? log.old_data.lat + ", " + log.old_data.lon : "none"))
+                /*#__PURE__*/React.createElement("div", { className: "act-time" }, (log.created_at ? new Date(log.created_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }) : "—") + " \u2022 old: " + (log.old_data.lat != null ? log.old_data.lat + ", " + log.old_data.lon : "none"))
               )
             );
           })
