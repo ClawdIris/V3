@@ -4985,7 +4985,27 @@ var OrderDetail = function OrderDetail(_ref22) {
         color: "var(--text2)"
       }
     }, v || "—"));
-  }), /*#__PURE__*/React.createElement("div", {
+  }),
+  /* CK-L1-004: recipient/consignee address block — data exists on the order
+     (consignee*) but was never rendered in the detail modal. Display-only fix. */
+  /*#__PURE__*/React.createElement("div", {
+    className: "modal-section"
+  }, t("Ship To (Recipient)", "Destinatario")),
+  [["👤 " + t("Recipient", "Destinatario"), order.consigneeName],
+   ["📞 " + t("Phone", "Teléfono"), order.consigneePhone],
+   ["📍 " + t("Address", "Dirección"), [order.consigneeAddress, order.consigneeCity, order.consigneeCountry || order.destination].filter(Boolean).join(", ")],
+   ["🌎 " + t("Destination Country", "País de Destino"), order.consigneeCountry || order.destination]
+  ].map(function (_ref23b) {
+    var _r = _slicedToArray(_ref23b, 2), k = _r[0], v = _r[1];
+    return /*#__PURE__*/React.createElement("div", {
+      key: k, className: "row", style: { padding: "6px 0", borderBottom: "1px solid rgba(28,40,64,.5)" }
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "mut", style: { width: 110 }
+    }, k), /*#__PURE__*/React.createElement("span", {
+      style: { fontSize: 12.5, fontWeight: 500, color: "var(--text2)" }
+    }, v || "—"));
+  }),
+  /*#__PURE__*/React.createElement("div", {
     className: "modal-section"
   }, "Boxes"), (order.boxes && order.boxes.length > 0)
     ? /*#__PURE__*/React.createElement("div", { style: { marginBottom: 12 } },
