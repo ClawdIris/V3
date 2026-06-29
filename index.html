@@ -2082,7 +2082,7 @@ var EMPTY_ORDER = {
   // Partner company name
   forwardedAt: "",
   description: "",
-  boxType: "Unknown",
+  boxType: "Large", /* CK-L1-006-UNKNOWN-DEFAULT: default to most common real box type, not 'Unknown' catch-all */
   destination: "Guatemala",
   status: "order_placed",
   office: "Casabe NY (HQ)",
@@ -3795,7 +3795,7 @@ var OrderForm = function OrderForm(_ref4) {
               /*#__PURE__*/React.createElement("select", {
                 className: "fi", value: box.boxType || "Small",
                 onChange: function(e) { updateBox("boxType", e.target.value); }
-              }, boxConfig.filter(function(b){ return b.active; }).map(function(b) {
+              }, boxConfig.filter(function(b){ return b.active && b.key !== "Unknown"; }).map(function(b) {
                 return /*#__PURE__*/React.createElement("option", { key: b.key, value: b.key }, b.label);
               }))
             ),
@@ -5433,11 +5433,26 @@ var OrdersPage = function OrdersPage(_ref31) {
         return types.length > 1 ? "Mixed" : resolveLabel(types[0]);
       })())), /*#__PURE__*/React.createElement("td", {
       className: "mut"
-    }, /*#__PURE__*/React.createElement("span", { className: "notranslate", translate: "no" }, (function() {
-        if (!o.boxes || o.boxes.length <= 1) return o.destination || "\u2014";
-        var dests = Array.from(new Set(o.boxes.map(function(b){ return b.destinationCountry || o.destination; })));
-        return dests.length > 1 ? "Mixed" : dests[0];
-      })())), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Sbadge, {
+    }, (function() {
+        /* CK-L1-007: colored zone badge in DESTINATION column (was plain text). */
+        var destLabel;
+        if (!o.boxes || o.boxes.length <= 1) { destLabel = o.destination || "\u2014"; }
+        else {
+          var dests = Array.from(new Set(o.boxes.map(function(b){ return b.destinationCountry || o.destination; })));
+          destLabel = dests.length > 1 ? "Mixed" : dests[0];
+        }
+        var zcfg = (typeof DEST_ZONES !== "undefined" && DEST_ZONES[destLabel]) || null;
+        var zColor = (zcfg && zcfg.color) || "var(--text3)";
+        return /*#__PURE__*/React.createElement("span", {
+          className: "notranslate", translate: "no",
+          style: {
+            display: "inline-flex", alignItems: "center", gap: 4,
+            padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+            color: zColor, border: "1px solid " + zColor,
+            background: "color-mix(in srgb, " + zColor + " 12%, transparent)"
+          }
+        }, destLabel);
+      })()), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement(Sbadge, {
       s: (function() {
         if (!o.boxes || o.boxes.length <= 1) return o.status;
         var statuses = Array.from(new Set(o.boxes.map(function(b){ return b.status || o.status; })));
@@ -13585,7 +13600,7 @@ var ManifestModal = function ManifestModal(_ref89) {
       var zoneKey = box.zone || (GT_DEPARTMENTS.find(function(d){ return d.dept === dept; }) || {}).zone || "unknown";
       rows.push({ orderId:o.id,
         trackingId: box.subId || (renderBoxes.length > 1 ? o.id+"-"+(i+1) : o.id),
-        boxType: box.boxType || o.boxType || "Unknown",
+        boxType: resolveBoxTypeLabel(box, o), /* CK-L1-006-MANIFEST-TYPES: show exact dims via BOX_CONFIG, not raw key */
         destination:dest, dept:dept, zone:zoneKey,
         senderName: box.senderName||o.name||"", senderPhone: box.senderPhone||o.phone||"", senderAddress: box.senderAddress||o.address||"",
         receiverName: box.recipientName||o.consigneeName||o.name||"", receiverPhone: box.recipientPhone||o.consigneePhone||o.phone||"",
@@ -30127,6 +30142,22 @@ setOrders(function (prev) {
       return m[s] || s || T("Unknown", "Desconocido");
     };
 
+    // CK-L1-006-TRACKING-BOXTYPE: map generic box key -> specific dimension label
+    // for the customer tracking view. Mirrors BOX_CONFIG (main bundle) but kept
+    // local so the public app stays self-contained. Falls back to the raw value.
+    var boxTypeLabel = function (bt) {
+      if (!bt) return bt;
+      var MAP = {
+        "Small": "(DISH) 18x18x28",
+        "Medium": "(74) 24x26x24",
+        "Large": "(88) 34x26x28",
+        "Jumbo Drum": "Jumbo Drum",
+        "Freight": "Freight",
+        "Unknown": T("Box type pending", "Tipo de caja pendiente")
+      };
+      return MAP[bt] || bt;
+    };
+
     // Displayed consent copy — version-locked, must match consent_program_text.
     var txnCopy = T(
       "I agree to receive text messages from Casabe Konnect about this specific package, including pickup, transit, customs, delivery, delay, and attempted-delivery updates. Message frequency varies by shipment status. Message and data rates may apply. Reply STOP to unsubscribe or HELP for help. Consent is not required to track my package online. See Terms and Privacy Policy.",
@@ -30296,7 +30327,7 @@ setOrders(function (prev) {
               h("div", { style: { fontWeight: 600 } }, new Date(order.updated_at).toLocaleString(lang === "es" ? "es" : "en-US", { dateStyle: "medium", timeStyle: "short" }))) : null,
             order.box_type ? h("div", null,
               h("div", { className: "fl" }, T("Box type", "Tipo de caja")),
-              h("div", { style: { fontWeight: 600 } }, order.box_type)) : null))) : null,
+              h("div", { style: { fontWeight: 600 } }, boxTypeLabel(order.box_type))) : null))) : null,
 
       lookupState === "found" && order && submitState !== "success" ? h("div", { className: "card" },
         h("div", { className: "card-hd" },
