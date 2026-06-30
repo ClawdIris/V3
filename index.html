@@ -19450,58 +19450,99 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
   var detailsRef = React.useRef(null);
   var tokenRef = React.useRef(null);
   var debRef = React.useRef(null);
+  var safeOnPlace = function(parsed, rawPlace) {
+    if (typeof onPlace !== "function") return;
+    try {
+      onPlace(parsed, rawPlace || null);
+    } catch (err) {
+      console.warn("Places onPlace handler failed", err);
+    }
+  };
 
   React.useEffect(function () {
+    if (typeof initGoogleMaps !== "function") return;
     initGoogleMaps(function () {
-      if (window.google && window.google.maps && window.google.maps.places) {
-        svcRef.current = new window.google.maps.places.AutocompleteService();
-        detailsRef.current = new window.google.maps.places.PlacesService(document.createElement("div"));
-        tokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
-        setReady(true);
+      try {
+        if (window.google && window.google.maps && window.google.maps.places) {
+          svcRef.current = new window.google.maps.places.AutocompleteService();
+          detailsRef.current = new window.google.maps.places.PlacesService(document.createElement("div"));
+          tokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
+          setReady(true);
+        }
+      } catch (err) {
+        console.warn("Places autocomplete unavailable", err);
+        setReady(false);
       }
     });
     return function () { if (debRef.current) clearTimeout(debRef.current); };
   }, []);
 
   var handleInput = function (v) {
-    onChange(v);
+    if (typeof onChange === "function") onChange(v);
     if (debRef.current) clearTimeout(debRef.current);
     if (!ready || !svcRef.current || (v || "").trim().length < 3) { setPreds([]); setOpen(false); return; }
     debRef.current = setTimeout(function () {
-      var req = {
-        input: v,
-        sessionToken: tokenRef.current
-      };
-      if (_country) req.componentRestrictions = { country: _country };
-      svcRef.current.getPlacePredictions(req, function (predictions, status) {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
-          setPreds(predictions.slice(0, 5)); setOpen(true);
-        } else { setPreds([]); setOpen(false); }
-      });
+      try {
+        if (!svcRef.current || !window.google || !window.google.maps || !window.google.maps.places) {
+          setPreds([]); setOpen(false); setReady(false); return;
+        }
+        var req = {
+          input: v,
+          sessionToken: tokenRef.current
+        };
+        if (_country) req.componentRestrictions = { country: _country };
+        svcRef.current.getPlacePredictions(req, function (predictions, status) {
+          try {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
+              setPreds(predictions.slice(0, 5)); setOpen(true);
+            } else { setPreds([]); setOpen(false); }
+          } catch (err) {
+            console.warn("Places prediction callback failed", err);
+            setPreds([]); setOpen(false);
+          }
+        });
+      } catch (err) {
+        console.warn("Places prediction failed", err);
+        setPreds([]); setOpen(false); setReady(false);
+      }
     }, 300);
   };
 
   var pick = function (p) {
     setOpen(false); setPreds([]);
-    onChange(p.description);
+    if (typeof onChange === "function") onChange(p.description);
     var detailsToken = tokenRef.current;
     // fresh session token after a selection (Places billing best-practice)
-    if (window.google && window.google.maps && window.google.maps.places) {
-      tokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
+    try {
+      if (window.google && window.google.maps && window.google.maps.places) {
+        tokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
+      }
+    } catch (err) {
+      console.warn("Places session reset failed", err);
     }
-    if (onSelect) onSelect(p.description);
+    if (typeof onSelect === "function") onSelect(p.description);
     if (onPlace && detailsRef.current && p.place_id) {
-      detailsRef.current.getDetails({
-        placeId: p.place_id,
-        fields: ["address_components", "formatted_address", "geometry", "place_id", "name"],
-        sessionToken: detailsToken
-      }, function(place, status) {
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
-          onPlace(parseGooglePlaceAddress(place, p.description), place);
-        } else {
-          onPlace(parseGooglePlaceAddress(null, p.description), null);
-        }
-      });
+      try {
+        detailsRef.current.getDetails({
+          placeId: p.place_id,
+          fields: ["address_components", "formatted_address", "geometry", "place_id", "name"],
+          sessionToken: detailsToken
+        }, function(place, status) {
+          try {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
+              safeOnPlace(parseGooglePlaceAddress(place, p.description), place);
+            } else {
+              safeOnPlace(parseGooglePlaceAddress(null, p.description), null);
+            }
+          } catch (err) {
+            console.warn("Places details callback failed", err);
+            safeOnPlace(parseGooglePlaceAddress(null, p.description), null);
+          }
+        });
+      } catch (err) {
+        console.warn("Places details failed", err);
+        safeOnPlace(parseGooglePlaceAddress(null, p.description), null);
+      }
     }
   };
 
