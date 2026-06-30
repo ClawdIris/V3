@@ -40,6 +40,12 @@ async function login(page, email, password) {
   await emailInput.fill(email);
   await pwInput.fill(password);
   await page.locator('button:has-text("Sign In")').first().click();
+  // Wait for the login form to go away (auth round-trip can be slow on a
+  // proxy-less headless network). The button shows "Please wait…" while pending.
+  await page.waitForFunction(
+    () => !(document.body.innerText || '').includes('Sign in to your account'),
+    { timeout: 60000 }
+  ).catch(() => {});
 }
 
 for (const vp of VIEWPORTS) {
