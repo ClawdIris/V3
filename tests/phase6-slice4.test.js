@@ -538,8 +538,8 @@ describe('Gate 26: Regression — TSP solver still present (Slice 3)', () => {
     expect(html).toContain('function haversineDist(');
   });
 
-  test('nearestNeighborTSP still defined', () => {
-    expect(html).toContain('function nearestNeighborTSP(');
+  test('Slice 5: nearestNeighborTSP removed (live Routes API only, no fallback)', () => {
+    expect(html).not.toContain('function nearestNeighborTSP(');
   });
 });
 

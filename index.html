@@ -26570,31 +26570,9 @@ setOrders(function (prev) {
             Math.sin(dLon/2)*Math.sin(dLon/2);
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
-  /* ── Nearest-neighbor TSP solver (client-side preview only, no DB writes) ── */
-  function nearestNeighborTSP(stops, depotLat, depotLon) {
-    if (!stops || stops.length === 0) return [];
-    var unvisited = stops.slice();
-    var ordered = [];
-    var curLat = depotLat, curLon = depotLon;
-    var cumDist = 0;
-    while (unvisited.length > 0) {
-      var bestIdx = 0, bestDist = Infinity;
-      for (var i = 0; i < unvisited.length; i++) {
-        var d = haversineDist(curLat, curLon, unvisited[i].lat, unvisited[i].lon);
-        if (d < bestDist) { bestDist = d; bestIdx = i; }
-      }
-      cumDist += bestDist;
-      ordered.push(Object.assign({}, unvisited[bestIdx], {
-        legDist: Math.round(bestDist * 10) / 10,
-        cumDist: Math.round(cumDist * 10) / 10,
-        stopNum: ordered.length + 1
-      }));
-      curLat = unvisited[bestIdx].lat;
-      curLon = unvisited[bestIdx].lon;
-      unvisited.splice(bestIdx, 1);
-    }
-    return ordered;
-  }
+  /* Slice 5: nearestNeighborTSP solver REMOVED — client-side preview retired in
+     favor of live Google Routes API optimization (Slice 4). Per plan Q1, there is
+     NO nearest-neighbor fallback; on Routes API failure the dispatcher retries. */
 
   var MapViewPage = function MapViewPage(_ref_mvp) {
     var _orders  = _ref_mvp.orders;
@@ -26694,8 +26672,10 @@ setOrders(function (prev) {
        Creates a draft routes row, calls optimize-route, persists the optimized
        sequence. HARD RULE (Q1): on Routes API failure, surface the error and leave
        the last persisted route unchanged — NO nearest-neighbor fallback. */
-    var handleOptimizeRoute = function() {
+    var handleOptimizeRoute = function(_opts) {
+      var skipGate = _opts && _opts.skipGate;
       // Address gate first — reuse the Slice 2 gate (opens modal if any unconfirmed)
+      if (!skipGate) {
       var gateCandidates = activeOrders.filter(function(o) {
         return [o.address, o.city, o.state].filter(Boolean).join(", ").length > 3;
       });
@@ -26709,6 +26689,7 @@ setOrders(function (prev) {
           confidence: conf || (e ? e.status : "unverified") });
       });
       if (flagged.length > 0) { setAddrGateStops(flagged); return; }
+      }
 
       var stops = buildS4Stops();
       if (stops.length < 2) {
@@ -27085,100 +27066,13 @@ setOrders(function (prev) {
     };
 
     /* ── Route preview handler — nearest-neighbor TSP, client-side only, zero DB writes ── */
+    /* ── Slice 5: client-side Preview Route + nearest-neighbor path REMOVED.
+       Optimization is now exclusively the live Google Routes API (handleOptimizeRoute).
+       This thin shim preserves the address-gate "continue" re-entry: after the gate
+       clears, proceed to live optimization (skipGate avoids re-opening the modal). ── */
     var handlePreviewRoute = function(_opts) {
       var skipGate = _opts && _opts.skipGate;
-      // ── SLICE 2 ADDRESS GATE ──────────────────────────────────────────────
-      // Before optimizing, every selected stop must have a HIGH-confidence,
-      // confirmed address. Stops are confirmed when the geoCache entry has
-      // confidence==='high' (set by the geocode-address Edge Function) OR a
-      // manual_override. Anything else (low/missing/unresolvable) is flagged and
-      // the AddressConfirmationModal opens. Optimization does NOT proceed and the
-      // Routes API is NOT called until the gate clears.
-      if (!skipGate) {
-        var gateCandidates = activeOrders.filter(function(o) {
-          // only stops that would actually enter the route (have an address)
-          var addr = [o.address, o.city, o.state].filter(Boolean).join(", ");
-          return addr.length > 3;
-        });
-        var flagged = [];
-        gateCandidates.forEach(function(o) {
-          var entry = geoCache[o.id];
-          var conf = entry && entry.confidence;          // 'high' | 'low' | undefined
-          var isHigh = conf === "high" || (entry && entry.status === COORD_STATUSES.manual_override);
-          if (!isHigh) {
-            flagged.push({
-              order_id: o.id,
-              name: o.name || o.id,
-              address: [o.address, o.city, o.state].filter(Boolean).join(", "),
-              confidence: conf || (entry ? entry.status : "unverified")
-            });
-          }
-        });
-        if (flagged.length > 0) {
-          setAddrGateStops(flagged);   // opens AddressConfirmationModal
-          return;
-        }
-      }
-      // Issue 6: use routeStart lat/lon if set, otherwise HQ default
-      // Default: DEPOT_LAT = 25.7617, DEPOT_LON = -80.1918 (Miami metro)
-      var DEPOT_LAT = (routeStart && routeStart.lat != null) ? routeStart.lat : 25.7617;
-      var DEPOT_LON = (routeStart && routeStart.lon != null) ? routeStart.lon : -80.1918;
-      var eligible = activeOrdersWithFixtures.filter(function(o) {
-        var entry = geoCache[o.id];
-        return entry && hasUsableCoords(entry);
-      });
-      // Track excluded reasons for SLICE B3
-      var excludedStops = [];
-      activeOrders.forEach(function(o) {
-        var entry = geoCache[o.id];
-        if (!entry || entry.lat == null || entry.lon == null) {
-          excludedStops.push({ id: o.id, name: o.name || o.id, address: [o.address, o.city].filter(Boolean).join(", "), reason: "Missing coordinates" });
-        } else if (!hasUsableCoords(entry)) {
-          excludedStops.push({ id: o.id, name: o.name || o.id, address: [o.address, o.city].filter(Boolean).join(", "), reason: "Low confidence coordinates" });
-        }
-      });
-      var excludedCount = activeOrders.length - eligible.length;
-      // A3: Apply stopFilters before TSP
-      var stops = eligible.filter(function(o) {
-        var entry = geoCache[o.id];
-        if (!stopFilters.pickups && o.type !== 'dropoff') { excludedStops.push({ id: o.id, name: o.name || o.id, address: [o.address, o.city].filter(Boolean).join(", "), reason: "Wrong type (pickups excluded)" }); return false; }
-        if (!stopFilters.dropoffs && o.type === 'dropoff') { excludedStops.push({ id: o.id, name: o.name || o.id, address: [o.address, o.city].filter(Boolean).join(", "), reason: "Wrong type (dropoffs excluded)" }); return false; }
-        if (stopFilters.readyOnly && o.status !== 'Ready for Pickup') { excludedStops.push({ id: o.id, name: o.name || o.id, address: [o.address, o.city].filter(Boolean).join(", "), reason: "Wrong status (readyOnly filter)" }); return false; }
-        if (stopFilters.assignedOnly && selectedDriver !== 'all' && o.driver_name !== selectedDriver && o.driver !== selectedDriver) { excludedStops.push({ id: o.id, name: o.name || o.id, address: [o.address, o.city].filter(Boolean).join(", "), reason: "Not assigned to selected driver" }); return false; }
-        return true;
-      }).map(function(o) {
-        var entry = geoCache[o.id];
-        return { id: o.id, name: o.name || o.id, lat: entry.lat, lon: entry.lon,
-                 status: entry.status, coordStatus: entry.status,
-                 orderStatus: o.status, type: o.type || 'pickup',
-                 driver_name: o.driver_name || o.driver || "",
-                 phone: o.phone || o.customer_phone || "",
-                 address: [o.address, o.city].filter(Boolean).join(", ") };
-      });
-      // Legacy driver filter (routeDriver from old select)
-      var filtered = routeDriver
-        ? stops.filter(function(s) { return s.driver_name === routeDriver; })
-        : stops;
-      if (filtered.length < 2) {
-        setRouteResult({ error: "needsMore", eligibleCount: filtered.length, excludedCount: excludedCount + (stops.length - filtered.length), excludedStops: excludedStops });
-        return;
-      }
-      var ordered = nearestNeighborTSP(filtered, DEPOT_LAT, DEPOT_LON);
-      // Compute total distance from cumDist
-      var estDist = ordered.length > 0 ? ordered[ordered.length - 1].cumDist : 0;
-      var estTime = Math.round(estDist * 2.5); // 2.5 min/km urban delivery
-      // Issue 6: if routeEnd.type === 'hq', append HQ as final stop in result label
-      setRouteResult({
-        stops: ordered,
-        totalDist: estDist,
-        estTime: estTime,
-        excludedCount: excludedCount + (stops.length - filtered.length),
-        excludedStops: excludedStops,
-        driverLabel: routeDriver || (selectedDriver !== 'all' ? selectedDriver : "All Drivers"),
-        routeDate: routeDate,
-        startLabel: routeStart.label || "HQ",
-        endLabel: routeEnd.type === "hq" ? "HQ" : routeEnd.type === "custom" ? (customEndAddr || "Custom") : "Anywhere"
-      });
+      handleOptimizeRoute({ skipGate: skipGate });
     };
 
     /* ── Render ── */
@@ -27440,14 +27334,14 @@ setOrders(function (prev) {
         )
       ),
 
-      /* ── PHASE 6 — SLICE 3: Route Preview Panel (HQ-only, read-only, no DB writes) ── */
+      /* ── SLICE 4: Route Optimization Panel (HQ-only; live Google Routes API) ── */
       /*#__PURE__*/React.createElement("div", { id: "route-preview-panel", className: "card mb18" },
         /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDEA6 Route Optimization Preview"),
+          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDEA6 Route Optimization"),
           /*#__PURE__*/React.createElement("span", {
             id: "route-preview-badge",
-            style: { fontSize: 11, padding: "3px 10px", borderRadius: 6, background: "rgba(99,102,241,0.15)", color: "#818cf8", fontWeight: 600 }
-          }, "\uD83D\uDC41 Preview Only \u2014 No assignments saved")
+            style: { fontSize: 11, padding: "3px 10px", borderRadius: 6, background: "rgba(16,185,129,0.15)", color: "#10b981", fontWeight: 600 }
+          }, "\uD83D\uDE9A Live \u2014 Google Routes API")
         ),
         /*#__PURE__*/React.createElement("div", { className: "card-bd" },
 
@@ -27578,17 +27472,11 @@ setOrders(function (prev) {
                 onChange: function(e) { setRouteDate(e.target.value); setRouteResult(null); }
               })
             ),
-            /*#__PURE__*/React.createElement("button", {
-              id: "preview-route-btn",
-              className: "btn btn-primary",
-              onClick: handlePreviewRoute
-            }, "\uD83D\uDD0D Preview Route"),
-            /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { marginLeft: 8 } }, "\uD83D\uDC41 Preview Only \u2014 No assignments saved"),
+            /* Slice 5: Preview Route button removed — Optimize Route (live) is the single path */
             /* ── SLICE 4: Live Optimize + Assign ── */
             /*#__PURE__*/React.createElement("button", {
               id: "optimize-route-btn",
               className: "btn btn-green",
-              style: { marginLeft: 8 },
               disabled: s4Busy,
               onClick: handleOptimizeRoute
             }, s4Busy && s4Route && s4Route.phase === "optimizing" ? "\u29D7 Optimizing\u2026" : "\uD83D\uDE9A Optimize Route (live)")
@@ -32025,8 +31913,8 @@ if (typeof STRIPE_CHECKOUT_URL === "undefined") {
   assert("P8: selectedDriver state defined",
     (function() { var s = typeof document !== 'undefined' ? document.documentElement.outerHTML : ''; return s.indexOf('selectedDriver') >= 0; })()
   );
-  assert("P8: Preview Only badge present",
-    (function() { var s = typeof document !== 'undefined' ? document.documentElement.outerHTML : ''; return s.indexOf('Preview Only') >= 0; })()
+  assert("P8: live Routes API badge present (Slice 4)",
+    (function() { var s = typeof document !== 'undefined' ? document.documentElement.outerHTML : ''; return s.indexOf('Live \u2014 Google Routes API') >= 0 || s.indexOf('Optimize Route (live)') >= 0; })()
   );
   assert("P8: route summary fields present",
     (function() { var s = typeof document !== 'undefined' ? document.documentElement.outerHTML : ''; return s.indexOf('Est. distance') >= 0 || s.indexOf('estDistance') >= 0 || s.indexOf('Est distance') >= 0; })()
