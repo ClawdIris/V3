@@ -1,10 +1,10 @@
 /**
- * Issue 5: DriverRoutePage uses real Leaflet map (not map-ph/map-grid placeholder)
+ * Slice 3: DriverRoutePage uses Google Maps (migrated from Leaflet/OSM)
  */
 const fs = require('fs');
 const path = require('path');
 
-describe('Issue 5 — DriverRoutePage Leaflet map', () => {
+describe('Slice 3 — DriverRoutePage Google Maps', () => {
   let html;
   let drBlock;
 
@@ -24,27 +24,32 @@ describe('Issue 5 — DriverRoutePage Leaflet map', () => {
     expect(drBlock).not.toContain('map-grid');
   });
 
-  test('DriverRoutePage: references Leaflet map ref (_drMapRef)', () => {
+  test('DriverRoutePage: references map ref (_drMapRef)', () => {
     expect(drBlock).toContain('_drMapRef');
   });
 
-  test('DriverRoutePage: references L.map or _drMapInstRef for Leaflet instance', () => {
+  test('DriverRoutePage: uses google.maps.Map instance', () => {
+    expect(drBlock).toContain('gmaps.Map');
     expect(drBlock).toContain('_drMapInstRef');
   });
 
-  test('DriverRoutePage: has driver-route-leaflet-map container id', () => {
-    expect(drBlock).toContain('driver-route-leaflet-map');
+  test('DriverRoutePage: has driver-route-google-map container id', () => {
+    expect(drBlock).toContain('driver-route-google-map');
   });
 
-  test('DriverRoutePage: uses OSM tile URL', () => {
-    expect(drBlock).toContain('openstreetmap.org');
+  test('DriverRoutePage: does NOT use OSM tiles (Leaflet removed)', () => {
+    expect(drBlock).not.toContain('openstreetmap.org');
   });
 
   test('DriverRoutePage: fitBounds called for stops', () => {
     expect(drBlock).toContain('fitBounds');
   });
 
-  test('global html: Leaflet CDN loaded', () => {
-    expect(html).toContain('leaflet@');
+  test('global html: Leaflet CDN fully removed', () => {
+    expect(html).not.toContain('leaflet@');
+  });
+
+  test('global html: Google Maps lazy loader present', () => {
+    expect(html).toContain('function initGoogleMaps');
   });
 });

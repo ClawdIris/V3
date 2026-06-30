@@ -27,21 +27,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; overflow: hidden; }
   </style>
-  <!-- Leaflet.js — real interactive map, no API key required -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <!-- Leaflet dark-tile override -->
-  <style>
-    .leaflet-container { background: #07090F !important; }
-    .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(0.85) saturate(0.7); }
-    .leaflet-popup-content-wrapper { background: #0C1120; border: 1px solid #1C2840; color: #E2E8F0; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
-    .leaflet-popup-tip { background: #0C1120; }
-    .leaflet-popup-content { margin: 10px 14px; font-family: 'IBM Plex Sans', sans-serif; font-size: 12px; }
-    .leaflet-control-zoom a { background: #0C1120 !important; color: #94A3B8 !important; border-color: #1C2840 !important; }
-    .leaflet-control-zoom a:hover { background: #111827 !important; color: #E2E8F0 !important; }
-    .leaflet-control-attribution { background: rgba(7,9,15,0.7) !important; color: #475569 !important; }
-    .leaflet-control-attribution a { color: #3B82F6 !important; }
-  </style>
+  <!-- Maps: Google Maps JS API is lazy-loaded at runtime via initGoogleMaps() (see runtime config below) -->
   <!-- Supabase JS client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <!-- Runtime config -->
@@ -6124,9 +6110,14 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
     _stRQ2 = _slicedToArray(_stReceiptQ, 2),
     receiptQueue = _stRQ2[0], setReceiptQueue = _stRQ2[1];
 
-  // ── Leaflet map refs (Issue 5: real OSM map, no fake grid) ─────────────────
-  var _drMapRef = React.useRef(null);    // DOM container
-  var _drMapInstRef = React.useRef(null); // L.Map instance
+  // ── Google Maps refs (Slice 3: read-only driver route map) ─────────────────
+  var _drMapRef = React.useRef(null);     // DOM container
+  var _drMapInstRef = React.useRef(null); // google.maps.Map instance
+  var _drMarkersRef = React.useRef([]);   // active markers
+  var _drPolyRef = React.useRef(null);    // active polyline
+  var _drInfoRef = React.useRef(null);    // shared InfoWindow
+  var _drReadyState = React.useState(false);
+  var drMapReady = _drReadyState[0], setDrMapReady = _drReadyState[1];
 
   // ── Auto-group duplicate-address stops ─────────────────────────────────
   var groupedStops = React.useMemo(function() {
@@ -6142,77 +6133,90 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
   }, [groupedStops]);
   var optimized = groupedStops;
 
-  // ── Leaflet map effect: init/update real OSM map in DriverRoutePage (Issue 5) ──
+  // ── SLICE 3: Google Maps effect — read-only driver route map ──
   React.useEffect(function() {
-    if (typeof L === "undefined") return;
+    initGoogleMaps(function() {
+      if (window.google && window.google.maps) setDrMapReady(true);
+    });
+  }, []);
+
+  React.useEffect(function() {
+    if (!drMapReady || !window.google || !window.google.maps) return;
     var container = _drMapRef.current;
     if (!container) return;
+    var gmaps = window.google.maps;
     // Init map once
     if (!_drMapInstRef.current) {
-      var mapInst = L.map(container, {
-        center: [25.7617, -80.1918],
+      _drMapInstRef.current = new gmaps.Map(container, {
+        center: { lat: 25.7617, lng: -80.1918 },
         zoom: 11,
-        zoomControl: true,
-        attributionControl: true,
-        scrollWheelZoom: false
+        mapTypeControl: false, streetViewControl: false, fullscreenControl: false,
+        styles: [
+          { elementType: "geometry", stylers: [{ color: "#0C1120" }] },
+          { elementType: "labels.text.fill", stylers: [{ color: "#94A3B8" }] },
+          { featureType: "road", elementType: "geometry", stylers: [{ color: "#1C2840" }] },
+          { featureType: "water", elementType: "geometry", stylers: [{ color: "#05070C" }] },
+          { featureType: "poi", stylers: [{ visibility: "off" }] }
+        ]
       });
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "\u00a9 OpenStreetMap contributors",
-        maxZoom: 19
-      }).addTo(mapInst);
-      _drMapInstRef.current = mapInst;
+      _drInfoRef.current = new gmaps.InfoWindow();
     }
     var drMap = _drMapInstRef.current;
-    // Clear existing layers except tile
-    drMap.eachLayer(function(layer) {
-      if (!(layer instanceof L.TileLayer)) drMap.removeLayer(layer);
-    });
-    // Add GPS pin
+    // Clear markers + polyline
+    _drMarkersRef.current.forEach(function(m) { m.setMap(null); });
+    _drMarkersRef.current = [];
+    if (_drPolyRef.current) { _drPolyRef.current.setMap(null); _drPolyRef.current = null; }
+
+    var bounds = new gmaps.LatLngBounds();
+    var any = false;
+    var routePoints = [];
+    // GPS pin
     if (gpsPos) {
-      var gpsIcon = L.divIcon({
-        className: "",
-        html: "<div style='width:14px;height:14px;border-radius:50%;background:#3B82F6;border:2.5px solid #fff;box-shadow:0 0 8px #3B82F680;'></div>",
-        iconSize: [14, 14], iconAnchor: [7, 7]
+      var gpsMarker = new gmaps.Marker({
+        position: { lat: gpsPos.lat, lng: gpsPos.lng }, map: drMap, zIndex: 9999,
+        icon: { path: gmaps.SymbolPath.CIRCLE, scale: 7, fillColor: "#3B82F6", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2.5 },
+        title: "GPS — Your location"
       });
-      L.marker([gpsPos.lat, gpsPos.lng], { icon: gpsIcon }).bindPopup("\uD83D\uDCCD GPS — Your location").addTo(drMap);
+      _drMarkersRef.current.push(gpsMarker);
+      bounds.extend({ lat: gpsPos.lat, lng: gpsPos.lng }); any = true;
+      routePoints.push({ lat: gpsPos.lat, lng: gpsPos.lng });
     }
-    // Add stop pins + polyline
-    var bounds = [];
-    if (gpsPos) bounds.push([gpsPos.lat, gpsPos.lng]);
-    var routePoints = gpsPos ? [[gpsPos.lat, gpsPos.lng]] : [];
+    // Stop pins
     optimized.forEach(function(grp, idx) {
       var zip = grp.zip || "00000";
       var coords = getZipCoords(zip);
       var lat = coords[0], lon = coords[1];
-      if (!lat || !lon) return; // no coords — skip
+      if (!lat || !lon) return;
       var isPickup = grp.type === "pickup";
       var color = isPickup ? "#F59E0B" : "#3B82F6";
-      var icon = L.divIcon({
-        className: "",
-        html: "<div style='width:20px;height:20px;border-radius:50%;background:" + color + ";border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;box-shadow:0 0 6px " + color + "88;'>" + (idx + 1) + "</div>",
-        iconSize: [20, 20], iconAnchor: [10, 10]
-      });
       var repOrder = grp.orders[0] || {};
       var orderList = grp.orders.map(function(o) { return o.id; }).join(", ");
+      var marker = new gmaps.Marker({
+        position: { lat: lat, lng: lon }, map: drMap,
+        label: { text: String(idx + 1), color: "#fff", fontSize: "10px", fontWeight: "700" },
+        icon: { path: gmaps.SymbolPath.CIRCLE, scale: 11, fillColor: color, fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2.5 }
+      });
       var popup = "<div style='font-family:IBM Plex Mono,monospace;font-size:11px;color:" + color + ";font-weight:700'>Stop " + (idx+1) + " — " + (isPickup ? "Pickup" : "Drop-off") + "</div>" +
-        "<div style='font-weight:600;color:#E2E8F0;margin:3px 0 2px'>" + (repOrder.name || grp.address || "") + "</div>" +
-        "<div style='color:#94A3B8;font-size:11px'>" + (grp.address || "") + (grp.city ? ", " + grp.city : "") + "</div>" +
-        (grp.merged ? "<div style='color:#94A3B8;font-size:10px;margin-top:3px'>" + grp.orders.length + " orders: " + orderList + "</div>" : "");
-      L.marker([lat, lon], { icon: icon }).bindPopup(popup).addTo(drMap);
-      bounds.push([lat, lon]);
-      routePoints.push([lat, lon]);
+        "<div style='font-weight:600;color:#0C1120;margin:3px 0 2px'>" + (repOrder.name || grp.address || "") + "</div>" +
+        "<div style='color:#475569;font-size:11px'>" + (grp.address || "") + (grp.city ? ", " + grp.city : "") + "</div>" +
+        (grp.merged ? "<div style='color:#475569;font-size:10px;margin-top:3px'>" + grp.orders.length + " orders: " + orderList + "</div>" : "");
+      marker.addListener("click", function() { _drInfoRef.current.setContent(popup); _drInfoRef.current.open(drMap, marker); });
+      _drMarkersRef.current.push(marker);
+      bounds.extend({ lat: lat, lng: lon }); any = true;
+      routePoints.push({ lat: lat, lng: lon });
     });
-    // Draw polyline connecting stops
+    // Polyline
     if (routePoints.length >= 2) {
-      L.polyline(routePoints, { color: "#F59E0B", weight: 3, opacity: 0.75, dashArray: "6,4" }).addTo(drMap);
+      _drPolyRef.current = new gmaps.Polyline({
+        path: routePoints, geodesic: true, strokeColor: "#F59E0B", strokeOpacity: 0.75, strokeWeight: 3, map: drMap
+      });
     }
     // Fit bounds
-    if (bounds.length >= 2) {
-      drMap.fitBounds(bounds, { padding: [30, 30] });
-    } else if (bounds.length === 1) {
-      drMap.setView(bounds[0], 13);
+    if (any) {
+      if (_drMarkersRef.current.length === 1) { drMap.setCenter(bounds.getCenter()); drMap.setZoom(13); }
+      else { drMap.fitBounds(bounds, 30); }
     }
-  }, [optimized.length, gpsPos ? gpsPos.lat : null, gpsPos ? gpsPos.lng : null]);
+  }, [drMapReady, optimized.length, gpsPos ? gpsPos.lat : null, gpsPos ? gpsPos.lng : null]);
 
   // Google Maps — one waypoint per grouped stop (not per order)
   var googleRouteUrl = React.useMemo(function () {
@@ -6944,7 +6948,7 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
           style: { padding: 20, textAlign: "center", color: "var(--text3)", fontSize: 13 }
         }, "\uD83D\uDDFA\uFE0F No location data available — no stops assigned.")
       : /*#__PURE__*/React.createElement("div", {
-          id: "driver-route-leaflet-map",
+          id: "driver-route-google-map",
           ref: _drMapRef,
           style: { height: 240, borderRadius: "0 0 11px 11px", zIndex: 1 }
         })
@@ -22773,9 +22777,9 @@ var ROLES = {
         i: "🗺️"
       }, {
         k: "map_view",
-        l: "Map Preview",
-        ls: "Vista preliminar del mapa",
-        i: "🗾"
+        l: "Routes & Optimization",
+        ls: "Rutas y Optimización",
+        i: "🗺️"
       }, {
         k: "claims",
         l: "Claims",
@@ -26716,95 +26720,137 @@ setOrders(function (prev) {
     };
 
     /* ── Leaflet map ref ── */
-    var _leafletMapRef = useRef(null);   // DOM node
-    var _leafletInstRef = useRef(null);  // L.Map instance
+    var _gmapDivRef = useRef(null);    // DOM node for google.maps.Map
+    var _gmapInstRef = useRef(null);   // google.maps.Map instance
+    var _gmapMarkersRef = useRef([]);  // active markers
+    var _gmapPolyRef = useRef(null);   // active polyline
+    var _gmapInfoRef = useRef(null);   // shared InfoWindow
+    var _gmapReady = useState(false);
+    var gmapReady = _gmapReady[0], setGmapReady = _gmapReady[1];
 
-    /* ── Initialize / update Leaflet map ── */
+    /* ── SLICE 3: Initialize / update Google Map ──
+       Replaces the Leaflet/OSM map. Numbered markers colored by address
+       confidence, click InfoWindow, route polyline, fitBounds. Tape Direct
+       origin renders as the fixed green home pin (never a numbered stop). */
     useEffect(function() {
-      if (typeof L === "undefined") return; // Leaflet not yet loaded
-      var container = _leafletMapRef.current;
+      initGoogleMaps(function() {
+        if (window.google && window.google.maps) setGmapReady(true);
+      });
+    }, []);
+
+    useEffect(function() {
+      if (!gmapReady || !window.google || !window.google.maps) return;
+      var container = _gmapDivRef.current;
       if (!container) return;
+      var gmaps = window.google.maps;
 
       /* Init map once */
-      if (!_leafletInstRef.current) {
-        var mapInst = L.map(container, {
-          center: [25.7617, -80.1918], // Miami metro default
+      if (!_gmapInstRef.current) {
+        _gmapInstRef.current = new gmaps.Map(container, {
+          center: { lat: 25.7617, lng: -80.1918 }, // Miami metro default
           zoom: 10,
-          zoomControl: true,
-          attributionControl: true,
-          scrollWheelZoom: false
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+          styles: [ // dark theme to match app
+            { elementType: "geometry", stylers: [{ color: "#0C1120" }] },
+            { elementType: "labels.text.stroke", stylers: [{ color: "#07090F" }] },
+            { elementType: "labels.text.fill", stylers: [{ color: "#94A3B8" }] },
+            { featureType: "road", elementType: "geometry", stylers: [{ color: "#1C2840" }] },
+            { featureType: "water", elementType: "geometry", stylers: [{ color: "#05070C" }] },
+            { featureType: "poi", stylers: [{ visibility: "off" }] }
+          ]
         });
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution: "\u00a9 OpenStreetMap contributors",
-          maxZoom: 19
-        }).addTo(mapInst);
-        _leafletInstRef.current = mapInst;
+        _gmapInfoRef.current = new gmaps.InfoWindow();
       }
+      var mapInst = _gmapInstRef.current;
 
-      var mapInst = _leafletInstRef.current;
+      /* Clear existing markers + polyline */
+      _gmapMarkersRef.current.forEach(function(m) { m.setMap(null); });
+      _gmapMarkersRef.current = [];
+      if (_gmapPolyRef.current) { _gmapPolyRef.current.setMap(null); _gmapPolyRef.current = null; }
 
-      /* Clear existing layers (markers + polyline) except tile layer */
-      mapInst.eachLayer(function(layer) {
-        if (!(layer instanceof L.TileLayer)) {
-          mapInst.removeLayer(layer);
-        }
-      });
-
-      /* C1/C2: Numbered divIcon pins, color from coordStatusColor */
-      var markers = [];
-      var pinBounds = [];
+      var bounds = new gmaps.LatLngBounds();
+      var any = false;
       var currentCache = loadGeoCache();
-      /* Determine if we have a route result to number pins */
       var routeStopMap = {};
       if (routeResult && routeResult.stops) {
         routeResult.stops.forEach(function(s, idx) { routeStopMap[s.id] = idx + 1; });
       }
+
+      /* Tape Direct fixed origin pin (green home marker — NOT a numbered stop) */
+      if (routeStart && routeStart.lat != null && routeStart.lon != null) {
+        var originMarker = new gmaps.Marker({
+          position: { lat: routeStart.lat, lng: routeStart.lon },
+          map: mapInst,
+          zIndex: 9999,
+          icon: {
+            path: gmaps.SymbolPath.CIRCLE, scale: 9,
+            fillColor: "#10B981", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2
+          },
+          title: "Tape Direct (origin)"
+        });
+        originMarker.addListener("click", function() {
+          _gmapInfoRef.current.setContent("<div style='font-family:IBM Plex Sans,sans-serif;font-size:12px;color:#10B981;font-weight:700'>\uD83C\uDFE0 Tape Direct — Route Origin</div>");
+          _gmapInfoRef.current.open(mapInst, originMarker);
+        });
+        _gmapMarkersRef.current.push(originMarker);
+        bounds.extend({ lat: routeStart.lat, lng: routeStart.lon }); any = true;
+      }
+
+      /* Numbered markers colored by confidence */
       activeOrdersWithFixtures.forEach(function(o) {
         var entry = currentCache[o.id] || (o.lat != null ? { lat: o.lat, lon: o.lon, status: o.coordinate_status || COORD_STATUSES.geocoded } : null);
         var cStatus = entry ? entry.status : COORD_STATUSES.missing;
-        if (!entry || entry.lat == null || entry.lon == null) return; // C2: missing — do NOT create pin
+        if (!entry || entry.lat == null || entry.lon == null) return; // missing — no pin
         var pinColor = coordStatusColor(cStatus);
         var stopNum = routeStopMap[o.id] || "";
-        /* C1: Numbered divIcon */
-        var icon = L.divIcon({
-          className: "",
-          html: "<div style=\"background:" + pinColor + ";color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:2px solid rgba(0,0,0,0.3);box-shadow:0 2px 6px rgba(0,0,0,0.4);font-family:'IBM Plex Mono',monospace;\">" + (stopNum || "&bull;") + "</div>",
-          iconSize: [24, 24],
-          iconAnchor: [12, 12]
+        var marker = new gmaps.Marker({
+          position: { lat: entry.lat, lng: entry.lon },
+          map: mapInst,
+          label: stopNum ? { text: String(stopNum), color: "#fff", fontSize: "11px", fontWeight: "800" } : undefined,
+          icon: {
+            path: gmaps.SymbolPath.CIRCLE, scale: stopNum ? 12 : 8,
+            fillColor: pinColor, fillOpacity: 1, strokeColor: "rgba(0,0,0,0.3)", strokeWeight: 2
+          }
         });
-        var marker = L.marker([entry.lat, entry.lon], { icon: icon });
         var addr = (o.address || "") + (o.city ? ", " + o.city : "");
-        /* C3: Click popup with customer name, address, order ID, status, phone, driver */
-        marker.bindPopup(
+        var html =
           "<div style='font-family:IBM Plex Mono,monospace;font-size:11px;color:#F59E0B;font-weight:700;margin-bottom:4px'>" + o.id + "</div>" +
-          "<div style='font-weight:700;color:#E2E8F0;margin-bottom:2px'>" + (o.name || "") + "</div>" +
-          "<div style='color:#94A3B8;font-size:11px;margin-bottom:3px'>" + addr + "</div>" +
-          (o.status ? "<div style='font-size:11px;margin-bottom:2px'>Status: <strong style='color:#E2E8F0'>" + o.status.replace(/_/g, " ") + "</strong></div>" : "") +
-          (o.phone || o.customer_phone ? "<div style='font-size:11px;margin-bottom:2px'>\uD83D\uDCDE " + (o.phone || o.customer_phone) + "</div>" : "") +
-          ((o.driver_name || o.driver) ? "<div style='font-size:11px;margin-bottom:4px'>\uD83D\uDC64 " + (o.driver_name || o.driver) + "</div>" : "") +
-          "<span style='display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:" + pinColor + "22;color:" + pinColor + "'>" + coordStatusLabel(cStatus) + "</span>"
-        );
-        marker.addTo(mapInst);
-        markers.push(marker);
-        pinBounds.push([entry.lat, entry.lon]);
+          "<div style='font-weight:700;color:#0C1120;margin-bottom:2px'>" + (o.name || "") + "</div>" +
+          "<div style='color:#475569;font-size:11px;margin-bottom:3px'>" + addr + "</div>" +
+          (o.status ? "<div style='font-size:11px;margin-bottom:2px;color:#334155'>Status: <strong>" + o.status.replace(/_/g, " ") + "</strong></div>" : "") +
+          (o.phone || o.customer_phone ? "<div style='font-size:11px;margin-bottom:2px;color:#334155'>\uD83D\uDCDE " + (o.phone || o.customer_phone) + "</div>" : "") +
+          ((o.driver_name || o.driver) ? "<div style='font-size:11px;margin-bottom:4px;color:#334155'>\uD83D\uDC64 " + (o.driver_name || o.driver) + "</div>" : "") +
+          "<span style='display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:" + pinColor + "22;color:" + pinColor + "'>" + coordStatusLabel(cStatus) + "</span>";
+        marker.addListener("click", function() {
+          _gmapInfoRef.current.setContent(html);
+          _gmapInfoRef.current.open(mapInst, marker);
+        });
+        _gmapMarkersRef.current.push(marker);
+        bounds.extend({ lat: entry.lat, lng: entry.lon }); any = true;
       });
 
-      /* C4: Route polyline connecting stops in optimized order */
+      /* Route polyline connecting stops in optimized order */
       if (routeResult && routeResult.stops && routeResult.stops.length >= 2) {
-        var latlngs = routeResult.stops.filter(function(s) { return s.lat != null && s.lon != null; }).map(function(s) { return [s.lat, s.lon]; });
-        if (latlngs.length >= 2) {
-          L.polyline(latlngs, { color: '#F59E0B', weight: 3, opacity: 0.7 }).addTo(mapInst);
+        var path = routeResult.stops.filter(function(s) { return s.lat != null && s.lon != null; })
+          .map(function(s) { return { lat: s.lat, lng: s.lon }; });
+        if (path.length >= 2) {
+          _gmapPolyRef.current = new gmaps.Polyline({
+            path: path, geodesic: true, strokeColor: "#F59E0B", strokeOpacity: 0.75, strokeWeight: 3, map: mapInst
+          });
         }
       }
 
-      /* C5: fitBounds using featureGroup */
-      if (markers.length > 0) {
-        var group = new L.featureGroup(markers);
-        mapInst.fitBounds(group.getBounds().pad(0.15));
-      } else if (pinBounds.length === 1) {
-        mapInst.setView(pinBounds[0], 13);
+      /* fitBounds */
+      if (any) {
+        if (_gmapMarkersRef.current.length === 1) {
+          mapInst.setCenter(bounds.getCenter()); mapInst.setZoom(13);
+        } else {
+          mapInst.fitBounds(bounds, 40);
+        }
       }
-    }, [activeOrdersWithFixtures.length, JSON.stringify(Object.keys(geoCache)), routeResult]);
+    }, [gmapReady, activeOrdersWithFixtures.length, JSON.stringify(Object.keys(geoCache)), routeResult]);
 
     /* ── Auto-geocode orders without coords on mount + when orders change ── */
     useEffect(function() {
@@ -27028,7 +27074,7 @@ setOrders(function (prev) {
       }),
 
       /*#__PURE__*/React.createElement("div", { className: "row g10 mb18", style: { flexWrap: "wrap" } },
-        /*#__PURE__*/React.createElement("h2", { style: { fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, flex: 1 } }, "\uD83D\uDDFA\uFE0F " + t("Map Preview", "Vista Previa del Mapa")),
+        /*#__PURE__*/React.createElement("h2", { style: { fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, flex: 1 } }, "\uD83D\uDDFA\uFE0F " + t("Routes & Optimization", "Rutas y Optimización")),
         /*#__PURE__*/React.createElement("span", { className: "badge ba" }, activeOrders.length + " active"),
         geocoding && /*#__PURE__*/React.createElement("span", { className: "badge bb" }, "\u29D7 Geocoding..."),
         /*#__PURE__*/React.createElement("span", { className: "tag tag-b", style: { fontSize: 10, padding: "3px 9px", borderRadius: 6 } }, "\uD83D\uDD12 Read-Only \u2014 HQ Only")
@@ -27040,8 +27086,8 @@ setOrders(function (prev) {
         /*#__PURE__*/React.createElement("span", null,
           /*#__PURE__*/React.createElement("strong", null, t("Interactive Map", "Mapa Interactivo")),
           t(
-            " \u2014 OpenStreetMap tiles live. Pins reflect coordinate quality. Missing coords appear in table below, not on map.",
-            " \u2014 Tiles de OpenStreetMap activos. Los pines reflejan la calidad de coordenadas."
+            " \u2014 Google Maps live. Pins reflect address confidence. Missing coords appear in table below, not on map.",
+            " \u2014 Google Maps activo. Los pines reflejan la confianza de la dirección."
           )
         )
       ),
@@ -27157,10 +27203,10 @@ setOrders(function (prev) {
         )
       ),
 
-      /* ── Leaflet map canvas ── */
+      /* ── Google map canvas ── */
       /*#__PURE__*/React.createElement("div", { className: "card mb18" },
         /*#__PURE__*/React.createElement("div", { className: "card-hd" },
-          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDDFA\uFE0F " + t("Interactive Map", "Mapa Interactivo") + " — OpenStreetMap"),
+          /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDDFA\uFE0F " + t("Interactive Map", "Mapa Interactivo") + " — Google Maps"),
           /*#__PURE__*/React.createElement("div", { className: "row g6 xs" },
             /*#__PURE__*/React.createElement("span", { style: { color: "#10b981" } }, "\u25CF Geocoded"),
             /*#__PURE__*/React.createElement("span", { style: { color: "#3b82f6" } }, "\u25CF Manual"),
@@ -27168,9 +27214,10 @@ setOrders(function (prev) {
             /*#__PURE__*/React.createElement("span", { style: { color: "var(--text3)" } }, "(missing = no pin)")
           )
         ),
+        !gmapReady ? /*#__PURE__*/React.createElement(GoogleMapsKeyMissingBanner, null) : null,
         /*#__PURE__*/React.createElement("div", {
-          id: "leaflet-map-container",
-          ref: _leafletMapRef,
+          id: "google-map-container",
+          ref: _gmapDivRef,
           style: { height: 480, borderRadius: "0 0 11px 11px", zIndex: 1 }
         })
       ),
@@ -31462,14 +31509,14 @@ if (typeof STRIPE_CHECKOUT_URL === "undefined") {
   /* ──── PRIORITY 2: Spanish Mode ──── */
   assert("P2: useT hook defined", typeof useT === "function");
   assert("P2: ES dictionary defined", typeof ES === "object");
-  // Map Preview key
-  assert("P2: 'Map Preview' in nav config",
+  // Routes & Optimization nav key (relabeled from "Map Preview" in Slice 3; internal key remains map_view)
+  assert("P2: 'Routes & Optimization' in nav config",
     (function() {
       var src = JSON.stringify(HQ_NAV || "");
-      return src.indexOf("Map Preview") >= 0;
+      return src.indexOf("Routes & Optimization") >= 0;
     })());
-  // 'Vista preliminar del mapa' translation present
-  assert("P2: 'Vista preliminar del mapa' in ES dictionary",
+  // legacy ES translation key retained for back-compat
+  assert("P2: 'Map Preview' ES key still present",
     ES["Map Preview"] !== undefined);
   // Orders, Drivers, Partners in ES
   assert("P2: 'Orders' has ES translation", ES["Orders"] !== undefined);
@@ -31529,24 +31576,20 @@ if (typeof STRIPE_CHECKOUT_URL === "undefined") {
   assert("P4: manual_override returns hex #3b82f6", coordStatusColor("manual_override") === "#3b82f6");
   assert("P4: low_confidence returns hex #f59e0b", coordStatusColor("low_confidence") === "#f59e0b");
   assert("P4: missing returns hex #6b7280", coordStatusColor("missing") === "#6b7280" || coordStatusColor("missing").indexOf("red") >= 0 || coordStatusColor("missing").indexOf("#") >= 0);
-  // Leaflet must be loaded
-  assert("P4: Leaflet (window.L) loaded", typeof L !== "undefined" && typeof L.map === "function");
-  // MapViewPage renders leaflet-map-container, NOT the old map-grid placeholder.
+  // Google Maps loader present (lazy-loaded; window.google may not be ready at assert time)
+  assert("P4: initGoogleMaps loader present", typeof initGoogleMaps === "function");
+  // MapViewPage renders google-map-container, NOT the old map-grid placeholder.
   // Uses full-page source check because MapViewPage is defined inside AppShell
   // scope (it calls AppShell-internal geocache helpers) and is only callable after
   // first render. The marker string is unique to MapViewPage's render output.
-  assert("P4: #leaflet-map-container present in MapViewPage",
+  assert("P4: #google-map-container present in MapViewPage",
     (function() {
-      // Check window.__R4MapViewPageSrc if AppShell has rendered, else fall back
-      // to global document source scan (reliable at any point after script parse)
       if (typeof window !== "undefined" && window.__R4MapViewPageSrc) {
-        return window.__R4MapViewPageSrc.indexOf("leaflet-map-container") >= 0;
+        return window.__R4MapViewPageSrc.indexOf("google-map-container") >= 0;
       }
-      // Source scan: the id "leaflet-map-container" exists only in MapViewPage
       if (typeof document !== "undefined" && document.currentScript) {
-        return document.currentScript.textContent.indexOf('"leaflet-map-container"') >= 0;
+        return document.currentScript.textContent.indexOf('"google-map-container"') >= 0;
       }
-      // Node.js test context: treat as pass (covered by issue5-driver-leaflet-map.test.js)
       return true;
     })());
   assert("P4: old .map-grid placeholder removed from MapViewPage",
@@ -31558,9 +31601,9 @@ if (typeof STRIPE_CHECKOUT_URL === "undefined") {
       // Stub MapViewPage returns null so has no map-grid — pass
       return MapViewPage.toString().indexOf('className: "map-grid"') < 0;
     })());
-  // Map Preview rename
-  assert("P4: 'Map Preview' in HQ nav",
-    (function() { return JSON.stringify(HQ_NAV || "").indexOf("Map Preview") >= 0; })());
+  // Routes & Optimization nav (relabeled from "Map Preview" in Slice 3; key stays map_view)
+  assert("P4: 'Routes & Optimization' in HQ nav",
+    (function() { return JSON.stringify(HQ_NAV || "").indexOf("Routes & Optimization") >= 0; })());
   // COORD_STATUSES defined
   assert("P4: COORD_STATUSES has required keys",
     COORD_STATUSES && COORD_STATUSES.geocoded && COORD_STATUSES.manual_override && COORD_STATUSES.low_confidence && COORD_STATUSES.missing);

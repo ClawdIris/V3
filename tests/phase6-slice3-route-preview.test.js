@@ -197,26 +197,26 @@ describe('Gate 7: Route results display', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GATE [8] — Leaflet route line overlay (upgraded from SVG placeholder)
-// SVG polyline (#route-svg-line) was replaced by a real Leaflet map.
-// These tests reflect the Leaflet implementation.
+// GATE [8] — Google Maps route line overlay (Slice 3: replaced Leaflet)
+// The Leaflet map was replaced by google.maps.Map with a google.maps.Polyline.
 // ─────────────────────────────────────────────────────────────────────────────
-describe('Gate 8: Leaflet visual route line (Leaflet map, replaces SVG placeholder)', () => {
-  test('leaflet-map-container is present', () => {
-    expect(html).toContain('leaflet-map-container');
+describe('Gate 8: Google Maps visual route line (replaces Leaflet)', () => {
+  test('google-map-container is present', () => {
+    expect(html).toContain('google-map-container');
   });
 
   test('route polyline is conditional on routeResult.stops length >= 2', () => {
     expect(html).toContain('routeResult.stops.length >= 2');
   });
 
-  test('Leaflet polyline uses real lat/lon from routeResult.stops', () => {
-    // Leaflet route: L.polyline(routePoints, ...) drawn in useEffect
-    expect(html).toContain('L.polyline');
+  test('Google Maps polyline uses real lat/lng from routeResult.stops', () => {
+    // google.maps.Polyline drawn in useEffect from routeResult.stops
+    expect(html).toContain('gmaps.Polyline');
   });
 
-  test('Leaflet polyline uses dashArray for dashed route style', () => {
-    expect(html).toContain('dashArray');
+  test('Leaflet fully removed (no L.polyline / leaflet CDN)', () => {
+    expect(html).not.toContain('L.polyline');
+    expect(html).not.toContain('leaflet@');
   });
 
   test('route-results panel is rendered when route is computed', () => {
