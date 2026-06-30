@@ -27528,10 +27528,7 @@ setOrders(function (prev) {
             id: "route-excluded-warning",
             className: "alert alert-a mb12"
           }, "\u26A0\uFE0F " + routeResult.excludedCount + " order" + (routeResult.excludedCount !== 1 ? "s" : "") + " excluded (missing/low-confidence coordinates)"),
-          routeResult && routeResult.error === "needsMore" && /*#__PURE__*/React.createElement("div", {
-            id: "route-not-enough",
-            className: "alert alert-r mb12"
-          }, "\uD83D\uDEAB Route preview requires \u2265 2 eligible orders with valid coordinates. Currently " + (routeResult.eligibleCount || 0) + " eligible."),
+          /* Slice 5: legacy "needsMore" preview branch removed — live optimize uses s4Route.phase==='error' */
           routeResult && routeResult.stops && routeResult.stops.length >= 2 && /*#__PURE__*/React.createElement("div", { id: "route-results" },
             /* B1: Route summary card */
             /*#__PURE__*/React.createElement("div", { className: "card mb12", style: { background: "var(--bg2)", borderRadius: 10, padding: "10px 14px" } },
