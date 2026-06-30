@@ -23968,7 +23968,41 @@ var _db = {
       });
   },
 
-  // Upsert one record. tenant_id in body is required for WITH CHECK.
+  // CK-L1-002: Realtime subscription on the orders table for this tenant.
+  // Returns the channel so the caller can remove it on cleanup. onChange is
+  // invoked with { eventType, order } where order is the normalized UI shape
+  // ({ ...data, id, office_id, partner_id }) for INSERT/UPDATE, or { id } for DELETE.
+  subscribeOrders: function(onChange) {
+    if (!_db._tenantId) return null;
+    var chan = _supabase
+      .channel("orders-rt-" + _db._tenantId)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "orders", filter: "tenant_id=eq." + _db._tenantId },
+        function(payload) {
+          try {
+            var et = payload.eventType || payload.event;
+            if (et === "DELETE") {
+              var oldId = (payload.old && payload.old.id) || null;
+              if (oldId) onChange({ eventType: "DELETE", order: { id: oldId } });
+              return;
+            }
+            var row = payload.new || {};
+            var order = Object.assign({}, row.data, {
+              id: row.id,
+              office_id: row.office_id || null,
+              partner_id: row.partner_id || null
+            });
+            onChange({ eventType: et, order: order });
+          } catch (e) { console.error("[db] realtime onChange error", e); }
+        })
+      .subscribe();
+    return chan;
+  },
+
+  removeChannel: function(chan) {
+    if (chan) { try { _supabase.removeChannel(chan); } catch (e) {} }
+  },
+
   upsert: function(table, id, data) {
     // Phase B: for `orders`, write office_id/partner_id as top-level
     // columns alongside the data JSONB. The FK columns (added by
@@ -24519,6 +24553,20 @@ var LoginScreen = function LoginScreen(_ref126) {
         console.error("[auth] test-login error:", err);
       });
   };
+  // CK-SMOKE-PREREQ: expose a programmatic test-login hook so automated harnesses
+  // (ShipmentTester) can authenticate WITHOUT the interactive window.prompt() dialog,
+  // which they can't answer (causing the 30s timeout + 0 orders loaded). Only wired
+  // under ?debug=1. Returns a promise-like via the existing handler's side effects.
+  React.useEffect(function() {
+    var dbg = typeof window !== "undefined" && (window.location.search.indexOf("debug=1") >= 0 || window.location.search.indexOf("debug=true") >= 0);
+    if (!dbg) return;
+    window.__testLoginAs = function(email, password) {
+      if (!email || !password) { console.error("[auth] __testLoginAs requires email + password"); return; }
+      handleTestLoginAs(String(email).trim(), String(password));
+    };
+    window.__testLoginReady = true;
+    return function() { try { delete window.__testLoginAs; delete window.__testLoginReady; } catch (e) {} };
+  }, []);
   var promptTestLogin = function promptTestLogin(roleLabel) {
     var testEmail = window.prompt("Enter the " + roleLabel + " test email:");
     if (!testEmail) return;
@@ -25970,6 +26018,16 @@ function AppShell(_ref130) {
       var dbOffices   = results[8];   // Phase A
       var dbPartners  = results[9];   // Phase A
       var dbCampaigns = results[10];  // Phase 1 campaign engine
+      // CK-L1-009: canonicalize status key variants at load so every downstream
+      // filter (HQ Pickup List, driver route, etc.) sees one key. The DB has both
+      // 'ready_for_pickup' and 'ready_pickup'; normalize to the canonical 'ready_pickup'.
+      var _STATUS_CANON = { ready_for_pickup: "ready_pickup", readypickup: "ready_pickup", need_a_box: "need_box" };
+      dbOrders = (dbOrders || []).map(function(o) {
+        if (o && o.status && _STATUS_CANON[o.status]) {
+          return Object.assign({}, o, { status: _STATUS_CANON[o.status] });
+        }
+        return o;
+      });
       if (dbOrders.length    > 0) setOrders(dbOrders);
       if (dbShipments.length > 0) setShipments(dbShipments);
       if (dbClaims.length    > 0) setClaims(dbClaims);
@@ -26010,6 +26068,28 @@ function AppShell(_ref130) {
         notify("⚠️ Could not load your data. Check connection and refresh.");
       }
     });
+
+    // CK-L1-002: subscribe to realtime order changes so new/updated orders appear
+    // cross-portal within seconds (no manual refresh). Merges into orders state,
+    // applying the same status canonicalization as the initial load.
+    var _rtCanon = { ready_for_pickup: "ready_pickup", readypickup: "ready_pickup", need_a_box: "need_box" };
+    var _ordersChan = _db.subscribeOrders(function(evt) {
+      var o = evt.order;
+      if (!o || !o.id) return;
+      if (evt.eventType === "DELETE") {
+        setOrders(function(prev) { return prev.filter(function(x) { return x.id !== o.id; }); });
+        return;
+      }
+      if (o.status && _rtCanon[o.status]) o = Object.assign({}, o, { status: _rtCanon[o.status] });
+      setOrders(function(prev) {
+        var idx = prev.findIndex(function(x) { return x.id === o.id; });
+        if (idx === -1) return [o].concat(prev);           // INSERT → prepend
+        var next = prev.slice(); next[idx] = Object.assign({}, next[idx], o); // UPDATE → merge
+        return next;
+      });
+    });
+
+    return function() { _db.removeChannel(_ordersChan); };  // cleanup on tenant change/unmount
   }, [session ? session.tenantId : ""]);
 
   var notify = useCallback(function (msg) {
