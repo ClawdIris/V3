@@ -2145,6 +2145,34 @@ var EMPTY_ORDER = {
   consent_recorded_at: null,
   consent_recorded_by: null
 };
+
+function coerceMoneyValue(value) {
+  if (value === "" || value === null || value === undefined) return 0;
+  var n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeOrderPayment(order) {
+  if (!order || typeof order !== "object") return order;
+  var rawPayment = order.payment;
+  var payment = rawPayment && typeof rawPayment === "object" && !Array.isArray(rawPayment)
+    ? rawPayment
+    : {};
+  var status = payment.status || (typeof rawPayment === "string" ? rawPayment : "") || "unpaid";
+  return Object.assign({}, order, {
+    payment: Object.assign({}, EMPTY_ORDER.payment, payment, {
+      status: status,
+      amount: coerceMoneyValue(payment.amount),
+      paid: coerceMoneyValue(payment.paid),
+      commission: coerceMoneyValue(payment.commission),
+      commissionRate: coerceMoneyValue(payment.commissionRate)
+    })
+  });
+}
+
+function normalizeOrderForUi(order) {
+  return normalizeOrderPayment(order);
+}
 /* ════════════════════════════════════════════
    CALENDAR PICKER
    Lightweight custom month-grid date picker.
@@ -23957,11 +23985,11 @@ var _db = {
           // see a single shape: { ...data, id, office_id, partner_id }.
           // For non-orders tables this is a no-op (only `data` present).
           if (table === "orders") {
-            return Object.assign({}, r.data, {
+            return normalizeOrderForUi(Object.assign({}, r.data, {
               id:         r.id,
               office_id:  r.office_id  || null,
               partner_id: r.partner_id || null
-            });
+            }));
           }
           return r.data;
         });
@@ -23987,11 +24015,11 @@ var _db = {
               return;
             }
             var row = payload.new || {};
-            var order = Object.assign({}, row.data, {
+            var order = normalizeOrderForUi(Object.assign({}, row.data, {
               id: row.id,
               office_id: row.office_id || null,
               partner_id: row.partner_id || null
-            });
+            }));
             onChange({ eventType: et, order: order });
           } catch (e) { console.error("[db] realtime onChange error", e); }
         })
@@ -24008,6 +24036,7 @@ var _db = {
     // columns alongside the data JSONB. The FK columns (added by
     // Migration 07a) are the relational truth; the JSONB stays for UI
     // compatibility. Other tables continue to write data-only.
+    if (table === "orders") data = normalizeOrderForUi(data);
     var row = { id: id, tenant_id: _db._tenantId, data: data };
     if (table === "orders") {
       row.office_id  = data.office_id  || null;
@@ -25723,6 +25752,9 @@ function AppShell(_ref130) {
     _useState120 = _slicedToArray(_useState119, 2),
     orders = _useState120[0],
     setOrders = _useState120[1];
+  orders = useMemo(function() {
+    return (orders || []).map(normalizeOrderForUi).filter(Boolean);
+  }, [orders]);
   var _useState121 = useState([]),
     _useState122 = _slicedToArray(_useState121, 2),
     shipments = _useState122[0],
