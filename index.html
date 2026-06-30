@@ -31114,15 +31114,15 @@ setOrders(function (prev) {
           h("div", { className: "fr", style: { marginBottom: 12 } },
             h("div", { className: "fg", style: fieldStyle },
               h("label", { className: "fl" }, T("First name", "Nombre")),
-              h("input", { className: "fi", value: firstName, disabled: !order, onChange: function (e) { setFirstName(e.target.value); } })),
+              h("input", { className: "fi", value: firstName, onChange: function (e) { setFirstName(e.target.value); } })),
             h("div", { className: "fg", style: fieldStyle },
               h("label", { className: "fl" }, T("Last name", "Apellido")),
-              h("input", { className: "fi", value: lastName, disabled: !order, onChange: function (e) { setLastName(e.target.value); } }))),
+              h("input", { className: "fi", value: lastName, onChange: function (e) { setLastName(e.target.value); } }))),
           h("div", { className: "fr", style: { marginBottom: 4 } },
             h("div", { className: "fg", style: fieldStyle },
               h("label", { className: "fl" }, T("Mobile phone", "Teléfono móvil")),
               h("input", {
-                className: "fi", value: phone, type: "tel", placeholder: "(407) 555-0123", disabled: !order,
+                className: "fi", value: phone, type: "tel", placeholder: "(407) 555-0123",
                 onChange: function (e) { setPhone(e.target.value); },
                 onBlur: function () { if (isValidPhone(phone)) setPhone(fmtUSPhone(phone)); }
               }),
@@ -31130,7 +31130,7 @@ setOrders(function (prev) {
             h("div", { className: "fg", style: fieldStyle },
               h("label", { className: "fl" }, T("ZIP code", "Código postal")),
               h("input", {
-                className: "fi mono", value: zip, inputMode: "numeric", maxLength: 10, placeholder: "33020", disabled: !order,
+                className: "fi mono", value: zip, inputMode: "numeric", maxLength: 10, placeholder: "33020",
                 onChange: function (e) { setZip(e.target.value); }
               }),
               h("div", { style: { color: "var(--text4)", fontSize: 10.5, marginTop: 4 } }, T("Must match the ZIP on the order.", "Debe coincidir con el código postal de la orden.")))),
