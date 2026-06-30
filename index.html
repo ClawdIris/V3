@@ -3236,6 +3236,36 @@ var OrderForm = function OrderForm(_ref4) {
       });
     });
   };
+  var applySenderPlace = function applySenderPlace(place) {
+    if (!place) return;
+    setF(function(p) {
+      return Object.assign({}, p, {
+        address: place.street || place.formattedAddress || p.address || "",
+        city: place.city || p.city || "",
+        state: place.state || p.state || "",
+        zip: place.zip || p.zip || "",
+        delivery_address: place.formattedAddress || p.delivery_address || "",
+        geocoded_lat: place.lat != null ? place.lat : p.geocoded_lat,
+        geocoded_lng: place.lng != null ? place.lng : p.geocoded_lng,
+        address_confidence: place.lat != null && place.lng != null ? "confirmed" : (p.address_confidence || ""),
+        address_confirmed_at: place.lat != null && place.lng != null ? now() : (p.address_confirmed_at || null),
+        google_place_id: place.placeId || p.google_place_id || ""
+      });
+    });
+  };
+  var applyConsigneePlace = function applyConsigneePlace(place) {
+    if (!place) return;
+    setF(function(p) {
+      return Object.assign({}, p, {
+        consigneeAddress: place.street || place.formattedAddress || p.consigneeAddress || "",
+        consigneeCity: place.city || p.consigneeCity || "",
+        consigneeCountry: place.country || p.consigneeCountry || p.destination || "",
+        consignee_google_place_id: place.placeId || p.consignee_google_place_id || "",
+        consignee_geocoded_lat: place.lat != null ? place.lat : p.consignee_geocoded_lat,
+        consignee_geocoded_lng: place.lng != null ? place.lng : p.consignee_geocoded_lng
+      });
+    });
+  };
   var rule = AUTOMATION_RULES.find(function (r) {
     return r.trigger === f.status;
   });
@@ -3727,12 +3757,13 @@ var OrderForm = function OrderForm(_ref4) {
     className: "fg"
   }, /*#__PURE__*/React.createElement("label", {
     className: "fl"
-  }, t("Street Address *", "Dirección *")), /*#__PURE__*/React.createElement("input", {
-    className: "fi",
+  }, t("Street Address *", "Dirección *")), /*#__PURE__*/React.createElement(PlacesAutocomplete, {
     value: f.address,
-    onChange: function onChange(e) {
-      return set("address", e.target.value);
+    onChange: function onChange(v) {
+      return set("address", v);
     },
+    onPlace: applySenderPlace,
+    country: "us",
     placeholder: "1420 SW 8th St"
   })), /*#__PURE__*/React.createElement("div", {
     className: "fr3"
@@ -4314,12 +4345,13 @@ var OrderForm = function OrderForm(_ref4) {
     className: "fg"
   }, /*#__PURE__*/React.createElement("label", {
     className: "fl"
-  }, t("Consignee Address", "Dirección del Consignatario")), /*#__PURE__*/React.createElement("input", {
-    className: "fi",
+  }, t("Consignee Address", "Dirección del Consignatario")), /*#__PURE__*/React.createElement(PlacesAutocomplete, {
     value: f.consigneeAddress,
-    onChange: function onChange(e) {
-      return set("consigneeAddress", e.target.value);
+    onChange: function onChange(v) {
+      return set("consigneeAddress", v);
     },
+    onPlace: applyConsigneePlace,
+    country: false,
     placeholder: "Colonia Las Brisas, Casa #12"
   })), /*#__PURE__*/React.createElement("div", {
     className: "fr"
@@ -10689,7 +10721,9 @@ var CustomerPortal = function CustomerPortal(_ref59) {
             ),
             /*#__PURE__*/React.createElement("div", { className:"fg" },
               /*#__PURE__*/React.createElement("label", { className:"fl" }, t("Delivery Address","Dirección de Entrega")),
-              /*#__PURE__*/React.createElement("input", { className:"fi", placeholder:"123 Main St, Miami FL", value:nbForm.address, onChange:function(e){ setNbForm(Object.assign({},nbForm,{address:e.target.value})); } })
+              /*#__PURE__*/React.createElement(PlacesAutocomplete, { placeholder:"123 Main St, Miami FL", value:nbForm.address, country:"us",
+                onChange:function(v){ setNbForm(Object.assign({},nbForm,{address:v})); },
+                onPlace:function(place){ setNbForm(Object.assign({},nbForm,{address:(place && (place.formattedAddress || place.street)) || nbForm.address})); } })
             ),
             /*#__PURE__*/React.createElement("div", { className:"fr" },
               /*#__PURE__*/React.createElement("div", { className:"fg" },
@@ -10805,7 +10839,9 @@ var CustomerPortal = function CustomerPortal(_ref59) {
             ),
             /*#__PURE__*/React.createElement("div", { className:"fg" },
               /*#__PURE__*/React.createElement("label", { className:"fl" }, t("Pickup Address","Dirección de Recogida")),
-              /*#__PURE__*/React.createElement("input", { className:"fi", placeholder:"123 Main St, Miami FL", value:rpForm.address, onChange:function(e){ setRpForm(Object.assign({},rpForm,{address:e.target.value})); } })
+              /*#__PURE__*/React.createElement(PlacesAutocomplete, { placeholder:"123 Main St, Miami FL", value:rpForm.address, country:"us",
+                onChange:function(v){ setRpForm(Object.assign({},rpForm,{address:v})); },
+                onPlace:function(place){ setRpForm(Object.assign({},rpForm,{address:(place && (place.formattedAddress || place.street)) || rpForm.address})); } })
             ),
             /*#__PURE__*/React.createElement("div", { className:"fg" },
               /*#__PURE__*/React.createElement("label", { className:"fl" }, t("Notes","Notas")),
@@ -19366,18 +19402,52 @@ var GoogleMapsKeyMissingBanner = function GoogleMapsKeyMissingBanner() {
   ));
 };
 
+function parseGooglePlaceAddress(place, fallbackText) {
+  var parts = {};
+  ((place && place.address_components) || []).forEach(function(c) {
+    (c.types || []).forEach(function(t) { if (!parts[t]) parts[t] = c; });
+  });
+  var street = [parts.street_number && parts.street_number.long_name, parts.route && parts.route.long_name].filter(Boolean).join(" ");
+  var city = (parts.locality && parts.locality.long_name)
+    || (parts.postal_town && parts.postal_town.long_name)
+    || (parts.sublocality && parts.sublocality.long_name)
+    || (parts.sublocality_level_1 && parts.sublocality_level_1.long_name)
+    || (parts.administrative_area_level_2 && parts.administrative_area_level_2.long_name)
+    || "";
+  var state = (parts.administrative_area_level_1 && (parts.administrative_area_level_1.short_name || parts.administrative_area_level_1.long_name)) || "";
+  var zip = (parts.postal_code && parts.postal_code.long_name) || "";
+  if (zip && parts.postal_code_suffix && parts.postal_code_suffix.long_name) zip += "-" + parts.postal_code_suffix.long_name;
+  var loc = place && place.geometry && place.geometry.location;
+  var lat = loc && typeof loc.lat === "function" ? loc.lat() : null;
+  var lng = loc && typeof loc.lng === "function" ? loc.lng() : null;
+  return {
+    formattedAddress: (place && place.formatted_address) || fallbackText || "",
+    street: street || ((place && place.formatted_address) || fallbackText || ""),
+    city: city,
+    state: state,
+    zip: zip,
+    country: (parts.country && parts.country.long_name) || "",
+    countryCode: (parts.country && parts.country.short_name) || "",
+    lat: lat,
+    lng: lng,
+    placeId: (place && place.place_id) || ""
+  };
+}
+
 // ── SLICE 2: PlacesAutocomplete ──────────────────────────────────────────────
-// Google Places Autocomplete input. 3-char trigger, 300ms debounce, US-restricted.
+// Google Places Autocomplete input. 3-char trigger, 300ms debounce, US by default.
 // Uses the browser Maps JS `places` library (loaded via initGoogleMaps). On select,
 // calls onSelect(formattedAddress). Degrades to a plain text input if Maps unavailable.
 var PlacesAutocomplete = function PlacesAutocomplete(_p) {
-  var value = _p.value, onChange = _p.onChange, onSelect = _p.onSelect, placeholder = _p.placeholder;
+  var value = _p.value, onChange = _p.onChange, onSelect = _p.onSelect, onPlace = _p.onPlace, placeholder = _p.placeholder,
+      _country = _p.country === undefined ? "us" : _p.country;
   var t = useT();
   var h = React.createElement;
   var _s1 = React.useState([]), preds = _s1[0], setPreds = _s1[1];
   var _s2 = React.useState(false), open = _s2[0], setOpen = _s2[1];
   var _s3 = React.useState(false), ready = _s3[0], setReady = _s3[1];
   var svcRef = React.useRef(null);
+  var detailsRef = React.useRef(null);
   var tokenRef = React.useRef(null);
   var debRef = React.useRef(null);
 
@@ -19385,6 +19455,7 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
     initGoogleMaps(function () {
       if (window.google && window.google.maps && window.google.maps.places) {
         svcRef.current = new window.google.maps.places.AutocompleteService();
+        detailsRef.current = new window.google.maps.places.PlacesService(document.createElement("div"));
         tokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
         setReady(true);
       }
@@ -19397,11 +19468,12 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
     if (debRef.current) clearTimeout(debRef.current);
     if (!ready || !svcRef.current || (v || "").trim().length < 3) { setPreds([]); setOpen(false); return; }
     debRef.current = setTimeout(function () {
-      svcRef.current.getPlacePredictions({
+      var req = {
         input: v,
-        sessionToken: tokenRef.current,
-        componentRestrictions: { country: "us" }
-      }, function (predictions, status) {
+        sessionToken: tokenRef.current
+      };
+      if (_country) req.componentRestrictions = { country: _country };
+      svcRef.current.getPlacePredictions(req, function (predictions, status) {
         if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
           setPreds(predictions.slice(0, 5)); setOpen(true);
         } else { setPreds([]); setOpen(false); }
@@ -19412,11 +19484,25 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
   var pick = function (p) {
     setOpen(false); setPreds([]);
     onChange(p.description);
+    var detailsToken = tokenRef.current;
     // fresh session token after a selection (Places billing best-practice)
     if (window.google && window.google.maps && window.google.maps.places) {
       tokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
     }
     if (onSelect) onSelect(p.description);
+    if (onPlace && detailsRef.current && p.place_id) {
+      detailsRef.current.getDetails({
+        placeId: p.place_id,
+        fields: ["address_components", "formatted_address", "geometry", "place_id", "name"],
+        sessionToken: detailsToken
+      }, function(place, status) {
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
+          onPlace(parseGooglePlaceAddress(place, p.description), place);
+        } else {
+          onPlace(parseGooglePlaceAddress(null, p.description), null);
+        }
+      });
+    }
   };
 
   return h("div", { style: { position: "relative" } },
@@ -19621,6 +19707,31 @@ var AddressBookPage = function AddressBookPage() {
         onChange: function (e) { var v = e.target.value; setEditing(function (p) { return Object.assign({}, p, _defineProperty({}, key, v)); }); }
       }));
   };
+  var applyContactPlace = function applyContactPlace(place) {
+    if (!place) return;
+    setEditing(function(p) {
+      return Object.assign({}, p, {
+        address: place.street || place.formattedAddress || p.address || "",
+        city: place.city || p.city || "",
+        state: place.state || p.state || "",
+        zip: place.zip || p.zip || "",
+        google_place_id: place.placeId || p.google_place_id || "",
+        geocoded_lat: place.lat != null ? place.lat : p.geocoded_lat,
+        geocoded_lng: place.lng != null ? place.lng : p.geocoded_lng
+      });
+    });
+  };
+  var addressFld = function addressFld() {
+    return h("div", { style: { marginBottom: 10 } },
+      h("label", { className: "xs mut", style: { display: "block", marginBottom: 3 } }, t("Street Address", "Dirección")),
+      h(PlacesAutocomplete, {
+        value: editing.address || "",
+        onChange: function(v) { setEditing(function(p) { return Object.assign({}, p, { address: v }); }); },
+        onPlace: applyContactPlace,
+        country: "us",
+        placeholder: "123 Main St, Miami FL"
+      }));
+  };
 
   var modal = editing ? h("div", { className: "overlay", onClick: function () { setEditing(null); } },
     h("div", { className: "modal", onClick: function (e) { e.stopPropagation(); } },
@@ -19631,7 +19742,7 @@ var AddressBookPage = function AddressBookPage() {
         fld(t("Full Name", "Nombre Completo") + " *", "name"),
         h("div", { className: "row g10" }, h("div", { style: { flex: 1 } }, fld(t("Phone", "Teléfono"), "phone")), h("div", { style: { flex: 1 } }, fld("WhatsApp", "whatsapp"))),
         fld(t("Email", "Correo"), "email"),
-        fld(t("Street Address", "Dirección"), "address"),
+        addressFld(),
         h("div", { className: "row g10" }, h("div", { style: { flex: 2 } }, fld(t("City", "Ciudad"), "city")), h("div", { style: { flex: 1 } }, fld(t("State", "Estado"), "state")), h("div", { style: { flex: 1 } }, fld(t("ZIP", "Código Postal"), "zip"))),
         fld(t("Tags (comma-separated)", "Etiquetas (separadas por coma)"), "tags", "vip, repeat"),
         h("div", { style: { marginBottom: 10 } },
@@ -22646,7 +22757,7 @@ integrations: function integrations() {
    shipments, drivers, pricing are scoped to
    their tenantId. Casabe Connect (platform)
    can view all tenants.
-   
+
    FOR LIVE DEPLOYMENT (4-5 days):
    Replace TENANT_DB with Supabase calls.
    Add Supabase RLS policy: tenant_id = auth.jwt()->>'tenant_id'
@@ -22931,7 +23042,7 @@ var ROLES = {
       onboarding: "Company Setup Wizard",
       shipments: "Shipments",
       routes: "Routes & Automation",
-      map_view: "Map Preview — Active Orders",
+      map_view: "Routes & Optimization",
       claims: "Claims",
       bulk: "Bulk Status Update",
       payments: "Payments",
@@ -25649,7 +25760,7 @@ function App() {
   }, []);
 
   var handleLogin = function handleLogin(s) { setSession(s); };
-  
+
   // Debug mode: ?debug=1 enables Test HQ / Test Office / Test Driver buttons
   // on the LoginScreen. v9.8 removed the fake-session handleTestLogin —
   // test buttons now use real Supabase Auth (signInWithPassword) and the
@@ -26694,8 +26805,12 @@ setOrders(function (prev) {
     var _driversList = _ref_mvp.driversList || null;
     var t = useT();
 
-    var ACTIVE_STATUSES = ["received","in_warehouse","ready_pickup","in_transit","out_for_delivery","loaded_container","processing","Ready for Pickup","In Warehouse","Loaded in Container","En Route to Destination","Delivered"];
-    var activeOrders = (_orders || []).filter(function(o) { return ACTIVE_STATUSES.includes(o.status); });
+	    var ACTIVE_STATUSES = ["received","in_warehouse","ready_pickup","in_transit","out_for_delivery","loaded_container","processing","Ready for Pickup","In Warehouse","Loaded in Container","En Route to Destination","Delivered"];
+	    var activeOrders = (_orders || []).filter(function(o) { return ACTIVE_STATUSES.includes(o.status); });
+	    var ROUTE_STOP_STATUSES = ["ready_pickup", "need_box", "drop_box", "Ready for Pickup", "Need a Box", "Drop Box"];
+	    var isRouteStopOrder = function(o) {
+	      return ROUTE_STOP_STATUSES.includes(o.status);
+	    };
 
     /* ── Debug fixture stops (?debug=1 only — never affects production data) ── */
     var _isDebugMode = typeof window !== 'undefined' && (window.location.search.includes('debug=1') || window.location.search.includes('debug=true'));
@@ -26764,21 +26879,48 @@ setOrders(function (prev) {
     var _useState_s4busy = useState(false);
     var s4Busy = _useState_s4busy[0], setS4Busy = _useState_s4busy[1];
 
-    var TAPE_DIRECT_ORIGIN = { lat: 25.7617, lon: -80.1918, address: "3801 White Plains Rd, Bronx, NY 10467" };
+    var TAPE_DIRECT_ORIGIN = { lat: 40.8837508, lon: -73.8629312, address: "3801 White Plains Rd, Bronx, NY 10467" };
 
-    /* Build the high-confidence stop list (address gate already enforced) for the EFs */
-    var buildS4Stops = function() {
-      return activeOrders.filter(function(o) {
-        var e = geoCache[o.id];
-        var conf = e && e.confidence;
-        var ok = conf === "high" || (e && e.status === COORD_STATUSES.manual_override);
-        return ok && e && e.lat != null && e.lon != null;
-      }).map(function(o) {
-        var e = geoCache[o.id];
-        return { order_id: o.id, name: o.name || o.id, lat: e.lat, lng: e.lon,
-                 address: [o.address, o.city].filter(Boolean).join(", ") };
-      });
-    };
+	    var routeCandidateOrders = function() {
+	      return activeOrders.filter(isRouteStopOrder).filter(function(o) {
+	        var driverName = o.driver_name || o.driver || o.assignedDriver || "";
+	        if (routeDriver && driverName !== routeDriver) return false;
+	        if (selectedDriver && selectedDriver !== "all" && driverName !== selectedDriver) return false;
+	        return true;
+	      });
+	    };
+	    var routeOriginPayload = function() {
+	      if (routeStart && routeStart.lat != null && routeStart.lon != null) return { lat: routeStart.lat, lng: routeStart.lon };
+	      if (routeStart && routeStart.type === "custom" && customStartAddr) return customStartAddr;
+	      return { lat: TAPE_DIRECT_ORIGIN.lat, lng: TAPE_DIRECT_ORIGIN.lon };
+	    };
+
+	    /* Build the high-confidence stop list (address gate already enforced) for the EFs */
+	    var buildS4Stops = function() {
+	      return routeCandidateOrders().filter(function(o) {
+	        var e = geoCache[o.id];
+	        var conf = e && e.confidence;
+	        var ok = conf === "high" || (e && e.status === COORD_STATUSES.manual_override);
+	        return ok && e && e.lat != null && e.lon != null;
+	      }).map(function(o) {
+	        var e = geoCache[o.id];
+	        var serviceType = (o.service_type || o.type || (o.status === "need_box" || o.status === "drop_box" || o.status === "Need a Box" || o.status === "Drop Box" ? "drop box" : "pickup"));
+	        return { order_id: o.id, name: o.name || o.customer_name || o.id, lat: e.lat, lng: e.lon,
+	                 address: [o.delivery_address || o.address, o.city].filter(Boolean).join(", "),
+	                 type: serviceType, tracking_number: o.tracking_number || o.id };
+	      });
+	    };
+	    var routeDestinationPayload = function() {
+	      if (!routeEnd || routeEnd.type === "open") return null;
+	      if (routeEnd.lat != null && routeEnd.lon != null) return { lat: routeEnd.lat, lng: routeEnd.lon };
+	      if (routeEnd.type === "tape_direct") return { lat: TAPE_DIRECT_ORIGIN.lat, lng: TAPE_DIRECT_ORIGIN.lon };
+	      if (routeEnd.type === "custom" && customEndAddr) return customEndAddr;
+	      return null;
+	    };
+	    var routeEndLabel = function() {
+	      if (!routeEnd || routeEnd.type === "open") return "Anywhere";
+	      return routeEnd.label || (routeEnd.type === "tape_direct" ? "Tape Direct" : "Custom");
+	    };
 
     /* SLICE 4 — Optimize Route via Google Routes API Edge Function.
        Creates a draft routes row, calls optimize-route, persists the optimized
@@ -26788,17 +26930,17 @@ setOrders(function (prev) {
       var skipGate = _opts && _opts.skipGate;
       // Address gate first — reuse the Slice 2 gate (opens modal if any unconfirmed)
       if (!skipGate) {
-      var gateCandidates = activeOrders.filter(function(o) {
-        return [o.address, o.city, o.state].filter(Boolean).join(", ").length > 3;
-      });
+	      var gateCandidates = routeCandidateOrders().filter(function(o) {
+	        return [o.delivery_address || o.address, o.city, o.state].filter(Boolean).join(", ").length > 3;
+	      });
       var flagged = [];
       gateCandidates.forEach(function(o) {
         var e = geoCache[o.id];
         var conf = e && e.confidence;
         var isHigh = conf === "high" || (e && e.status === COORD_STATUSES.manual_override);
-        if (!isHigh) flagged.push({ order_id: o.id, name: o.name || o.id,
-          address: [o.address, o.city, o.state].filter(Boolean).join(", "),
-          confidence: conf || (e ? e.status : "unverified") });
+	        if (!isHigh) flagged.push({ order_id: o.id, name: o.name || o.customer_name || o.id,
+	          address: [o.delivery_address || o.address, o.city, o.state].filter(Boolean).join(", "),
+	          confidence: conf || (e ? e.status : "unverified") });
       });
       if (flagged.length > 0) { setAddrGateStops(flagged); return; }
       }
@@ -26826,10 +26968,13 @@ setOrders(function (prev) {
         }
         var routeId = insRes.data.id;
         // 2. Call optimize-route EF
-        return _supabase.functions.invoke("optimize-route", {
-          body: { route_id: routeId, origin: { lat: TAPE_DIRECT_ORIGIN.lat, lng: TAPE_DIRECT_ORIGIN.lon },
-                  stops: stops.map(function(s) { return { order_id: s.order_id, lat: s.lat, lng: s.lng }; }) }
-        }).then(function(efRes) {
+	        var optimizeBody = { route_id: routeId, origin: routeOriginPayload(),
+	                  stops: stops.map(function(s) { return { order_id: s.order_id, lat: s.lat, lng: s.lng }; }) };
+	        var destination = routeDestinationPayload();
+	        if (destination) optimizeBody.destination = destination;
+	        return _supabase.functions.invoke("optimize-route", {
+	          body: optimizeBody
+	        }).then(function(efRes) {
           setS4Busy(false);
           var d = (efRes && efRes.data) || {};
           if ((efRes && efRes.error) || !d.success) {
@@ -26842,9 +26987,9 @@ setOrders(function (prev) {
           }
           // 3. Map optimized order back to stop details, persist sequence locally
           var byId = {}; stops.forEach(function(s) { byId[s.order_id] = s; });
-          var orderedStops = (d.optimized_order || []).map(function(oid, idx) {
-            var s = byId[oid]; return s ? Object.assign({}, s, { sequence: idx + 1 }) : null;
-          }).filter(Boolean);
+	          var orderedStops = (d.optimized_order || []).map(function(oid, idx) {
+	            var s = byId[oid]; return s ? Object.assign({}, s, { sequence: idx + 1 }) : null;
+	          }).filter(Boolean);
           setS4Route({
             phase: "optimized", routeId: routeId, stops: orderedStops,
             distanceMeters: d.distance_meters, durationSeconds: d.duration_seconds,
@@ -26852,11 +26997,11 @@ setOrders(function (prev) {
           });
           // mirror into routeResult so the Google map polyline + numbered pins render
           setRouteResult({
-            stops: orderedStops.map(function(s) { return { id: s.order_id, name: s.name, lat: s.lat, lon: s.lng }; }),
+	            stops: orderedStops.map(function(s) { return { id: s.tracking_number || s.order_id, order_id: s.order_id, name: s.name, address: s.address, type: s.type, lat: s.lat, lon: s.lng }; }),
             totalDist: d.distance_meters ? d.distance_meters / 1000 : 0,
             estTime: d.duration_seconds ? Math.round(d.duration_seconds / 60) : 0,
             excludedCount: activeOrders.length - orderedStops.length, excludedStops: [],
-            driverLabel: "", routeDate: routeDate, startLabel: "Tape Direct", endLabel: "Tape Direct", _live: true
+	            driverLabel: "", routeDate: routeDate, startLabel: "Tape Direct", endLabel: routeEndLabel(), _live: true
           });
         });
       }).catch(function(e) {
@@ -26871,13 +27016,16 @@ setOrders(function (prev) {
       if (!s4Driver) { setS4Route(Object.assign({}, s4Route, { assignError: "Select a driver first." })); return; }
       setS4Busy(true);
       // Set driver on the route row (RLS-scoped), then call assign-route
-      _supabase.from("routes").update({ driver_user_id: s4Driver, status: "assigned" }).eq("id", s4Route.routeId).then(function() {
-        return _supabase.functions.invoke("assign-route", {
-          body: { route_id: s4Route.routeId, driver_user_id: s4Driver,
-                  ordered_stops: (s4Route.stops || []).map(function(s) { return { order_id: s.order_id, sequence: s.sequence, lat: s.lat, lng: s.lng }; }),
-                  origin: { lat: TAPE_DIRECT_ORIGIN.lat, lng: TAPE_DIRECT_ORIGIN.lon } }
-        });
-      }).then(function(efRes) {
+	      _supabase.from("routes").update({ driver_user_id: s4Driver, status: "assigned" }).eq("id", s4Route.routeId).then(function() {
+	        var assignBody = { route_id: s4Route.routeId, driver_user_id: s4Driver,
+	                  ordered_stops: (s4Route.stops || []).map(function(s) { return { order_id: s.order_id, sequence: s.sequence, lat: s.lat, lng: s.lng }; }),
+	                  origin: routeOriginPayload() };
+	        var destination = routeDestinationPayload();
+	        if (destination) assignBody.destination = destination;
+	        return _supabase.functions.invoke("assign-route", {
+	          body: assignBody
+	        });
+	      }).then(function(efRes) {
         setS4Busy(false);
         var d = (efRes && efRes.data) || {};
         if ((efRes && efRes.error) || !d.success) {
@@ -26896,7 +27044,7 @@ setOrders(function (prev) {
     };
 
     /* ── Issue 6: Route start/end options (preview-only, no DB writes) ── */
-    var _useState_rso = useState({ type: "hq", lat: null, lon: null, label: "HQ" });
+    var _useState_rso = useState({ type: "tape_direct", lat: TAPE_DIRECT_ORIGIN.lat, lon: TAPE_DIRECT_ORIGIN.lon, label: "Tape Direct" });
     var routeStart = _useState_rso[0], setRouteStart = _useState_rso[1];
     var _useState_reo = useState({ type: "open" });
     var routeEnd = _useState_reo[0], setRouteEnd = _useState_reo[1];
@@ -26975,8 +27123,8 @@ setOrders(function (prev) {
 
       /* Init map once */
       if (!_gmapInstRef.current) {
-        _gmapInstRef.current = new gmaps.Map(container, {
-          center: { lat: 25.7617, lng: -80.1918 }, // Miami metro default
+	        _gmapInstRef.current = new gmaps.Map(container, {
+	          center: { lat: TAPE_DIRECT_ORIGIN.lat, lng: TAPE_DIRECT_ORIGIN.lon },
           zoom: 10,
           mapTypeControl: false,
           streetViewControl: false,
@@ -27002,10 +27150,10 @@ setOrders(function (prev) {
       var bounds = new gmaps.LatLngBounds();
       var any = false;
       var currentCache = loadGeoCache();
-      var routeStopMap = {};
-      if (routeResult && routeResult.stops) {
-        routeResult.stops.forEach(function(s, idx) { routeStopMap[s.id] = idx + 1; });
-      }
+	      var routeStopMap = {};
+	      if (routeResult && routeResult.stops) {
+	        routeResult.stops.forEach(function(s, idx) { routeStopMap[s.order_id || s.id] = idx + 1; });
+	      }
 
       /* Tape Direct fixed origin pin (green home marker — NOT a numbered stop) */
       if (routeStart && routeStart.lat != null && routeStart.lon != null) {
@@ -27017,15 +27165,18 @@ setOrders(function (prev) {
             path: gmaps.SymbolPath.CIRCLE, scale: 9,
             fillColor: "#10B981", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2
           },
-          title: "Tape Direct (origin)"
-        });
-        originMarker.addListener("click", function() {
-          _gmapInfoRef.current.setContent("<div style='font-family:IBM Plex Sans,sans-serif;font-size:12px;color:#10B981;font-weight:700'>\uD83C\uDFE0 Tape Direct — Route Origin</div>");
-          _gmapInfoRef.current.open(mapInst, originMarker);
-        });
-        _gmapMarkersRef.current.push(originMarker);
-        bounds.extend({ lat: routeStart.lat, lng: routeStart.lon }); any = true;
-      }
+	          title: "Tape Direct (origin)"
+	        });
+	        originMarker.addListener("click", function() {
+	          var dest = routeStart.lat + "," + routeStart.lon;
+	          _gmapInfoRef.current.setContent("<div style='font-family:IBM Plex Sans,sans-serif;font-size:12px;color:#10B981;font-weight:700;margin-bottom:6px'>\uD83C\uDFE0 Tape Direct — Route Origin</div>" +
+	            "<div style='display:flex;gap:6px;flex-wrap:wrap'><a target='_blank' rel='noopener noreferrer' href='https://maps.apple.com/?daddr=" + encodeURIComponent(dest) + "&q=Tape%20Direct&dirflg=d'>\uD83C\uDF4E Apple Maps</a>" +
+	            "<a target='_blank' rel='noopener noreferrer' href='https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(dest) + "&travelmode=driving'>\uD83D\uDCCD Google Maps</a></div>");
+	          _gmapInfoRef.current.open(mapInst, originMarker);
+	        });
+	        _gmapMarkersRef.current.push(originMarker);
+	        bounds.extend({ lat: routeStart.lat, lng: routeStart.lon }); any = true;
+	      }
 
       /* Numbered markers colored by confidence */
       activeOrdersWithFixtures.forEach(function(o) {
@@ -27044,32 +27195,65 @@ setOrders(function (prev) {
           }
         });
         var addr = (o.address || "") + (o.city ? ", " + o.city : "");
-        var html =
-          "<div style='font-family:IBM Plex Mono,monospace;font-size:11px;color:#F59E0B;font-weight:700;margin-bottom:4px'>" + o.id + "</div>" +
-          "<div style='font-weight:700;color:#0C1120;margin-bottom:2px'>" + (o.name || "") + "</div>" +
-          "<div style='color:#475569;font-size:11px;margin-bottom:3px'>" + addr + "</div>" +
-          (o.status ? "<div style='font-size:11px;margin-bottom:2px;color:#334155'>Status: <strong>" + o.status.replace(/_/g, " ") + "</strong></div>" : "") +
-          (o.phone || o.customer_phone ? "<div style='font-size:11px;margin-bottom:2px;color:#334155'>\uD83D\uDCDE " + (o.phone || o.customer_phone) + "</div>" : "") +
-          ((o.driver_name || o.driver) ? "<div style='font-size:11px;margin-bottom:4px;color:#334155'>\uD83D\uDC64 " + (o.driver_name || o.driver) + "</div>" : "") +
-          "<span style='display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:" + pinColor + "22;color:" + pinColor + "'>" + coordStatusLabel(cStatus) + "</span>";
-        marker.addListener("click", function() {
-          _gmapInfoRef.current.setContent(html);
-          _gmapInfoRef.current.open(mapInst, marker);
-        });
-        _gmapMarkersRef.current.push(marker);
-        bounds.extend({ lat: entry.lat, lng: entry.lon }); any = true;
-      });
+	        var navDest = entry.lat + "," + entry.lon;
+	        var navAddr = encodeURIComponent(addr || navDest);
+	        var html =
+	          "<div style='font-family:IBM Plex Mono,monospace;font-size:11px;color:#F59E0B;font-weight:700;margin-bottom:4px'>" + o.id + "</div>" +
+	          "<div style='font-weight:700;color:#0C1120;margin-bottom:2px'>" + (o.name || "") + "</div>" +
+	          "<div style='color:#475569;font-size:11px;margin-bottom:3px'>" + addr + "</div>" +
+	          (o.status ? "<div style='font-size:11px;margin-bottom:2px;color:#334155'>Status: <strong>" + o.status.replace(/_/g, " ") + "</strong></div>" : "") +
+	          (o.phone || o.customer_phone ? "<div style='font-size:11px;margin-bottom:2px;color:#334155'>\uD83D\uDCDE " + (o.phone || o.customer_phone) + "</div>" : "") +
+	          ((o.driver_name || o.driver) ? "<div style='font-size:11px;margin-bottom:4px;color:#334155'>\uD83D\uDC64 " + (o.driver_name || o.driver) + "</div>" : "") +
+	          "<span style='display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:" + pinColor + "22;color:" + pinColor + "'>" + coordStatusLabel(cStatus) + "</span>" +
+	          "<div style='display:flex;gap:6px;flex-wrap:wrap;margin-top:8px'><a target='_blank' rel='noopener noreferrer' href='https://maps.apple.com/?daddr=" + encodeURIComponent(navDest) + "&q=" + navAddr + "&dirflg=d'>\uD83C\uDF4E Apple Maps</a>" +
+	          "<a target='_blank' rel='noopener noreferrer' href='https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(navDest) + "&travelmode=driving'>\uD83D\uDCCD Google Maps</a></div>";
+	        marker.addListener("click", function() {
+	          _gmapInfoRef.current.setContent(html);
+	          _gmapInfoRef.current.open(mapInst, marker);
+	        });
+	        _gmapMarkersRef.current.push(marker);
+	        bounds.extend({ lat: entry.lat, lng: entry.lon }); any = true;
+	      });
 
-      /* Route polyline connecting stops in optimized order */
-      if (routeResult && routeResult.stops && routeResult.stops.length >= 2) {
-        var path = routeResult.stops.filter(function(s) { return s.lat != null && s.lon != null; })
-          .map(function(s) { return { lat: s.lat, lng: s.lon }; });
-        if (path.length >= 2) {
-          _gmapPolyRef.current = new gmaps.Polyline({
-            path: path, geodesic: true, strokeColor: "#F59E0B", strokeOpacity: 0.75, strokeWeight: 3, map: mapInst
-          });
-        }
-      }
+	      if (routeEnd && routeEnd.type !== "open" && routeEnd.lat != null && routeEnd.lon != null) {
+	        var endMarker = new gmaps.Marker({
+	          position: { lat: routeEnd.lat, lng: routeEnd.lon },
+	          map: mapInst,
+	          zIndex: 9998,
+	          icon: {
+	            path: gmaps.SymbolPath.CIRCLE, scale: 9,
+	            fillColor: "#EF4444", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2
+	          },
+	          title: "Route end"
+	        });
+	        endMarker.addListener("click", function() {
+	          var dest = routeEnd.lat + "," + routeEnd.lon;
+	          var label = routeEnd.label || routeEnd.address || "Route end";
+	          _gmapInfoRef.current.setContent("<div style='font-family:IBM Plex Sans,sans-serif;font-size:12px;color:#EF4444;font-weight:700;margin-bottom:6px'>\uD83C\uDFC1 End — " + label + "</div>" +
+	            "<div style='display:flex;gap:6px;flex-wrap:wrap'><a target='_blank' rel='noopener noreferrer' href='https://maps.apple.com/?daddr=" + encodeURIComponent(dest) + "&q=" + encodeURIComponent(label) + "&dirflg=d'>\uD83C\uDF4E Apple Maps</a>" +
+	            "<a target='_blank' rel='noopener noreferrer' href='https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(dest) + "&travelmode=driving'>\uD83D\uDCCD Google Maps</a></div>");
+	          _gmapInfoRef.current.open(mapInst, endMarker);
+	        });
+	        _gmapMarkersRef.current.push(endMarker);
+	        bounds.extend({ lat: routeEnd.lat, lng: routeEnd.lon }); any = true;
+	      }
+
+	      /* Route polyline connecting stops in optimized order */
+	      if (routeResult && routeResult.stops && routeResult.stops.length >= 2) {
+	        var path = routeResult.stops.filter(function(s) { return s.lat != null && s.lon != null; })
+	          .map(function(s) { return { lat: s.lat, lng: s.lon }; });
+	        if (routeStart && routeStart.lat != null && routeStart.lon != null) path.unshift({ lat: routeStart.lat, lng: routeStart.lon });
+	        if (routeEnd && routeEnd.type !== "open" && routeEnd.lat != null && routeEnd.lon != null) path.push({ lat: routeEnd.lat, lng: routeEnd.lon });
+	        if (path.length >= 2) {
+	          _gmapPolyRef.current = new gmaps.Polyline({
+	            path: path, geodesic: true, strokeColor: "#F5851F", strokeOpacity: 0.85, strokeWeight: 3, map: mapInst,
+	            icons: [{
+	              icon: { path: gmaps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 3, strokeColor: "#F5851F" },
+	              offset: "100%"
+	            }]
+	          });
+	        }
+	      }
 
       /* fitBounds */
       if (any) {
@@ -27079,7 +27263,7 @@ setOrders(function (prev) {
           mapInst.fitBounds(bounds, 40);
         }
       }
-    }, [gmapReady, activeOrdersWithFixtures.length, JSON.stringify(Object.keys(geoCache)), routeResult]);
+	    }, [gmapReady, activeOrdersWithFixtures.length, JSON.stringify(Object.keys(geoCache)), routeResult, routeStart, routeEnd]);
 
     /* ── Auto-geocode orders without coords on mount + when orders change ── */
     useEffect(function() {
@@ -27464,7 +27648,7 @@ setOrders(function (prev) {
               className: "btn btn-ghost btn-sm",
               style: { fontSize: 11, marginBottom: routeOptionsOpen ? 10 : 0 },
               onClick: function() { setRouteOptionsOpen(function(v) { return !v; }); }
-            }, (routeOptionsOpen ? "\u25BC" : "\u25B6") + " Route Options — Start: " + (routeStart.label || "HQ") + " / End: " + (routeEnd.type === "hq" ? "HQ" : routeEnd.type === "custom" ? (customEndAddr || "Custom") : "Anywhere")),
+            }, (routeOptionsOpen ? "\u25BC" : "\u25B6") + " Route Options — Start: " + (routeStart.label || "Tape Direct") + " / End: " + (routeEnd.type === "tape_direct" ? "Tape Direct" : routeEnd.type === "custom" ? (customEndAddr || "Custom") : "Anywhere")),
             routeOptionsOpen && /*#__PURE__*/React.createElement("div", {
               style: { background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 8, padding: 12 }
             },
@@ -27473,9 +27657,9 @@ setOrders(function (prev) {
                   /*#__PURE__*/React.createElement("div", { className: "fl" }, "\uD83D\uDD35 Start from:"),
                   /*#__PURE__*/React.createElement("div", { className: "row g6", style: { flexWrap: "wrap", gap: 4 } },
                     /*#__PURE__*/React.createElement("button", {
-                      className: "btn btn-sm " + (routeStart.type === "hq" ? "btn-primary" : "btn-ghost"),
-                      onClick: function() { setRouteStart({ type: "hq", lat: 25.7617, lon: -80.1918, label: "HQ" }); }
-                    }, "\uD83C\uDFE2 HQ/Office"),
+	                      className: "btn btn-sm " + (routeStart.type === "tape_direct" ? "btn-primary" : "btn-ghost"),
+	                      onClick: function() { setRouteStart({ type: "tape_direct", lat: TAPE_DIRECT_ORIGIN.lat, lon: TAPE_DIRECT_ORIGIN.lon, label: "Tape Direct" }); }
+	                    }, "\uD83C\uDFE2 Tape Direct"),
                     /*#__PURE__*/React.createElement("button", {
                       className: "btn btn-sm " + (routeStart.type === "gps" ? "btn-primary" : "btn-ghost"),
                       onClick: handleDetectGPS,
@@ -27486,15 +27670,28 @@ setOrders(function (prev) {
                       onClick: function() { setRouteStart({ type: "custom", lat: null, lon: null, label: customStartAddr || "Custom" }); }
                     }, "\uD83D\uDCCD Custom address")
                   ),
-                  routeStart.type === "custom" && /*#__PURE__*/React.createElement("input", {
-                    className: "fi", type: "text", placeholder: "e.g. 123 Main St, Miami FL",
+                  routeStart.type === "custom" && /*#__PURE__*/React.createElement("div", {
                     style: { marginTop: 6 },
+                    className: "route-custom-address"
+                  }, /*#__PURE__*/React.createElement(PlacesAutocomplete, {
+                    placeholder: "e.g. 123 Main St, Miami FL",
                     value: customStartAddr,
-                    onChange: function(e) {
-                      setCustomStartAddr(e.target.value);
-                      setRouteStart({ type: "custom", lat: null, lon: null, label: e.target.value || "Custom" });
+                    country: "us",
+                    onChange: function(v) {
+                      setCustomStartAddr(v);
+                      setRouteStart({ type: "custom", lat: null, lon: null, label: v || "Custom" });
+                    },
+                    onPlace: function(place) {
+                      var label = (place && (place.formattedAddress || place.street)) || customStartAddr || "Custom";
+                      setCustomStartAddr(label);
+                      setRouteStart({
+                        type: "custom",
+                        lat: place && place.lat != null ? place.lat : null,
+                        lon: place && place.lng != null ? place.lng : null,
+                        label: label
+                      });
                     }
-                  })
+                  }))
                 ),
                 /*#__PURE__*/React.createElement("div", null,
                   /*#__PURE__*/React.createElement("div", { className: "fl" }, "\uD83C\uDFC1 End at:"),
@@ -27504,20 +27701,36 @@ setOrders(function (prev) {
                       onClick: function() { setRouteEnd({ type: "open" }); }
                     }, "\uD83D\uDCCD Anywhere (open)"),
                     /*#__PURE__*/React.createElement("button", {
-                      className: "btn btn-sm " + (routeEnd.type === "hq" ? "btn-primary" : "btn-ghost"),
-                      onClick: function() { setRouteEnd({ type: "hq" }); }
-                    }, "\uD83C\uDFE2 HQ/Office"),
+	                      className: "btn btn-sm " + (routeEnd.type === "tape_direct" ? "btn-primary" : "btn-ghost"),
+	                      onClick: function() { setRouteEnd({ type: "tape_direct", lat: TAPE_DIRECT_ORIGIN.lat, lon: TAPE_DIRECT_ORIGIN.lon, label: "Tape Direct" }); }
+	                    }, "\uD83C\uDFE2 Tape Direct"),
                     /*#__PURE__*/React.createElement("button", {
                       className: "btn btn-sm " + (routeEnd.type === "custom" ? "btn-primary" : "btn-ghost"),
                       onClick: function() { setRouteEnd({ type: "custom" }); }
                     }, "\uD83D\uDCCD Custom address")
                   ),
-                  routeEnd.type === "custom" && /*#__PURE__*/React.createElement("input", {
-                    className: "fi", type: "text", placeholder: "e.g. 456 End Ave, Miami FL",
+                  routeEnd.type === "custom" && /*#__PURE__*/React.createElement("div", {
                     style: { marginTop: 6 },
+                    className: "route-custom-address"
+                  }, /*#__PURE__*/React.createElement(PlacesAutocomplete, {
+                    placeholder: "e.g. 456 End Ave, Miami FL",
                     value: customEndAddr,
-                    onChange: function(e) { setCustomEndAddr(e.target.value); }
-                  })
+                    country: "us",
+                    onChange: function(v) {
+                      setCustomEndAddr(v);
+                      setRouteEnd({ type: "custom", lat: null, lon: null, label: v || "Custom" });
+                    },
+                    onPlace: function(place) {
+                      var label = (place && (place.formattedAddress || place.street)) || customEndAddr || "Custom";
+                      setCustomEndAddr(label);
+                      setRouteEnd({
+                        type: "custom",
+                        lat: place && place.lat != null ? place.lat : null,
+                        lon: place && place.lng != null ? place.lng : null,
+                        label: label
+                      });
+                    }
+                  }))
                 )
               ),
               /* A1: Stop filters section */
@@ -27726,30 +27939,41 @@ setOrders(function (prev) {
             /*#__PURE__*/React.createElement("div", { className: "card-bd" },
               /*#__PURE__*/React.createElement("div", { className: "row g10", style: { flexWrap: "wrap" } },
                 /* D1: Google Maps */
-                /*#__PURE__*/React.createElement("button", {
-                  className: "btn btn-primary btn-sm",
-                  onClick: function() {
-                    var ordered = routeResult.stops;
-                    if (ordered.length < 2) return;
-                    var dest = ordered[ordered.length - 1];
-                    var waypts = ordered.slice(1, -1);
-                    if (waypts.length > 9) {
-                      _notify("\u26A0 Google Maps supports up to 9 waypoints. Showing first 9 of " + waypts.length + ".");
-                      waypts = waypts.slice(0, 9);
-                    }
-                    var waypointsStr = waypts.map(function(s) { return s.lat + "," + s.lon; }).join("|");
-                    var url = "https://www.google.com/maps/dir/?api=1&destination=" + dest.lat + "," + dest.lon + (waypointsStr ? "&waypoints=" + waypointsStr : "") + "&travelmode=driving";
-                    window.open(url, "_blank");
-                  }
-                }, "\uD83D\uDDFA\uFE0F Google Maps"),
+	                /*#__PURE__*/React.createElement("button", {
+	                  className: "btn btn-primary btn-sm",
+	                  onClick: function() {
+	                    var ordered = routeResult.stops;
+	                    if (ordered.length < 2) return;
+	                    var routeOrigin = routeOriginPayload();
+	                    var origin = typeof routeOrigin === "string" ? routeOrigin : routeOrigin.lat + "," + routeOrigin.lng;
+	                    var destination = routeEnd && routeEnd.type !== "open" && routeEnd.lat != null && routeEnd.lon != null
+	                      ? routeEnd.lat + "," + routeEnd.lon
+	                      : ordered[ordered.length - 1].lat + "," + ordered[ordered.length - 1].lon;
+	                    var waypts = routeEnd && routeEnd.type !== "open" ? ordered : ordered.slice(0, -1);
+	                    if (waypts.length > 23) {
+	                      _notify("\u26A0 Google Maps may truncate routes over 23 waypoints. Showing first 23 of " + waypts.length + ".");
+	                      waypts = waypts.slice(0, 23);
+	                    }
+	                    var waypointsStr = waypts.map(function(s) { return encodeURIComponent(s.lat + "," + s.lon); }).join("%7C");
+	                    var url = "https://www.google.com/maps/dir/?api=1&origin=" + encodeURIComponent(origin) + "&destination=" + encodeURIComponent(destination) + (waypointsStr ? "&waypoints=" + waypointsStr : "") + "&travelmode=driving";
+	                    window.open(url, "_blank");
+	                  }
+	                }, "\uD83D\uDDFA\uFE0F Google Maps"),
                 /* D2: Apple Maps */
-                /*#__PURE__*/React.createElement("button", {
-                  className: "btn btn-ghost btn-sm",
-                  onClick: function() {
-                    var ordered = routeResult.stops;
-                    var url = "https://maps.apple.com/?" + ordered.map(function(s) { return "daddr=" + s.lat + "," + s.lon; }).join("&");
-                    window.open(url, "_blank");
-                  }
+	                /*#__PURE__*/React.createElement("button", {
+	                  className: "btn btn-ghost btn-sm",
+	                  onClick: function() {
+	                    var ordered = routeResult.stops;
+	                    if (!ordered.length) return;
+	                    var routeOrigin = routeOriginPayload();
+	                    var origin = typeof routeOrigin === "string" ? routeOrigin : routeOrigin.lat + "," + routeOrigin.lng;
+	                    var last = ordered[ordered.length - 1];
+	                    var destination = routeEnd && routeEnd.type !== "open" && routeEnd.lat != null && routeEnd.lon != null
+	                      ? routeEnd.lat + "," + routeEnd.lon
+	                      : last.lat + "," + last.lon;
+	                    var url = "https://maps.apple.com/?saddr=" + encodeURIComponent(origin) + "&daddr=" + encodeURIComponent(destination) + "&dirflg=d";
+	                    window.open(url, "_blank");
+	                  }
                 }, "\uD83C\uDF0F Apple Maps"),
                 /* D3: Copy Stop List */
                 /*#__PURE__*/React.createElement("button", {
