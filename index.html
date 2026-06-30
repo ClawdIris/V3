@@ -31151,10 +31151,66 @@ setOrders(function (prev) {
     return;
   }
 })();
+// ═══════════════════════════════════════════════════════════════════
+// SLICE-2/3 P0 FIX — Top-level ErrorBoundary (white-screen prevention)
+// Before this, ANY uncaught error in any component unmounted the whole
+// React tree to a blank #root (the "white page" Jeffrey saw, often after
+// a slow re-render/scroll). React 18 deliberately unmounts the root on an
+// uncaught render error if there is no boundary. This catches it, shows a
+// recovery UI + the real error instead of a white screen, and logs it so
+// ShipmentTester/console surfaces the true cause.
+// ═══════════════════════════════════════════════════════════════════
+var AppErrorBoundary = /*#__PURE__*/function(_React$Component) {
+  function AppErrorBoundary(props) {
+    var _this = _React$Component.call(this, props) || this;
+    _this.state = { hasError: false, error: null, info: null };
+    return _this;
+  }
+  AppErrorBoundary.prototype = Object.create(_React$Component.prototype);
+  AppErrorBoundary.prototype.constructor = AppErrorBoundary;
+  Object.setPrototypeOf(AppErrorBoundary, _React$Component);
+
+  AppErrorBoundary.getDerivedStateFromError = function(error) {
+    return { hasError: true, error: error };
+  };
+  AppErrorBoundary.prototype.componentDidCatch = function(error, info) {
+    // Surface the real cause (console + window for the smoke/e2e gate to read)
+    try {
+      console.error("[AppErrorBoundary] caught render error:", error, info && info.componentStack);
+      window.__APP_LAST_ERROR = { message: String(error && error.message || error), stack: error && error.stack, componentStack: info && info.componentStack, at: new Date().toISOString() };
+    } catch (_e) {}
+    this.setState({ info: info });
+  };
+  AppErrorBoundary.prototype.render = function() {
+    if (this.state.hasError) {
+      var self = this;
+      return /*#__PURE__*/React.createElement("div", {
+        style: { minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#07090F", color: "#E2E8F0", fontFamily: "'IBM Plex Sans',sans-serif", padding: "24px", textAlign: "center" }
+      },
+        /*#__PURE__*/React.createElement("div", { style: { fontSize: 40, marginBottom: 12 } }, "\u26A0\uFE0F"),
+        /*#__PURE__*/React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, marginBottom: 8 } }, "Something went wrong"),
+        /*#__PURE__*/React.createElement("div", { style: { color: "#94A3B8", fontSize: 13, maxWidth: 480, marginBottom: 16 } },
+          "The app hit an unexpected error and recovered instead of going blank. Try reloading."),
+        /*#__PURE__*/React.createElement("button", {
+          style: { background: "#F59E0B", color: "#07090F", border: "none", borderRadius: 8, padding: "9px 18px", fontWeight: 700, fontSize: 13, cursor: "pointer", marginBottom: 16 },
+          onClick: function() { window.location.reload(); }
+        }, "Reload app"),
+        /*#__PURE__*/React.createElement("pre", {
+          style: { textAlign: "left", background: "#0C1120", border: "1px solid #1C2840", borderRadius: 8, padding: "12px 14px", fontSize: 11, color: "#F87171", maxWidth: 560, maxHeight: 180, overflow: "auto", whiteSpace: "pre-wrap", fontFamily: "'IBM Plex Mono',monospace" }
+        }, String(self.state.error && self.state.error.message || self.state.error || "Unknown error"))
+      );
+    }
+    return this.props.children;
+  };
+  return AppErrorBoundary;
+}(React.Component);
+
 // App handles auth gate → shows LoginScreen or AppShell.
 // Skip when the public tracker already mounted (?number=XXX flow).
 if (!window.__publicTrackerMounted) {
-  ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+  ReactDOM.createRoot(document.getElementById("root")).render(
+    React.createElement(AppErrorBoundary, null, React.createElement(App))
+  );
 }
 // PHASE 2: OFFICE PORTAL INTEGRATION
 var PICKUP_LOCATION_OPTIONS = {office: 'Office', client_house: 'Client House'};
