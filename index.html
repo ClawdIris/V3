@@ -11632,7 +11632,22 @@ var LiveFleetCard = function LiveFleetCard(_ref77) {
       simStatus: simStatus
     };
   });
-  if (!drivers.length) return null;
+  if (!drivers.length) return /*#__PURE__*/React.createElement("div", {
+    className: "card mb12"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "card-hd"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "card-title"
+  }, "\uD83D\uDE9A ", t("Live Fleet", "Flota en Vivo")), /*#__PURE__*/React.createElement("div", {
+    className: "card-sub"
+  }, t("No active drivers yet", "Aún no hay conductores activos")))), /*#__PURE__*/React.createElement("div", {
+    className: "card-bd"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "alert alert-b",
+    style: {
+      margin: 0
+    }
+  }, t("Assign orders to drivers to see live fleet status here.", "Asigna órdenes a conductores para ver aquí el estado de la flota en vivo."))));
   return /*#__PURE__*/React.createElement("div", {
     className: "card mb12"
   }, /*#__PURE__*/React.createElement("div", {
@@ -30040,12 +30055,19 @@ setOrders(function (prev) {
     // Phase 6 — Slice 4: Margin Summary (HQ tenant-wide; Office scoped; Driver blocked)
     if (page === "margin_summary") return /*#__PURE__*/React.createElement(MarginSummaryPage, { roleKey: roleKey, officeFilter: (function(){ if (roleKey !== 'office') return null; var _off = (tenant && tenant.__dbOffices) || []; var _firstOff = _off.find(function(o){ return o.slug === 'casabe-xpress-ny'; }) || _off[0]; return _firstOff ? _firstOff.id : null; })() });
     // Phase 6 — Slice 5 Stage 5: Message Templates CRUD (HQ + Office create/edit/archive; Driver read-only)
-    if (page === "msg_templates") return /*#__PURE__*/React.createElement(MessageTemplatesCRUDPage, { roleKey: roleKey });
-    if (page === "msg_provider") return /*#__PURE__*/React.createElement(ProviderConfigPage, { roleKey: roleKey, supabase: _supabase });
-    if (page === "msg_queue") return /*#__PURE__*/React.createElement(MessageQueuePage, { roleKey: roleKey, currentUser: session, supabase: _supabase });
-    if (page === "batches") return /*#__PURE__*/React.createElement("div", {
-      className: "fu"
-    }, /*#__PURE__*/React.createElement("div", {
+	    if (page === "msg_templates") return /*#__PURE__*/React.createElement(MessageTemplatesCRUDPage, { roleKey: roleKey });
+	    if (page === "msg_provider") return /*#__PURE__*/React.createElement(ProviderConfigPage, { roleKey: roleKey, supabase: _supabase });
+	    if (page === "msg_queue") return /*#__PURE__*/React.createElement(MessageQueuePage, { roleKey: roleKey, currentUser: session, supabase: _supabase });
+	    if (page === "drivers") return /*#__PURE__*/React.createElement("div", {
+	      className: "fu"
+	    }, /*#__PURE__*/React.createElement(LiveFleetCard, {
+	      orders: orders
+	    }), /*#__PURE__*/React.createElement(DriverScorecard, {
+	      orders: orders
+	    }));
+	    if (page === "batches") return /*#__PURE__*/React.createElement("div", {
+	      className: "fu"
+	    }, /*#__PURE__*/React.createElement("div", {
       className: "batch-card mb18"
     }, /*#__PURE__*/React.createElement("div", {
       style: {
