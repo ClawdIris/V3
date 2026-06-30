@@ -30816,6 +30816,16 @@ setOrders(function (prev) {
 
   var h = React.createElement;
 
+  // ── White-label brand (Twilio compliance: brand must read from config, not hardcoded) ──
+  // Resolves from a global brand config when present (set by build/tenant config),
+  // falling back to the Casabe Xpress public brand. Single source of truth for every
+  // brand string on the public tracking/opt-in pages (header, disclosures, footer).
+  var PUBLIC_BRAND = (typeof window !== "undefined" && (
+    (window.__PUBLIC_BRAND && String(window.__PUBLIC_BRAND)) ||
+    (window.__BRAND_CONFIG && window.__BRAND_CONFIG.publicName) ||
+    (window.__APP_CONFIG && window.__APP_CONFIG.brandName)
+  )) || "Casabe Xpress";
+
   // ── Config ──
   var TURNSTILE_SITE_KEY = "%%TURNSTILE_SITE_KEY%%";  // injected by Netlify build substitution
   // Configured only when the build replaced the placeholder with a real key.
@@ -30824,8 +30834,8 @@ setOrders(function (prev) {
   var CONSENT_VERSION = "casabe-track-sms-v1-2026-06";
   var EFFECTIVE_DATE_EN = "June 17, 2026";       // FIXED — tied to consent version
   var EFFECTIVE_DATE_ES = "17 de junio de 2026"; // FIXED — tied to consent version
-  var TERMS_URL = "/?public=terms";
-  var PRIVACY_URL = "/?public=privacy";
+  var TERMS_URL = "https://casabe-konnect-legal-production.up.railway.app";
+  var PRIVACY_URL = "https://casabe-konnect-legal-production.up.railway.app";
   var EDGE_URL = SUPABASE_URL + "/functions/v1/track-sms-optin";
 
   var STATUS_LABELS_EN = {
@@ -30871,7 +30881,7 @@ setOrders(function (prev) {
     return h("div", { style: { background: "var(--bg2)", borderBottom: "1px solid var(--border)", padding: "14px 20px", display: "flex", alignItems: "center", gap: 12, position: "sticky", top: 0, zIndex: 10 } },
       h("a", { href: "/?public=track", style: { display: "flex", alignItems: "center", gap: 10, textDecoration: "none" } },
         h("div", { style: { width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg,var(--amber),#D97706)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 16, color: "var(--bg)" } }, "C"),
-        h("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 17, color: "var(--text)" } }, "Casabe Konnect")),
+        h("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 17, color: "var(--text)" } }, PUBLIC_BRAND)),
       h("div", { style: { marginLeft: "auto", display: "flex", gap: 4, background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 8, padding: 3 } },
         ["en", "es"].map(function (lc) {
           return h("button", {
@@ -30886,10 +30896,10 @@ setOrders(function (prev) {
       h(PublicHeader, { lang: props.lang, setLang: props.setLang }),
       h("div", { style: { maxWidth: 640, margin: "0 auto", padding: "24px 18px 60px" } }, props.children),
       h("div", { style: { maxWidth: 640, margin: "0 auto", padding: "0 18px 40px", color: "var(--text4)", fontSize: 11, textAlign: "center" } },
-        h("a", { href: "/?public=terms", style: { color: "var(--text3)" } }, props.lang === "es" ? "Términos" : "Terms"),
+        h("a", { href: "https://casabe-konnect-legal-production.up.railway.app", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--text3)" } }, props.lang === "es" ? "Términos" : "Terms"),
         "  ·  ",
-        h("a", { href: "/?public=privacy", style: { color: "var(--text3)" } }, props.lang === "es" ? "Política de Privacidad" : "Privacy Policy"),
-        h("div", { style: { marginTop: 8 } }, "© ", new Date().getFullYear(), " Casabe Konnect")));
+        h("a", { href: "https://casabe-konnect-legal-production.up.railway.app", target: "_blank", rel: "noopener noreferrer", style: { color: "var(--text3)" } }, props.lang === "es" ? "Política de Privacidad" : "Privacy Policy"),
+        h("div", { style: { marginTop: 8 } }, "© ", new Date().getFullYear(), " ", PUBLIC_BRAND)));
   }
 
   function PublicTrackingAlertsPage() {
@@ -30923,12 +30933,13 @@ setOrders(function (prev) {
     };
 
     // Displayed consent copy — version-locked, must match consent_program_text.
+    // Twilio-required verbatim copy; brand pulled from PUBLIC_BRAND (white-label).
     var txnCopy = T(
-      "I agree to receive text messages from Casabe Konnect about this specific package, including pickup, transit, customs, delivery, delay, and attempted-delivery updates. Message frequency varies by shipment status. Message and data rates may apply. Reply STOP to unsubscribe or HELP for help. Consent is not required to track my package online. See Terms and Privacy Policy.",
-      "Acepto recibir mensajes de texto de Casabe Konnect sobre este paquete específico, incluidas actualizaciones de recogida, tránsito, aduana, entrega, demoras e intentos de entrega. La frecuencia de los mensajes varía según el estado del envío. Pueden aplicarse tarifas de mensajes y datos. Responde STOP para cancelar o HELP para ayuda. No es necesario dar consentimiento para rastrear mi paquete en línea. Consulta los Términos y la Política de Privacidad.");
+      "I agree to receive text messages from " + PUBLIC_BRAND + " about this specific package, including pickup, transit, customs, delivery, delay, and attempted-delivery updates. Message frequency varies by shipment status. Message and data rates may apply. Reply STOP to unsubscribe or HELP for help. Consent is not required to track my package online. See Terms and Privacy Policy.",
+      "Acepto recibir mensajes de texto de " + PUBLIC_BRAND + " sobre este paquete específico, incluidas actualizaciones de recogida, tránsito, aduana, entrega, demoras e intentos de entrega. La frecuencia de los mensajes varía según el estado del envío. Pueden aplicarse tarifas de mensajes y datos. Responde STOP para cancelar o HELP para ayuda. No es necesario dar consentimiento para rastrear mi paquete en línea. Consulta los Términos y la Política de Privacidad.");
     var mktCopy = T(
-      "I agree to receive optional marketing text messages from Casabe Konnect, including promotions, offers, and service updates. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe or HELP for help. This is optional and not required for package alerts.",
-      "Acepto recibir mensajes de texto de marketing opcionales de Casabe Konnect, incluidas promociones, ofertas y novedades del servicio. La frecuencia de los mensajes varía. Pueden aplicarse tarifas de mensajes y datos. Responde STOP para cancelar o HELP para ayuda. Esto es opcional y no es necesario para las alertas de paquetes.");
+      "I agree to receive optional marketing text messages from " + PUBLIC_BRAND + ", including promotions, offers, and service updates. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe or HELP for help. This is optional and not required for package alerts.",
+      "Acepto recibir mensajes de texto de marketing opcionales de " + PUBLIC_BRAND + ", incluidas promociones, ofertas y novedades del servicio. La frecuencia de los mensajes varía. Pueden aplicarse tarifas de mensajes y datos. Responde STOP para cancelar o HELP para ayuda. Esto es opcional y no es necesario para las alertas de paquetes.");
 
     var _q = useState(""), query = _q[0], setQuery = _q[1];
     var _ls = useState("idle"), lookupState = _ls[0], setLookupState = _ls[1];
@@ -31042,9 +31053,9 @@ setOrders(function (prev) {
       return h("span", null, head,
         seeIdx >= 0 ? h("span", null,
           T("See ", "Consulta los "),
-          h("a", { href: TERMS_URL, style: { color: "var(--amber)" } }, T("Terms", "Términos")),
+          h("a", { href: TERMS_URL, target: "_blank", rel: "noopener noreferrer", style: { color: "var(--amber)" } }, T("Terms", "Términos")),
           T(" and ", " y la "),
-          h("a", { href: PRIVACY_URL, style: { color: "var(--amber)" } }, T("Privacy Policy", "Política de Privacidad")),
+          h("a", { href: PRIVACY_URL, target: "_blank", rel: "noopener noreferrer", style: { color: "var(--amber)" } }, T("Privacy Policy", "Política de Privacidad")),
           ".") : null);
     })();
 
@@ -31093,22 +31104,25 @@ setOrders(function (prev) {
               h("div", { className: "fl" }, T("Box type", "Tipo de caja")),
               h("div", { style: { fontWeight: 600 } }, boxTypeLabel(order.box_type))) : null))) : null,
 
-      lookupState === "found" && order && submitState !== "success" ? h("div", { className: "card" },
+      submitState !== "success" ? h("div", { className: "card" },
         h("div", { className: "card-hd" },
-          h("div", { className: "card-title" }, T("Get text alerts for this package", "Recibe alertas por texto de este paquete"))),
+          h("div", { className: "card-title" }, T("Get text alerts for your package", "Recibe alertas por texto de tu paquete"))),
         h("div", { className: "card-bd" },
+          (!order ? h("div", { className: "alert alert-a", style: { fontSize: 11.5, marginBottom: 12 } },
+            T("Look up your package above to complete signup. You can review the consent terms below now.",
+              "Busca tu paquete arriba para completar el registro. Puedes revisar los términos de consentimiento a continuación.")) : null),
           h("div", { className: "fr", style: { marginBottom: 12 } },
             h("div", { className: "fg", style: fieldStyle },
               h("label", { className: "fl" }, T("First name", "Nombre")),
-              h("input", { className: "fi", value: firstName, onChange: function (e) { setFirstName(e.target.value); } })),
+              h("input", { className: "fi", value: firstName, disabled: !order, onChange: function (e) { setFirstName(e.target.value); } })),
             h("div", { className: "fg", style: fieldStyle },
               h("label", { className: "fl" }, T("Last name", "Apellido")),
-              h("input", { className: "fi", value: lastName, onChange: function (e) { setLastName(e.target.value); } }))),
+              h("input", { className: "fi", value: lastName, disabled: !order, onChange: function (e) { setLastName(e.target.value); } }))),
           h("div", { className: "fr", style: { marginBottom: 4 } },
             h("div", { className: "fg", style: fieldStyle },
               h("label", { className: "fl" }, T("Mobile phone", "Teléfono móvil")),
               h("input", {
-                className: "fi", value: phone, type: "tel", placeholder: "(407) 555-0123",
+                className: "fi", value: phone, type: "tel", placeholder: "(407) 555-0123", disabled: !order,
                 onChange: function (e) { setPhone(e.target.value); },
                 onBlur: function () { if (isValidPhone(phone)) setPhone(fmtUSPhone(phone)); }
               }),
@@ -31116,7 +31130,7 @@ setOrders(function (prev) {
             h("div", { className: "fg", style: fieldStyle },
               h("label", { className: "fl" }, T("ZIP code", "Código postal")),
               h("input", {
-                className: "fi mono", value: zip, inputMode: "numeric", maxLength: 10, placeholder: "33020",
+                className: "fi mono", value: zip, inputMode: "numeric", maxLength: 10, placeholder: "33020", disabled: !order,
                 onChange: function (e) { setZip(e.target.value); }
               }),
               h("div", { style: { color: "var(--text4)", fontSize: 10.5, marginTop: 4 } }, T("Must match the ZIP on the order.", "Debe coincidir con el código postal de la orden.")))),
@@ -31142,7 +31156,7 @@ setOrders(function (prev) {
                         h("span", { style: { fontSize: 11.5, color: "var(--red)" } }, T("Verification failed.", "La verificación falló.")),
                         h("button", { type: "button", className: "btn btn-ghost btn-sm", onClick: retryTurnstile }, T("Retry", "Reintentar")))
                     : h("div", { style: { fontSize: 11.5, color: "var(--text3)" } }, T("Verifying\u2026", "Verificando\u2026")))
-            : h("div", { className: "alert alert-a", style: { fontSize: 11.5 } }, T("Text signup is temporarily unavailable. Please try again later.", "El registro por texto no está disponible por el momento. Inténtalo más tarde.")),
+            : null,
 
           submitState === "error" ? h("div", { className: "alert alert-r" }, submitErrMsg(submitCode)) : null,
 
