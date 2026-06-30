@@ -8049,7 +8049,7 @@ var HQOverview = function HQOverview(_ref51) {
     return o.status === "need_box";
   }).length;
   var unpaid = filtOrders.filter(function (o) {
-    return o.payment.status === "unpaid";
+    return o.payment && o.payment.status === "unpaid";
   }).length;
   var batchReady = filtOrders.filter(function (o) {
     return ["in_warehouse", "loaded_container"].includes(o.status);
