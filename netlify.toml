@@ -1,21 +1,24 @@
 # netlify.toml — Casabe Konnect build configuration
 #
-# Browser key substitution pattern:
-#   At build time, sed replaces the literal placeholder %%GOOGLE_MAPS_KEY%%
-#   in index.html with the value of the GOOGLE_MAPS_API_KEY env var set in
-#   the Netlify dashboard (Site settings → Environment variables).
+# KEY STRATEGY (Jeffrey "Option A", 2026-06-29):
+#   The Google Maps BROWSER key is committed directly into index.html as
+#   `var GOOGLE_MAPS_KEY = "AIza..."`. It is safe to expose because it is
+#   HTTP-referrer-locked to casabekonnect-app.netlify.app and restricted to
+#   Maps JS + Places APIs. There is therefore NO build-time substitution.
 #
-#   The placeholder in index.html must be exactly: %%GOOGLE_MAPS_KEY%%
-#   Example: const GOOGLE_MAPS_API_KEY = '%%GOOGLE_MAPS_KEY%%';
+#   (The old build command did `sed 's/%%GOOGLE_MAPS_KEY%%/$GOOGLE_MAPS_API_KEY/g'`
+#    which was doubly broken: single-quoted $VAR never expands in sed, AND the
+#    %%GOOGLE_MAPS_KEY%% placeholder no longer exists in index.html. A git-based
+#    deploy running that could ship a broken key → white screen. Removed.)
 #
-#   The real key is NEVER committed to source control.
-#   sed -i.bak creates a backup (.bak) file — acceptable for Netlify build.
+#   Server-side keys (GOOGLE_ROUTES_API_KEY / GEOCODING) live in Supabase Edge
+#   Function secrets ONLY — never here, never in index.html.
 #
-#   Server-side keys (GOOGLE_GEOCODING_KEY, GOOGLE_ROUTES_KEY) go in
-#   Supabase Edge Function secrets ONLY — never here, never in index.html.
+# DEPLOY GUARD: the build step now self-validates the committed key and FAILS
+#   the build (non-zero exit) rather than publishing a broken/white-screen bundle.
 
 [build]
-  command = "echo 'Substituting environment variables...' && sed -i.bak 's/%%GOOGLE_MAPS_KEY%%/$GOOGLE_MAPS_API_KEY/g' index.html && echo 'Done.'"
+  command = "bash ./scripts/netlify-build-guard.sh"
   publish = "."
 
 [build.environment]

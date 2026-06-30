@@ -11,7 +11,10 @@
     "test:coverage": "jest --coverage",
     "test:e2e": "playwright test",
     "test:e2e:json": "playwright test --reporter=json",
-    "verify": "playwright test"
+    "verify": "playwright test",
+    "smoke": "node scripts/post-deploy-smoke.js",
+    "build-guard": "bash scripts/netlify-build-guard.sh",
+    "smoke:auth": "playwright test authenticated-render.spec.js"
   },
   "keywords": [
     "shipping",

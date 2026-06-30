@@ -59,3 +59,32 @@ correct; coverage is intentionally shallow until a debug deploy + creds exist.
 
 **Posture:** 2 of 4 preconditions now green (P3, P4). 2 remain (P1, P2).
 FixForge stays IDLE until P1 + P2 close and a ShipmentTester bug entry exists.
+
+---
+
+## 🔑 ShipmentTester login credentials (2026-06-30)
+
+The 4 Hermes test accounts had their passwords reset (Supabase/bcrypt on app project
+`exayifxbqduhsxmmsnxr`) so ShipmentTester's deep authenticated sweep and Jeffrey can log in.
+
+**Credentials live in `.env.shipmenttester` (GITIGNORED — never committed).** All 4 share one
+password. Verified: each password validates against the live DB bcrypt (`pw_ok = t`), and all 4
+accounts are email-confirmed, not banned, not deleted.
+
+| Role | Email | Password |
+|---|---|---|
+| HQ | hermes-hq@casabekonnect.test | (in `.env.shipmenttester`) |
+| Office | hermes-office@casabekonnect.test | (same) |
+| Driver | hermes-driver@casabekonnect.test | (same) |
+| Customer | hermes-customer@casabekonnect.test | (same) |
+
+**Harness contract** (env vars the sweep reads): `CASABE_TEST_PASSWORD`, `CASABE_{HQ,OFFICE,DRIVER,CUSTOMER}_EMAIL`,
+and `CASABE_LOGIN_EMAIL`/`CASABE_LOGIN_PASSWORD` (defaults to HQ = broadest surface).
+
+**Run a deep authenticated sweep against prod:**
+```
+source .env.shipmenttester
+CASABE_TARGET_URL=https://casabekonnect-app.netlify.app npm run test:e2e
+```
+The post-deploy smoke gate (`npm run smoke`) covers the unauthenticated white-screen check;
+the authenticated sweep with these creds covers per-role pages.
