@@ -8034,7 +8034,7 @@ var HQOverview = function HQOverview(_ref51) {
     : orders;
   var total = filtOrders.length;
   var revenue = filtOrders.reduce(function (s, o) {
-    return s + (o.payment.status === "paid" ? calculateNetRevenue(o, tenant) : 0);
+    return s + ((o.payment && o.payment.status === "paid") ? calculateNetRevenue(o, tenant) : 0);
   }, 0);
   var inTransit = filtOrders.filter(function (o) {
     return ["en_route", "in_warehouse", "loaded_container"].includes(o.status);
