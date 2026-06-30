@@ -26666,6 +26666,142 @@ setOrders(function (prev) {
     var _useState_rr = useState(null);
     var routeResult = _useState_rr[0], setRouteResult = _useState_rr[1];
 
+    /* ── SLICE 4: live optimization + assignment state ── */
+    var _useState_s4opt = useState(null);   // {phase:'optimizing'|'optimized'|'assigning'|'assigned'|'error', ...}
+    var s4Route = _useState_s4opt[0], setS4Route = _useState_s4opt[1];
+    var _useState_s4drv = useState("");      // selected driver_user_id for assignment
+    var s4Driver = _useState_s4drv[0], setS4Driver = _useState_s4drv[1];
+    var _useState_s4busy = useState(false);
+    var s4Busy = _useState_s4busy[0], setS4Busy = _useState_s4busy[1];
+
+    var TAPE_DIRECT_ORIGIN = { lat: 25.7617, lon: -80.1918, address: "3801 White Plains Rd, Bronx, NY 10467" };
+
+    /* Build the high-confidence stop list (address gate already enforced) for the EFs */
+    var buildS4Stops = function() {
+      return activeOrders.filter(function(o) {
+        var e = geoCache[o.id];
+        var conf = e && e.confidence;
+        var ok = conf === "high" || (e && e.status === COORD_STATUSES.manual_override);
+        return ok && e && e.lat != null && e.lon != null;
+      }).map(function(o) {
+        var e = geoCache[o.id];
+        return { order_id: o.id, name: o.name || o.id, lat: e.lat, lng: e.lon,
+                 address: [o.address, o.city].filter(Boolean).join(", ") };
+      });
+    };
+
+    /* SLICE 4 — Optimize Route via Google Routes API Edge Function.
+       Creates a draft routes row, calls optimize-route, persists the optimized
+       sequence. HARD RULE (Q1): on Routes API failure, surface the error and leave
+       the last persisted route unchanged — NO nearest-neighbor fallback. */
+    var handleOptimizeRoute = function() {
+      // Address gate first — reuse the Slice 2 gate (opens modal if any unconfirmed)
+      var gateCandidates = activeOrders.filter(function(o) {
+        return [o.address, o.city, o.state].filter(Boolean).join(", ").length > 3;
+      });
+      var flagged = [];
+      gateCandidates.forEach(function(o) {
+        var e = geoCache[o.id];
+        var conf = e && e.confidence;
+        var isHigh = conf === "high" || (e && e.status === COORD_STATUSES.manual_override);
+        if (!isHigh) flagged.push({ order_id: o.id, name: o.name || o.id,
+          address: [o.address, o.city, o.state].filter(Boolean).join(", "),
+          confidence: conf || (e ? e.status : "unverified") });
+      });
+      if (flagged.length > 0) { setAddrGateStops(flagged); return; }
+
+      var stops = buildS4Stops();
+      if (stops.length < 2) {
+        setS4Route({ phase: "error", message: "Need at least 2 high-confidence stops to optimize. Currently " + stops.length + "." });
+        return;
+      }
+      var tenantId = (_session && (_session.tenantId || _session.tenant_id)) || null;
+      var officeId = (_session && (_session.officeId || _session.office_id)) || null;
+      var createdBy = (_session && (_session.userId || _session.user_id || (_session.user && _session.user.id))) || null;
+
+      setS4Busy(true);
+      setS4Route({ phase: "optimizing" });
+
+      // 1. Create draft routes row (RLS: HQ/office of this tenant). start_address defaults to Tape Direct.
+      var draftRow = { tenant_id: tenantId, status: "draft", created_by: createdBy };
+      if (officeId) draftRow.office_id = officeId;
+      _supabase.from("routes").insert(draftRow).select("id").single().then(function(insRes) {
+        if (insRes.error || !insRes.data) {
+          setS4Busy(false);
+          setS4Route({ phase: "error", message: "Could not create route: " + ((insRes.error && insRes.error.message) || "unknown") });
+          return;
+        }
+        var routeId = insRes.data.id;
+        // 2. Call optimize-route EF
+        return _supabase.functions.invoke("optimize-route", {
+          body: { route_id: routeId, origin: { lat: TAPE_DIRECT_ORIGIN.lat, lng: TAPE_DIRECT_ORIGIN.lon },
+                  stops: stops.map(function(s) { return { order_id: s.order_id, lat: s.lat, lng: s.lng }; }) }
+        }).then(function(efRes) {
+          setS4Busy(false);
+          var d = (efRes && efRes.data) || {};
+          if ((efRes && efRes.error) || !d.success) {
+            // Q1: surface error, do NOT fall back. Leave last route unchanged.
+            var msg = d.error === "routes_api_failed"
+              ? "Route optimization failed (Routes API error " + (d.http_status || "") + "). Please retry."
+              : "Route optimization failed. Please retry." + (d.error ? " (" + d.error + ")" : "");
+            setS4Route({ phase: "error", routeId: routeId, message: msg });
+            return;
+          }
+          // 3. Map optimized order back to stop details, persist sequence locally
+          var byId = {}; stops.forEach(function(s) { byId[s.order_id] = s; });
+          var orderedStops = (d.optimized_order || []).map(function(oid, idx) {
+            var s = byId[oid]; return s ? Object.assign({}, s, { sequence: idx + 1 }) : null;
+          }).filter(Boolean);
+          setS4Route({
+            phase: "optimized", routeId: routeId, stops: orderedStops,
+            distanceMeters: d.distance_meters, durationSeconds: d.duration_seconds,
+            optimizationStatus: "optimized"
+          });
+          // mirror into routeResult so the Google map polyline + numbered pins render
+          setRouteResult({
+            stops: orderedStops.map(function(s) { return { id: s.order_id, name: s.name, lat: s.lat, lon: s.lng }; }),
+            totalDist: d.distance_meters ? d.distance_meters / 1000 : 0,
+            estTime: d.duration_seconds ? Math.round(d.duration_seconds / 60) : 0,
+            excludedCount: activeOrders.length - orderedStops.length, excludedStops: [],
+            driverLabel: "", routeDate: routeDate, startLabel: "Tape Direct", endLabel: "Tape Direct", _live: true
+          });
+        });
+      }).catch(function(e) {
+        setS4Busy(false);
+        setS4Route({ phase: "error", message: "Route optimization failed. Please retry. (" + (e && e.message || e) + ")" });
+      });
+    };
+
+    /* SLICE 4 — Assign optimized route to a driver via assign-route Edge Function. */
+    var handleAssignRoute = function() {
+      if (!s4Route || s4Route.phase !== "optimized" || !s4Route.routeId) return;
+      if (!s4Driver) { setS4Route(Object.assign({}, s4Route, { assignError: "Select a driver first." })); return; }
+      setS4Busy(true);
+      // Set driver on the route row (RLS-scoped), then call assign-route
+      _supabase.from("routes").update({ driver_user_id: s4Driver, status: "assigned" }).eq("id", s4Route.routeId).then(function() {
+        return _supabase.functions.invoke("assign-route", {
+          body: { route_id: s4Route.routeId, driver_user_id: s4Driver,
+                  ordered_stops: (s4Route.stops || []).map(function(s) { return { order_id: s.order_id, sequence: s.sequence, lat: s.lat, lng: s.lng }; }),
+                  origin: { lat: TAPE_DIRECT_ORIGIN.lat, lng: TAPE_DIRECT_ORIGIN.lon } }
+        });
+      }).then(function(efRes) {
+        setS4Busy(false);
+        var d = (efRes && efRes.data) || {};
+        if ((efRes && efRes.error) || !d.success) {
+          var msg = d.error === "unconfirmed_addresses" ? "Cannot assign — some stops have unconfirmed addresses."
+            : "Assignment failed. Please retry." + (d.error ? " (" + d.error + ")" : "");
+          setS4Route(Object.assign({}, s4Route, { assignError: msg }));
+          return;
+        }
+        setS4Route(Object.assign({}, s4Route, { phase: "assigned", mapsUrl: d.maps_url,
+          assignedCount: d.assigned_count, overDeeplinkLimit: d.over_deeplink_limit, assignError: null }));
+        _notify("Route assigned to driver (" + d.assigned_count + " stops)", "success");
+      }).catch(function(e) {
+        setS4Busy(false);
+        setS4Route(Object.assign({}, s4Route, { assignError: "Assignment failed. Please retry. (" + (e && e.message || e) + ")" }));
+      });
+    };
+
     /* ── Issue 6: Route start/end options (preview-only, no DB writes) ── */
     var _useState_rso = useState({ type: "hq", lat: null, lon: null, label: "HQ" });
     var routeStart = _useState_rso[0], setRouteStart = _useState_rso[1];
@@ -27447,8 +27583,59 @@ setOrders(function (prev) {
               className: "btn btn-primary",
               onClick: handlePreviewRoute
             }, "\uD83D\uDD0D Preview Route"),
-            /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { marginLeft: 8 } }, "\uD83D\uDC41 Preview Only \u2014 No assignments saved")
+            /*#__PURE__*/React.createElement("span", { className: "badge ba", style: { marginLeft: 8 } }, "\uD83D\uDC41 Preview Only \u2014 No assignments saved"),
+            /* ── SLICE 4: Live Optimize + Assign ── */
+            /*#__PURE__*/React.createElement("button", {
+              id: "optimize-route-btn",
+              className: "btn btn-green",
+              style: { marginLeft: 8 },
+              disabled: s4Busy,
+              onClick: handleOptimizeRoute
+            }, s4Busy && s4Route && s4Route.phase === "optimizing" ? "\u29D7 Optimizing\u2026" : "\uD83D\uDE9A Optimize Route (live)")
           ),
+          /* SLICE 4: optimization error / status */
+          s4Route && s4Route.phase === "error" && /*#__PURE__*/React.createElement("div", {
+            id: "s4-optimize-error", className: "alert alert-r mb12"
+          }, "\u26A0\uFE0F " + s4Route.message),
+          s4Route && (s4Route.phase === "optimized" || s4Route.phase === "assigned") && /*#__PURE__*/React.createElement("div", {
+            id: "s4-route-panel", className: "card mb12", style: { padding: 14 }
+          },
+            /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: "6px 16px", alignItems: "center", marginBottom: 10, fontSize: 12 } },
+              /*#__PURE__*/React.createElement("span", { className: "badge bg" }, "\u2705 Optimized \u2014 " + (s4Route.stops || []).length + " stops"),
+              s4Route.distanceMeters != null && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Distance:"), " " + (s4Route.distanceMeters / 1000).toFixed(1) + " km"),
+              s4Route.durationSeconds != null && /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("strong", null, "Est. time:"), " " + Math.round(s4Route.durationSeconds / 60) + " min"),
+              /*#__PURE__*/React.createElement("span", { className: "tag" }, "\uD83C\uDFE0 Origin: Tape Direct (fixed)")
+            ),
+            /* Driver selector + Assign */
+            s4Route.phase === "optimized" && /*#__PURE__*/React.createElement("div", { className: "row g10", style: { flexWrap: "wrap", alignItems: "center" } },
+              /*#__PURE__*/React.createElement("select", {
+                className: "fi", style: { maxWidth: 240 },
+                value: s4Driver,
+                onChange: function(e) { setS4Driver(e.target.value); }
+              },
+                /*#__PURE__*/React.createElement("option", { value: "" }, "\u2014 Select driver \u2014"),
+                (_driversList || []).map(function(d) {
+                  var uid = d.userId || d.user_id || d.driver_user_id || d.id;
+                  return uid ? /*#__PURE__*/React.createElement("option", { key: uid, value: uid }, d.name || d.display_name || uid) : null;
+                })
+              ),
+              /*#__PURE__*/React.createElement("button", {
+                id: "assign-route-btn", className: "btn btn-primary", disabled: s4Busy || !s4Driver,
+                onClick: handleAssignRoute
+              }, s4Busy ? "\u29D7 Assigning\u2026" : "\uD83D\uDC64 Assign to driver")
+            ),
+            s4Route.assignError && /*#__PURE__*/React.createElement("div", { className: "alert alert-r", style: { marginTop: 8 } }, "\u26A0\uFE0F " + s4Route.assignError),
+            /* Assigned: confirmation + Maps deep link + messaging-unavailable banner */
+            s4Route.phase === "assigned" && /*#__PURE__*/React.createElement("div", { style: { marginTop: 10 } },
+              /*#__PURE__*/React.createElement("div", { className: "alert alert-g", style: { marginBottom: 8 } }, "\u2705 Route assigned (" + (s4Route.assignedCount || 0) + " stops)."),
+              s4Route.mapsUrl && /*#__PURE__*/React.createElement("a", {
+                id: "open-google-maps", className: "btn btn-blue", href: s4Route.mapsUrl, target: "_blank", rel: "noopener noreferrer"
+              }, "\uD83D\uDDFA\uFE0F Open in Google Maps"),
+              s4Route.overDeeplinkLimit && /*#__PURE__*/React.createElement("div", { className: "alert alert-a", style: { marginTop: 8 } }, "\u26A0\uFE0F Over 23 stops \u2014 Google Maps deep link may truncate waypoints."),
+              /*#__PURE__*/React.createElement("div", { className: "alert alert-a", style: { marginTop: 8 } }, "\uD83D\uDD15 Notification sending unavailable \u2014 messaging not yet approved.")
+            )
+          ),
+
           routeResult && routeResult.excludedCount > 0 && /*#__PURE__*/React.createElement("div", {
             id: "route-excluded-warning",
             className: "alert alert-a mb12"
