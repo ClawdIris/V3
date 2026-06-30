@@ -25603,7 +25603,7 @@ function App() {
 }
 /* ══════════════════════════════════════════════════════════════
    Coordinate status helpers — module-level (outside AppShell) so
-   the test suite and Leaflet pin renderer can access them without
+   the test suite and Google Maps pin renderer can access them without
    going through a component closure.
 ══════════════════════════════════════════════════════════════ */
 var COORD_STATUSES = { missing: "missing", geocoded: "geocoded", low_confidence: "low_confidence", manual_override: "manual_override" };
@@ -25618,7 +25618,7 @@ function coordStatusLabel(s) {
   return "Missing";
 }
 function coordStatusColor(s) {
-  if (s === COORD_STATUSES.geocoded)        return "#10b981"; // --green hex (Leaflet pin color)
+  if (s === COORD_STATUSES.geocoded)        return "#10b981"; // --green hex (Google Maps pin color)
   if (s === COORD_STATUSES.low_confidence)  return "#f59e0b"; // --amber hex
   if (s === COORD_STATUSES.manual_override) return "#3b82f6"; // --blue hex
   return "#6b7280"; // grey for missing
@@ -26620,7 +26620,7 @@ setOrders(function (prev) {
     /* ── Local state ── */
     var _useState_gc = useState(function() {
       var cache = loadGeoCache();
-      /* Seed debug fixtures into geoCache so Leaflet map sees their coords */
+      /* Seed debug fixtures into geoCache so the Google map sees their coords */
       if (_isDebugMode) {
         DEBUG_MAP_FIXTURES.forEach(function(f) {
           if (!cache[f.id] && f.lat != null) {
@@ -26855,7 +26855,7 @@ setOrders(function (prev) {
       );
     };
 
-    /* ── Leaflet map ref ── */
+    /* ── Google map ref ── */
     var _gmapDivRef = useRef(null);    // DOM node for google.maps.Map
     var _gmapInstRef = useRef(null);   // google.maps.Map instance
     var _gmapMarkersRef = useRef([]);  // active markers
@@ -31814,7 +31814,7 @@ if (typeof STRIPE_CHECKOUT_URL === "undefined") {
   /* ──── PRIORITY 4: Map UX ──── */
   assert("P4: MapViewPage defined", typeof MapViewPage === "function");
   assert("P4: coordStatusColor function defined", typeof coordStatusColor === "function");
-  // Leaflet real map: coordStatusColor must return hex values (#rrggbb)
+  // Google map: coordStatusColor must return hex values (#rrggbb)
   assert("P4: geocoded returns hex #10b981",  coordStatusColor("geocoded") === "#10b981");
   assert("P4: manual_override returns hex #3b82f6", coordStatusColor("manual_override") === "#3b82f6");
   assert("P4: low_confidence returns hex #f59e0b", coordStatusColor("low_confidence") === "#f59e0b");
