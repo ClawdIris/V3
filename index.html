@@ -19469,11 +19469,12 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 		  var modeRef = React.useRef("");
 		  var svcRef = React.useRef(null);
 		  var detailsRef = React.useRef(null);
-		  var tokenRef = React.useRef(null);
-	  var debRef = React.useRef(null);
-	  var inputRef = React.useRef(null);
-	  var safeOnPlace = function(parsed, rawPlace) {
-	    if (typeof onPlace !== "function") return;
+			  var tokenRef = React.useRef(null);
+		  var debRef = React.useRef(null);
+		  var inputRef = React.useRef(null);
+		  var mountedRef = React.useRef(true);
+		  var safeOnPlace = function(parsed, rawPlace) {
+		    if (typeof onPlace !== "function") return;
 	    try {
 	      onPlace(parsed, rawPlace || null);
     } catch (err) {
@@ -19509,14 +19510,17 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 		    return t("Address suggestions are temporarily unavailable. You can still type the address manually.", "Las sugerencias no están disponibles. Todavía puedes escribir la dirección manualmente.");
 		  };
 
-		  React.useEffect(function () {
-		    if (typeof initGoogleMaps !== "function") return;
-		    initGoogleMaps(async function () {
-	      try {
-	        if (window.google && window.google.maps && typeof window.google.maps.importLibrary === "function") {
-	          await window.google.maps.importLibrary("places");
-	        }
-	        if (window.google && window.google.maps && window.google.maps.places && window.google.maps.places.AutocompleteSuggestion) {
+			  React.useEffect(function () {
+			    if (typeof initGoogleMaps !== "function") return;
+			    mountedRef.current = true;
+			    initGoogleMaps(async function () {
+		      if (!mountedRef.current) return;
+		      try {
+		        if (window.google && window.google.maps && typeof window.google.maps.importLibrary === "function") {
+		          await window.google.maps.importLibrary("places");
+		        }
+		        if (!mountedRef.current) return;
+		        if (window.google && window.google.maps && window.google.maps.places && window.google.maps.places.AutocompleteSuggestion) {
 	          modeRef.current = "suggestion";
 	          tokenRef.current = window.google.maps.places.AutocompleteSessionToken
 	            ? new window.google.maps.places.AutocompleteSessionToken()
@@ -19544,8 +19548,8 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 	        setPlacesError(placesDisabledMessage(err && (err.message || err.name || err.code || err)));
 	      }
 	    });
-	    return function () { if (debRef.current) clearTimeout(debRef.current); };
-	  }, []);
+		    return function () { mountedRef.current = false; if (debRef.current) clearTimeout(debRef.current); };
+		  }, []);
 
   var handleInput = function (v) {
     if (typeof onChange === "function") onChange(v);
@@ -19562,6 +19566,7 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 		          var newReq = { input: v, sessionToken: tokenRef.current };
 		          if (_country) newReq.includedRegionCodes = [String(_country).toUpperCase()];
 		          window.google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions(newReq).then(function(res) {
+		            if (!mountedRef.current) return;
 		            var suggestions = (res && res.suggestions) || [];
 		            var mapped = suggestions.map(function(s, idx) {
 		              var pp = s.placePrediction || s;
@@ -19578,6 +19583,7 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 		            }).filter(function(p) { return p.description; }).slice(0, 5);
 		            setPreds(mapped); setOpen(mapped.length > 0); setPlacesError("");
 		          }).catch(function(err) {
+		            if (!mountedRef.current) return;
 		            console.warn("Places suggestion failed", err);
 		            setPreds([]); setOpen(false); setPlacesError(placesDisabledMessage(err && (err.message || err.name || err.code || err)));
 		          });
@@ -19585,6 +19591,7 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 		          var req = { input: v, sessionToken: tokenRef.current };
 		          if (_country) req.componentRestrictions = { country: _country };
 		          svcRef.current.getPlacePredictions(req, function (predictions, status) {
+		            if (!mountedRef.current) return;
 		            try {
 		              if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
 		                setPreds(predictions.slice(0, 5)); setOpen(true); setPlacesError("");
@@ -19623,10 +19630,11 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 	    if (onPlace && p._placePrediction && typeof p._placePrediction.toPlace === "function") {
 	      try {
 	        var newPlace = p._placePrediction.toPlace();
-	        if (newPlace && typeof newPlace.fetchFields === "function") {
-	          await newPlace.fetchFields({ fields: ["addressComponents", "formattedAddress", "location", "id", "displayName"] });
-	        }
-	        safeOnPlace(parseGooglePlaceAddress(newPlace, p.description), newPlace);
+		        if (newPlace && typeof newPlace.fetchFields === "function") {
+		          await newPlace.fetchFields({ fields: ["addressComponents", "formattedAddress", "location", "id", "displayName"] });
+		        }
+		        if (!mountedRef.current) return;
+		        safeOnPlace(parseGooglePlaceAddress(newPlace, p.description), newPlace);
 	      } catch (err) {
 	        console.warn("Places new details failed", err);
 	        safeOnPlace(parseGooglePlaceAddress(null, p.description), null);
@@ -19637,8 +19645,9 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
           placeId: p.place_id,
           fields: ["address_components", "formatted_address", "geometry", "place_id", "name"],
           sessionToken: detailsToken
-        }, function(place, status) {
-          try {
+	        }, function(place, status) {
+	          if (!mountedRef.current) return;
+	          try {
             if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
               safeOnPlace(parseGooglePlaceAddress(place, p.description), place);
             } else {
@@ -19698,7 +19707,7 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 	      placeholder: placeholder || t("Start typing an address…", "Escribe una dirección…"),
 	      onChange: function (e) { handleInput(e.target.value); },
 	      onFocus: function () { updateMenuPos(); if (preds.length) setOpen(true); },
-		      onBlur: function () { setTimeout(function () { setOpen(false); }, 180); }
+		      onBlur: function () { setTimeout(function () { if (mountedRef.current) setOpen(false); }, 180); }
 		    }),
 		    suggestionMenu,
 		    placesError ? h("div", { className: "xs", style: { marginTop: 5, color: "var(--danger)" } }, placesError) : null,
