@@ -19502,13 +19502,39 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 		    if (typeof v.toString === "function" && v.toString !== Object.prototype.toString) return String(v);
 		    return "";
 		  };
-		  var placesDisabledMessage = function(detail) {
-		    var msg = String(detail || "");
-		    if (msg.indexOf("ApiTargetBlockedMapError") >= 0 || msg.indexOf("REQUEST_DENIED") >= 0 || msg.indexOf("not authorized") >= 0) {
-		      return t("Google Places is not enabled for this domain/API key. Address suggestions are temporarily unavailable.", "Google Places no está habilitado para este dominio/clave. Las sugerencias no están disponibles.");
-		    }
-		    return t("Address suggestions are temporarily unavailable. You can still type the address manually.", "Las sugerencias no están disponibles. Todavía puedes escribir la dirección manualmente.");
-		  };
+			  var placesDisabledMessage = function(detail) {
+			    var msg = String(detail || "");
+			    if (msg.indexOf("ApiTargetBlockedMapError") >= 0 || msg.indexOf("REQUEST_DENIED") >= 0 || msg.indexOf("not authorized") >= 0 || (msg.toLowerCase().indexOf("referer") >= 0 && msg.toLowerCase().indexOf("blocked") >= 0)) {
+			      return t("Google Places is not enabled for this domain/API key. Address suggestions are temporarily unavailable.", "Google Places no está habilitado para este dominio/clave. Las sugerencias no están disponibles.");
+			    }
+			    return t("Address suggestions are temporarily unavailable. You can still type the address manually.", "Las sugerencias no están disponibles. Todavía puedes escribir la dirección manualmente.");
+			  };
+			  var stripDeleteGlyphs = function(v) {
+			    return String(v || "").replace(/[\u007f\u2326\u232b]/g, "");
+			  };
+			  var applyDeleteGlyph = function(kind) {
+			    var el = inputRef.current;
+			    var cur = String(value || "");
+			    if (!el || typeof onChange !== "function") return;
+			    var start = typeof el.selectionStart === "number" ? el.selectionStart : cur.length;
+			    var end = typeof el.selectionEnd === "number" ? el.selectionEnd : start;
+			    var next = cur;
+			    var pos = start;
+			    if (start !== end) {
+			      next = cur.slice(0, start) + cur.slice(end);
+			    } else if (kind === "forward" && start < cur.length) {
+			      next = cur.slice(0, start) + cur.slice(start + 1);
+			    } else if (kind !== "forward" && start > 0) {
+			      next = cur.slice(0, start - 1) + cur.slice(start);
+			      pos = start - 1;
+			    }
+			    onChange(next);
+			    window.setTimeout(function() {
+			      try { el.setSelectionRange(pos, pos); } catch (err) {}
+			    }, 0);
+			    if (debRef.current) clearTimeout(debRef.current);
+			    setPreds([]); setOpen(false); setPlacesError("");
+			  };
 
 			  React.useEffect(function () {
 			    if (typeof initGoogleMaps !== "function") return;
@@ -19551,10 +19577,11 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 		    return function () { mountedRef.current = false; if (debRef.current) clearTimeout(debRef.current); };
 		  }, []);
 
-  var handleInput = function (v) {
-    if (typeof onChange === "function") onChange(v);
-    if (debRef.current) clearTimeout(debRef.current);
-	    setPlacesError("");
+	  var handleInput = function (v) {
+	    v = stripDeleteGlyphs(v);
+	    if (typeof onChange === "function") onChange(v);
+	    if (debRef.current) clearTimeout(debRef.current);
+		    setPlacesError("");
 	    if (!ready || (v || "").trim().length < 3) { setPreds([]); setOpen(false); return; }
 	    debRef.current = setTimeout(function () {
 	      try {
@@ -19700,12 +19727,19 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 	  })) : null;
 
 	  return h("div", { style: { position: "relative" } },
-		    h("input", {
-	      ref: inputRef,
-	      className: "fi",
-	      value: value || "",
-	      placeholder: placeholder || t("Start typing an address…", "Escribe una dirección…"),
-	      onChange: function (e) { handleInput(e.target.value); },
+			    h("input", {
+		      ref: inputRef,
+		      className: "fi",
+		      value: value || "",
+		      placeholder: placeholder || t("Start typing an address…", "Escribe una dirección…"),
+		      onBeforeInput: function(e) {
+		        var data = e && e.nativeEvent && e.nativeEvent.data;
+		        if (data === "\u2326" || data === "\u232b" || data === "\u007f") {
+		          e.preventDefault();
+		          applyDeleteGlyph(data === "\u2326" ? "forward" : "back");
+		        }
+		      },
+		      onChange: function (e) { handleInput(e.target.value); },
 	      onFocus: function () { updateMenuPos(); if (preds.length) setOpen(true); },
 		      onBlur: function () { setTimeout(function () { if (mountedRef.current) setOpen(false); }, 180); }
 		    }),
