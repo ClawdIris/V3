@@ -19419,33 +19419,36 @@ var GoogleMapsKeyMissingBanner = function GoogleMapsKeyMissingBanner() {
 
 function parseGooglePlaceAddress(place, fallbackText) {
   var parts = {};
-  ((place && place.address_components) || []).forEach(function(c) {
+  ((place && (place.address_components || place.addressComponents)) || []).forEach(function(c) {
     (c.types || []).forEach(function(t) { if (!parts[t]) parts[t] = c; });
   });
-  var street = [parts.street_number && parts.street_number.long_name, parts.route && parts.route.long_name].filter(Boolean).join(" ");
-  var city = (parts.locality && parts.locality.long_name)
-    || (parts.postal_town && parts.postal_town.long_name)
-    || (parts.sublocality && parts.sublocality.long_name)
-    || (parts.sublocality_level_1 && parts.sublocality_level_1.long_name)
-    || (parts.administrative_area_level_2 && parts.administrative_area_level_2.long_name)
+  var partLong = function(c) { return c && (c.long_name || c.longText || c.longName || c.name || ""); };
+  var partShort = function(c) { return c && (c.short_name || c.shortText || c.shortName || partLong(c)); };
+  var formatted = (place && (place.formatted_address || place.formattedAddress)) || fallbackText || "";
+  var street = [partLong(parts.street_number), partLong(parts.route)].filter(Boolean).join(" ");
+  var city = partLong(parts.locality)
+    || partLong(parts.postal_town)
+    || partLong(parts.sublocality)
+    || partLong(parts.sublocality_level_1)
+    || partLong(parts.administrative_area_level_2)
     || "";
-  var state = (parts.administrative_area_level_1 && (parts.administrative_area_level_1.short_name || parts.administrative_area_level_1.long_name)) || "";
-  var zip = (parts.postal_code && parts.postal_code.long_name) || "";
-  if (zip && parts.postal_code_suffix && parts.postal_code_suffix.long_name) zip += "-" + parts.postal_code_suffix.long_name;
-  var loc = place && place.geometry && place.geometry.location;
-  var lat = loc && typeof loc.lat === "function" ? loc.lat() : null;
-  var lng = loc && typeof loc.lng === "function" ? loc.lng() : null;
+  var state = partShort(parts.administrative_area_level_1) || "";
+  var zip = partLong(parts.postal_code) || "";
+  if (zip && partLong(parts.postal_code_suffix)) zip += "-" + partLong(parts.postal_code_suffix);
+  var loc = place && ((place.geometry && place.geometry.location) || place.location);
+  var lat = loc && typeof loc.lat === "function" ? loc.lat() : (loc && typeof loc.lat === "number" ? loc.lat : null);
+  var lng = loc && typeof loc.lng === "function" ? loc.lng() : (loc && typeof loc.lng === "number" ? loc.lng : null);
   return {
-    formattedAddress: (place && place.formatted_address) || fallbackText || "",
-    street: street || ((place && place.formatted_address) || fallbackText || ""),
+    formattedAddress: formatted,
+    street: street || formatted,
     city: city,
     state: state,
     zip: zip,
-    country: (parts.country && parts.country.long_name) || "",
-    countryCode: (parts.country && parts.country.short_name) || "",
+    country: partLong(parts.country) || "",
+    countryCode: partShort(parts.country) || "",
     lat: lat,
     lng: lng,
-    placeId: (place && place.place_id) || ""
+    placeId: (place && (place.place_id || place.placeId || place.id)) || ""
   };
 }
 
@@ -19460,22 +19463,25 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
   var h = React.createElement;
   var _s1 = React.useState([]), preds = _s1[0], setPreds = _s1[1];
 	  var _s2 = React.useState(false), open = _s2[0], setOpen = _s2[1];
-	  var _s3 = React.useState(false), ready = _s3[0], setReady = _s3[1];
-	  var _s4 = React.useState(null), menuPos = _s4[0], setMenuPos = _s4[1];
-	  var svcRef = React.useRef(null);
-	  var detailsRef = React.useRef(null);
-	  var tokenRef = React.useRef(null);
-	  var debRef = React.useRef(null);
-	  var inputRef = React.useRef(null);
-	  var safeOnPlace = function(parsed, rawPlace) {
-	    if (typeof onPlace !== "function") return;
+		  var _s3 = React.useState(false), ready = _s3[0], setReady = _s3[1];
+		  var _s4 = React.useState(null), menuPos = _s4[0], setMenuPos = _s4[1];
+		  var _s5 = React.useState(""), placesError = _s5[0], setPlacesError = _s5[1];
+		  var modeRef = React.useRef("");
+		  var svcRef = React.useRef(null);
+		  var detailsRef = React.useRef(null);
+			  var tokenRef = React.useRef(null);
+		  var debRef = React.useRef(null);
+		  var inputRef = React.useRef(null);
+		  var mountedRef = React.useRef(true);
+		  var safeOnPlace = function(parsed, rawPlace) {
+		    if (typeof onPlace !== "function") return;
 	    try {
 	      onPlace(parsed, rawPlace || null);
     } catch (err) {
 	      console.warn("Places onPlace handler failed", err);
 	    }
 	  };
-	  var updateMenuPos = function() {
+		  var updateMenuPos = function() {
 	    var el = inputRef.current;
 	    if (!el || typeof el.getBoundingClientRect !== "function") return;
 	    var r = el.getBoundingClientRect();
@@ -19487,80 +19493,161 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 	      left: r.left,
 	      width: r.width,
 	      maxHeight: maxHeight
-	    });
-	  };
+		    });
+		  };
+		  var textOf = function(v) {
+		    if (!v) return "";
+		    if (typeof v === "string") return v;
+		    if (typeof v.text === "string") return v.text;
+		    if (typeof v.toString === "function" && v.toString !== Object.prototype.toString) return String(v);
+		    return "";
+		  };
+		  var placesDisabledMessage = function(detail) {
+		    var msg = String(detail || "");
+		    if (msg.indexOf("ApiTargetBlockedMapError") >= 0 || msg.indexOf("REQUEST_DENIED") >= 0 || msg.indexOf("not authorized") >= 0) {
+		      return t("Google Places is not enabled for this domain/API key. Address suggestions are temporarily unavailable.", "Google Places no está habilitado para este dominio/clave. Las sugerencias no están disponibles.");
+		    }
+		    return t("Address suggestions are temporarily unavailable. You can still type the address manually.", "Las sugerencias no están disponibles. Todavía puedes escribir la dirección manualmente.");
+		  };
 
-	  React.useEffect(function () {
-	    if (typeof initGoogleMaps !== "function") return;
-	    initGoogleMaps(function () {
-      try {
-        if (window.google && window.google.maps && window.google.maps.places) {
-          svcRef.current = new window.google.maps.places.AutocompleteService();
-          detailsRef.current = new window.google.maps.places.PlacesService(document.createElement("div"));
-          tokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
-          setReady(true);
-        }
-      } catch (err) {
-        console.warn("Places autocomplete unavailable", err);
-        setReady(false);
-      }
-    });
-    return function () { if (debRef.current) clearTimeout(debRef.current); };
-  }, []);
+			  React.useEffect(function () {
+			    if (typeof initGoogleMaps !== "function") return;
+			    mountedRef.current = true;
+			    initGoogleMaps(async function () {
+		      if (!mountedRef.current) return;
+		      try {
+		        if (window.google && window.google.maps && typeof window.google.maps.importLibrary === "function") {
+		          await window.google.maps.importLibrary("places");
+		        }
+		        if (!mountedRef.current) return;
+		        if (window.google && window.google.maps && window.google.maps.places && window.google.maps.places.AutocompleteSuggestion) {
+	          modeRef.current = "suggestion";
+	          tokenRef.current = window.google.maps.places.AutocompleteSessionToken
+	            ? new window.google.maps.places.AutocompleteSessionToken()
+	            : null;
+	          setReady(true);
+	          setPlacesError("");
+	        } else if (window.google && window.google.maps && window.google.maps.places && window.google.maps.places.AutocompleteService) {
+	          modeRef.current = "legacy";
+	          svcRef.current = new window.google.maps.places.AutocompleteService();
+	          detailsRef.current = window.google.maps.places.PlacesService
+	            ? new window.google.maps.places.PlacesService(document.createElement("div"))
+	            : null;
+	          tokenRef.current = window.google.maps.places.AutocompleteSessionToken
+	            ? new window.google.maps.places.AutocompleteSessionToken()
+	            : null;
+	          setReady(true);
+	          setPlacesError("");
+	        } else {
+	          setReady(false);
+	          setPlacesError(placesDisabledMessage("places library unavailable"));
+	        }
+	      } catch (err) {
+	        console.warn("Places autocomplete unavailable", err);
+	        setReady(false);
+	        setPlacesError(placesDisabledMessage(err && (err.message || err.name || err.code || err)));
+	      }
+	    });
+		    return function () { mountedRef.current = false; if (debRef.current) clearTimeout(debRef.current); };
+		  }, []);
 
   var handleInput = function (v) {
     if (typeof onChange === "function") onChange(v);
     if (debRef.current) clearTimeout(debRef.current);
-    if (!ready || !svcRef.current || (v || "").trim().length < 3) { setPreds([]); setOpen(false); return; }
-    debRef.current = setTimeout(function () {
-      try {
-	        if (!svcRef.current || !window.google || !window.google.maps || !window.google.maps.places) {
-	          setPreds([]); setOpen(false); setReady(false); return;
-	        }
-	        updateMenuPos();
-	        var req = {
-	          input: v,
-	          sessionToken: tokenRef.current
-	        };
-        if (_country) req.componentRestrictions = { country: _country };
-        svcRef.current.getPlacePredictions(req, function (predictions, status) {
-          try {
-            if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
-              setPreds(predictions.slice(0, 5)); setOpen(true);
-            } else { setPreds([]); setOpen(false); }
-          } catch (err) {
-            console.warn("Places prediction callback failed", err);
-            setPreds([]); setOpen(false);
-          }
-        });
-	      } catch (err) {
-	        console.warn("Places prediction failed", err);
-	        setPreds([]); setOpen(false); setReady(false);
-	      }
-    }, 300);
-  };
+	    setPlacesError("");
+	    if (!ready || (v || "").trim().length < 3) { setPreds([]); setOpen(false); return; }
+	    debRef.current = setTimeout(function () {
+	      try {
+		        if (!window.google || !window.google.maps || !window.google.maps.places) {
+		          setPreds([]); setOpen(false); setReady(false); return;
+		        }
+		        updateMenuPos();
+		        if (modeRef.current === "suggestion" && window.google.maps.places.AutocompleteSuggestion) {
+		          var newReq = { input: v, sessionToken: tokenRef.current };
+		          if (_country) newReq.includedRegionCodes = [String(_country).toUpperCase()];
+		          window.google.maps.places.AutocompleteSuggestion.fetchAutocompleteSuggestions(newReq).then(function(res) {
+		            if (!mountedRef.current) return;
+		            var suggestions = (res && res.suggestions) || [];
+		            var mapped = suggestions.map(function(s, idx) {
+		              var pp = s.placePrediction || s;
+		              var description = textOf(pp.text) || textOf(pp.mainText) || textOf(pp.secondaryText) || "";
+		              return {
+		                place_id: pp.placeId || pp.place_id || pp.id || String(idx),
+		                description: description,
+		                structured_formatting: {
+		                  main_text: textOf(pp.mainText) || description,
+		                  secondary_text: textOf(pp.secondaryText)
+		                },
+		                _placePrediction: pp
+		              };
+		            }).filter(function(p) { return p.description; }).slice(0, 5);
+		            setPreds(mapped); setOpen(mapped.length > 0); setPlacesError("");
+		          }).catch(function(err) {
+		            if (!mountedRef.current) return;
+		            console.warn("Places suggestion failed", err);
+		            setPreds([]); setOpen(false); setPlacesError(placesDisabledMessage(err && (err.message || err.name || err.code || err)));
+		          });
+		        } else if (modeRef.current === "legacy" && svcRef.current) {
+		          var req = { input: v, sessionToken: tokenRef.current };
+		          if (_country) req.componentRestrictions = { country: _country };
+		          svcRef.current.getPlacePredictions(req, function (predictions, status) {
+		            if (!mountedRef.current) return;
+		            try {
+		              if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
+		                setPreds(predictions.slice(0, 5)); setOpen(true); setPlacesError("");
+		              } else {
+		                setPreds([]); setOpen(false);
+		                if (status && status !== window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) setPlacesError(placesDisabledMessage(status));
+		              }
+		            } catch (err) {
+		              console.warn("Places prediction callback failed", err);
+		              setPreds([]); setOpen(false); setPlacesError(placesDisabledMessage(err && (err.message || err.name || err.code || err)));
+		            }
+		          });
+		        } else {
+		          setPreds([]); setOpen(false); setPlacesError(placesDisabledMessage("prediction service unavailable"));
+		        }
+		      } catch (err) {
+		        console.warn("Places prediction failed", err);
+		        setPreds([]); setOpen(false); setReady(false); setPlacesError(placesDisabledMessage(err && (err.message || err.name || err.code || err)));
+		      }
+	    }, 300);
+	  };
 
-  var pick = function (p) {
-    setOpen(false); setPreds([]);
-    if (typeof onChange === "function") onChange(p.description);
-    var detailsToken = tokenRef.current;
-    // fresh session token after a selection (Places billing best-practice)
-    try {
-      if (window.google && window.google.maps && window.google.maps.places) {
-        tokenRef.current = new window.google.maps.places.AutocompleteSessionToken();
-      }
-    } catch (err) {
-      console.warn("Places session reset failed", err);
-    }
-    if (typeof onSelect === "function") onSelect(p.description);
-    if (onPlace && detailsRef.current && p.place_id) {
-      try {
-        detailsRef.current.getDetails({
+	  var pick = async function (p) {
+	    setOpen(false); setPreds([]);
+	    if (typeof onChange === "function") onChange(p.description);
+	    var detailsToken = tokenRef.current;
+	    // fresh session token after a selection (Places billing best-practice)
+	    try {
+	      if (window.google && window.google.maps && window.google.maps.places) {
+	        tokenRef.current = window.google.maps.places.AutocompleteSessionToken ? new window.google.maps.places.AutocompleteSessionToken() : null;
+	      }
+	    } catch (err) {
+	      console.warn("Places session reset failed", err);
+	    }
+	    if (typeof onSelect === "function") onSelect(p.description);
+	    if (onPlace && p._placePrediction && typeof p._placePrediction.toPlace === "function") {
+	      try {
+	        var newPlace = p._placePrediction.toPlace();
+		        if (newPlace && typeof newPlace.fetchFields === "function") {
+		          await newPlace.fetchFields({ fields: ["addressComponents", "formattedAddress", "location", "id", "displayName"] });
+		        }
+		        if (!mountedRef.current) return;
+		        safeOnPlace(parseGooglePlaceAddress(newPlace, p.description), newPlace);
+	      } catch (err) {
+	        console.warn("Places new details failed", err);
+	        safeOnPlace(parseGooglePlaceAddress(null, p.description), null);
+	      }
+	    } else if (onPlace && detailsRef.current && p.place_id) {
+	      try {
+	        detailsRef.current.getDetails({
           placeId: p.place_id,
           fields: ["address_components", "formatted_address", "geometry", "place_id", "name"],
           sessionToken: detailsToken
-        }, function(place, status) {
-          try {
+	        }, function(place, status) {
+	          if (!mountedRef.current) return;
+	          try {
             if (status === window.google.maps.places.PlacesServiceStatus.OK && place) {
               safeOnPlace(parseGooglePlaceAddress(place, p.description), place);
             } else {
@@ -19613,19 +19700,20 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 	  })) : null;
 
 	  return h("div", { style: { position: "relative" } },
-	    h("input", {
+		    h("input", {
 	      ref: inputRef,
 	      className: "fi",
 	      value: value || "",
 	      placeholder: placeholder || t("Start typing an address…", "Escribe una dirección…"),
 	      onChange: function (e) { handleInput(e.target.value); },
 	      onFocus: function () { updateMenuPos(); if (preds.length) setOpen(true); },
-	      onBlur: function () { setTimeout(function () { setOpen(false); }, 180); }
-	    }),
-	    suggestionMenu,
-	    !ready ? h("div", { className: "xs mut", style: { marginTop: 3 } },
-	      t("Address autocomplete loading…", "Cargando autocompletado…")) : null
-	  );
+		      onBlur: function () { setTimeout(function () { if (mountedRef.current) setOpen(false); }, 180); }
+		    }),
+		    suggestionMenu,
+		    placesError ? h("div", { className: "xs", style: { marginTop: 5, color: "var(--danger)" } }, placesError) : null,
+		    !ready ? h("div", { className: "xs mut", style: { marginTop: 3 } },
+		      t("Address autocomplete loading…", "Cargando autocompletado…")) : null
+		  );
 };
 
 // ── SLICE 2: AddressConfirmationModal ────────────────────────────────────────
