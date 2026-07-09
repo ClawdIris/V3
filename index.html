@@ -19702,10 +19702,10 @@ var PlacesAutocomplete = function PlacesAutocomplete(_p) {
 
 	  var suggestionMenu = open && preds.length > 0 ? h("div", {
 	    style: {
-	      position: "fixed",
-	      top: menuPos ? menuPos.top : "auto",
-	      left: menuPos ? menuPos.left : 0,
-	      width: menuPos ? menuPos.width : "auto",
+	      position: "absolute",
+	      top: "100%",
+	      left: 0,
+	      right: 0,
 	      maxHeight: menuPos ? menuPos.maxHeight : 260,
 	      zIndex: 5000,
 	      background: "var(--bg2)",
