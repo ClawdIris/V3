@@ -32531,13 +32531,8 @@ if (typeof STRIPE_CHECKOUT_URL === "undefined") {
 window.__R4RunTests = function() { return window.__R4TestSummary; };
   </script>
 <style id="casabe-redesign">
-/* ═══════════════════════════════════════════════════════════════
-   CASABE KONNECT — Redesign overlay (v1)
-   Surgical re-skin. NO structural changes.
-   Load AFTER the app's own CSS. Two safe options:
-     A) paste the whole block as <style id="casabe-redesign"> … </style>
-        immediately before </body> in index.html, OR
-     B) append the contents (minus the @import, keep that at the very
+/* Casabe Konnect redesign overlay v1 */
+@import, keep that at the very
         top of the CSS string) to the end of the `var CSS = "…"` string.
    Every class rule is scoped `html body .x` so it outranks the app's
    single-class rules regardless of load order — no !important needed.
