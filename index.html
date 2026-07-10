@@ -32530,5 +32530,90 @@ if (typeof STRIPE_CHECKOUT_URL === "undefined") {
 
 window.__R4RunTests = function() { return window.__R4TestSummary; };
   </script>
+<style id="casabe-redesign">
+/* ═══════════════════════════════════════════════════════════════
+   CASABE KONNECT — Redesign overlay (v1)
+   Surgical re-skin. NO structural changes.
+   Load AFTER the app's own CSS. Two safe options:
+     A) paste the whole block as <style id="casabe-redesign"> … </style>
+        immediately before </body> in index.html, OR
+     B) append the contents (minus the @import, keep that at the very
+        top of the CSS string) to the end of the `var CSS = "…"` string.
+   Every class rule is scoped `html body .x` so it outranks the app's
+   single-class rules regardless of load order — no !important needed.
+   Zone / status colors stay distinct + print-legible (hard requirement).
+   ═══════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&display=swap');
+
+/* ── 1. TOKENS ─────────────────────────────────────────────────
+   Redefining :root vars cascades the new look through every rule
+   that already reads var(--…). html:root beats plain :root on
+   specificity, so this wins even if the app injects CSS later.     */
+html:root{
+  --bg:#0B0D12;            /* app / topbar / page background        */
+  --bg2:#12151C;           /* cards & stat cards                    */
+  --bg3:#171B24;           /* raised surfaces, track fills          */
+  --bg4:#1E232E;
+  --border:#1C222D;
+  --border2:#232936;
+
+  --amber:#F59E0B; --amber2:#FCD34D; --amberdim:rgba(245,158,11,.12);
+
+  /* zone / status palette — kept distinct + legible                */
+  --blue:#4C82F7;   --bluedim:rgba(76,130,247,.12);
+  --green:#22C55E;  --greendim:rgba(34,197,94,.10);
+  --red:#F04E4E;    --reddim:rgba(240,78,78,.12);
+  --purple:#9A7DF0; --purpledim:rgba(154,125,240,.12);
+  --teal:#17B9A8;   --tealdim:rgba(23,185,168,.12);
+
+  --text:#EAECEF; --text2:#9AA3B2; --text3:#5B6472; --text4:#3A424E;
+}
+
+/* ── 2. BASE ───────────────────────────────────────────────────── */
+html body{ font-size:13.5px; }
+
+/* ── 3. NUMBERS → Sora (the “childish” Syne numerals, replaced) ─── */
+html body .sc-val{
+  font-family:'Sora',sans-serif;
+  font-size:30px; font-weight:800; letter-spacing:-.02em;
+}
+html body .sc-lbl{ font-size:11px; color:var(--text2); letter-spacing:.05em; }
+html body .sc-ico{ opacity:.9; top:16px; right:16px; }
+
+/* ── 4. CARDS / STAT CARDS ─────────────────────────────────────── */
+html body .sc,
+html body .card{ border-radius:14px; border-color:var(--border); }
+html body .sc{ padding:16px 18px; }
+html body .card-hd{ padding:14px 18px; border-bottom-color:var(--border); }
+html body .card-title{ font-size:14px; }
+html body .sg{ gap:16px; }
+
+/* ── 5. PROGRESS / MIX BARS ────────────────────────────────────── */
+html body .prog{ height:8px; border-radius:6px; background:#1A1F29; }
+html body .prog-fill{ border-radius:6px; }
+
+/* ── 6. SIDEBAR + NAV ──────────────────────────────────────────── */
+html body .sidebar{
+  width:236px; min-width:236px;
+  background:#0E1017; border-right-color:#1B2029;
+}
+html body .nav-item{
+  margin:0 8px 2px; padding:9px 10px;
+  border-left:none; border-radius:9px;
+  color:var(--text2); font-size:13px;
+}
+html body .nav-item:hover{ background:var(--bg3); color:var(--text); }
+html body .nav-item.on{
+  background:var(--amberdim); color:var(--text);
+  box-shadow:inset 2px 0 0 var(--amber);
+}
+
+/* ── 7. TOPBAR / CONTROLS ──────────────────────────────────────── */
+html body .topbar{ height:60px; background:var(--bg); border-bottom-color:#1B2029; }
+html body .btn{ border-radius:9px; padding:7px 14px; }
+html body .badge{ border-radius:20px; }
+
+</style>
 </body>
 </html>
