@@ -189,7 +189,12 @@ var CSS = [
 ".ro-scope .stop .addr{color:var(--text-dim);font-size:11.5px;margin-top:2px;line-height:1.35}",
 ".ro-scope .stop .track,.ro-scope .track{display:inline-block;color:var(--orange-ink);font-weight:700;font-size:11.5px;margin-top:6px;text-decoration:none;border-bottom:1px dashed rgba(245,151,42,.4)}",
 ".ro-scope .stop .track:hover{color:#ffc983}",
-".ro-scope .stop .pills{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}",
+".ro-scope .stop-meta{display:flex;align-items:center;gap:8px;margin-top:5px}",
+".ro-scope .stop-meta .track{margin-top:0}",
+".ro-scope .stop-meta .stop-nav{width:28px;height:22px;flex:0 0 auto;border-radius:6px;border:1px solid var(--border-strong);background:var(--panel-2);color:var(--text);font-size:12px;line-height:1;cursor:pointer;display:inline-grid;place-items:center}",
+".ro-scope .stop-src{margin-top:6px}",
+".ro-scope .stop-src .pill{background:transparent;border:none;padding:0;min-height:0;height:auto;white-space:normal;max-width:none;overflow:visible;text-overflow:clip;font-size:11px;font-weight:600;color:var(--text-dim);letter-spacing:0}",
+".ro-scope .stop .pills{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}",
 ".ro-scope .pill{display:inline-flex;align-items:center;gap:5px;min-height:22px;padding:2px 9px;border-radius:7px;font-size:10.5px;font-weight:800;letter-spacing:.02em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}",
 ".ro-scope .pill.box{background:var(--gray-pill);color:#c2cdde;border:1px solid #313d4d}",
 ".ro-scope .pill.pickup{background:var(--amber-soft);color:#ffd06b;border:1px solid rgba(245,183,51,.32)}",
@@ -202,8 +207,8 @@ var CSS = [
 ".ro-scope .conf-ico.warn{background:var(--yellow-soft);color:var(--yellow)}",
 ".ro-scope .conf-ico.err{background:var(--red-soft);color:var(--red)}",
 ".ro-scope .stop .grip{color:#3b485d;font-size:13px;cursor:grab}",
-".ro-scope .stop-actions{display:flex;gap:7px;margin-top:11px}",
-".ro-scope .stop-arrive{margin-top:0;flex:1;min-height:34px;height:auto;padding:6px 8px;line-height:1.25;text-align:center;border-radius:9px;border:1px solid;font-weight:800;font-size:11.5px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}",
+".ro-scope .stop-actions{display:flex;gap:7px;margin-top:9px}",
+".ro-scope .stop-arrive{margin-top:0;flex:1;min-height:32px;height:auto;padding:5px 8px;line-height:1.2;text-align:center;border-radius:9px;border:1px solid;font-weight:800;font-size:11.5px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;white-space:nowrap}",
 ".ro-scope .stop-arrive.pickup{background:var(--amber-soft);color:#ffd06b;border-color:rgba(245,183,51,.4)}",
 ".ro-scope .stop-arrive.dropbox{background:var(--blue-soft);color:#8cc6ff;border-color:rgba(59,155,255,.4)}",
 ".ro-scope .stop-arrive:hover{filter:brightness(1.14)}",
@@ -661,13 +666,16 @@ function renderStops() {
       '<div class="body">' +
       '<div class="name">' + esc(o.name) + "</div>" +
       '<div class="addr">' + esc(o.addr) + "</div>" +
+      '<div class="stop-meta">' +
       '<a class="track" href="#" onclick="RO.openOrder(\'' + esc(o.tn) + '\');return false">' + esc(o.tn) + "</a>" +
+      '<button class="stop-nav" title="Navigate in Apple Maps" onclick="event.stopPropagation();RO.navTo(\'' + dest + "','" + addr + "','apple')\">🧭</button>" +
+      "</div>" +
       '<div class="pills"><span class="pill box">' + esc(o.box) + "</span>" +
-      '<span class="pill ' + o.service + '">' + SERVICE_LABEL[o.service] + "</span>" + sourceBadge(o) + "</div>" +
+      '<span class="pill ' + o.service + '">' + SERVICE_LABEL[o.service] + "</span></div>" +
+      '<div class="stop-src">' + sourceBadge(o) + "</div>" +
       '<div class="stop-actions">' +
       '<button class="stop-arrive ' + o.service + '" onclick="event.stopPropagation();RO.openStopAction(\'' + esc(o.tn) + "')\">" +
-      (o.service === "pickup" ? "📦 Arrive — pickup intake" : "📥 Arrive — drop box") + "</button>" +
-      '<button class="stop-nav" title="Navigate in Apple Maps" onclick="event.stopPropagation();RO.navTo(\'' + dest + "','" + addr + "','apple')\">🧭</button>" +
+      (o.service === "pickup" ? "📦 Arrive" : "📥 Arrive") + "</button>" +
       "</div></div>" +
       '<div class="conf">' + confIcon(o.conf) + '<div class="grip">⠿</div></div></div>';
   }).join("");
