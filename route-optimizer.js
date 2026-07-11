@@ -190,7 +190,7 @@ var CSS = [
 ".ro-scope .stop .track,.ro-scope .track{display:inline-block;color:var(--orange-ink);font-weight:700;font-size:11.5px;margin-top:6px;text-decoration:none;border-bottom:1px dashed rgba(245,151,42,.4)}",
 ".ro-scope .stop .track:hover{color:#ffc983}",
 ".ro-scope .stop .pills{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}",
-".ro-scope .pill{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:7px;font-size:10.5px;font-weight:800;letter-spacing:.02em}",
+".ro-scope .pill{display:inline-flex;align-items:center;gap:5px;min-height:22px;padding:2px 9px;border-radius:7px;font-size:10.5px;font-weight:800;letter-spacing:.02em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}",
 ".ro-scope .pill.box{background:var(--gray-pill);color:#c2cdde;border:1px solid #313d4d}",
 ".ro-scope .pill.pickup{background:var(--amber-soft);color:#ffd06b;border:1px solid rgba(245,183,51,.32)}",
 ".ro-scope .pill.dropbox{background:var(--blue-soft);color:#8cc6ff;border:1px solid rgba(59,155,255,.32)}",
@@ -203,7 +203,7 @@ var CSS = [
 ".ro-scope .conf-ico.err{background:var(--red-soft);color:var(--red)}",
 ".ro-scope .stop .grip{color:#3b485d;font-size:13px;cursor:grab}",
 ".ro-scope .stop-actions{display:flex;gap:7px;margin-top:11px}",
-".ro-scope .stop-arrive{margin-top:0;flex:1;height:34px;border-radius:9px;border:1px solid;font-weight:800;font-size:11.5px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}",
+".ro-scope .stop-arrive{margin-top:0;flex:1;min-height:34px;height:auto;padding:6px 8px;line-height:1.25;text-align:center;border-radius:9px;border:1px solid;font-weight:800;font-size:11.5px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer}",
 ".ro-scope .stop-arrive.pickup{background:var(--amber-soft);color:#ffd06b;border-color:rgba(245,183,51,.4)}",
 ".ro-scope .stop-arrive.dropbox{background:var(--blue-soft);color:#8cc6ff;border-color:rgba(59,155,255,.4)}",
 ".ro-scope .stop-arrive:hover{filter:brightness(1.14)}",
@@ -268,6 +268,7 @@ var CSS = [
 ".ro-scope .ck-check{appearance:none;width:17px;height:17px;border-radius:5px;border:1.5px solid var(--border-strong);background:var(--card);display:inline-grid;place-items:center;cursor:pointer}",
 ".ro-scope .ck-check:checked{background:var(--orange);border-color:var(--orange)}",
 ".ro-scope .ck-check:checked::after{content:\"✓\";color:#1a1206;font-size:11px;font-weight:900}",
+".ro-scope .inroute-tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 8px;border-radius:6px;font-size:10px;font-weight:800;white-space:nowrap;background:var(--green-soft);color:#5be3ab;border:1px solid rgba(39,194,129,.3)}",
 ".ro-scope .conf-tag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:7px;font-size:11px;font-weight:700}",
 ".ro-scope .conf-tag.ok{background:var(--green-soft);color:#5be3ab}",
 ".ro-scope .conf-tag.warn{background:var(--yellow-soft);color:var(--yellow)}",
@@ -803,7 +804,9 @@ function renderQueue() {
     var inRoute = state.order.indexOf(o.tn) !== -1 && !state.removed.has(o.tn);
     var cc = conf[o.conf] || conf.warn;
     return "<tr>" +
-      '<td><input type="checkbox" class="ck-check qsel" data-tn="' + esc(o.tn) + '" ' + (inRoute ? "disabled" : "") + "></td>" +
+      "<td>" + (inRoute
+        ? '<span class="inroute-tag" title="Already in this route">✓ In route</span>'
+        : '<input type="checkbox" class="ck-check qsel" data-tn="' + esc(o.tn) + '" title="Select to add to route">') + "</td>" +
       '<td><a class="tlink" href="#" onclick="RO.openOrder(\'' + esc(o.tn) + '\');return false">' + esc(o.tn) + "</a></td>" +
       '<td style="font-weight:600">' + esc(o.name) + "</td>" +
       '<td style="color:var(--text-dim)">' + esc(o.addr) + "</td>" +
