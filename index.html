@@ -75,6 +75,7 @@
   <!-- Build: v1.0.0-2026-03-06-df1777d -->
   <!-- Phase 5: Receipts & Invoices components -->
   <script src="phase5-receipts-components.js"></script>
+  <script src="route-optimizer.js"></script>
   <script type="text/javascript">
 "use strict";
 
@@ -851,6 +852,7 @@ var BOX_CONFIG = [
   {key:"Dish",             code:"DISH_LEGACY", dims:"18x18x28", label:"Dish (legacy)",    active:false, isDish:true,  pricingMode:"single", unitPrice:null, unitLabel:null, legacy:true}
 ];
 var BOX_TYPES = BOX_CONFIG.filter(function(b){return b.active;}).map(function(b){return b.key;});
+window.BOX_CONFIG = BOX_CONFIG; // exposed for route-optimizer.js module
 var getBoxLabel = function(key){ var b=BOX_CONFIG.find(function(x){return x.key===key;}); return b?b.label:key; };
 /* ════════════════════════════════════════════
    PRICING TABLE (admin-configurable)
@@ -19980,7 +19982,20 @@ var AddressBookPage = function AddressBookPage() {
     h("div", { className: "row g10", style: { marginBottom: 14, flexWrap: "wrap" } },
       h("input", { className: "fi", style: { flex: 1, minWidth: 200 }, placeholder: t("Search contacts…", "Buscar contactos…"), value: search, onChange: function (e) { setSearch(e.target.value); } }),
       h("button", { className: "btn btn-green", onClick: function () { setEditing({ preferred_language: "en", country: "US", tags: [] }); } }, "+ ", t("New Contact", "Nuevo Contacto")),
-      h("button", { className: "btn btn-amber", disabled: importing, onClick: doImport }, importing ? t("Importing…", "Importando…") : "📥 " + t("Import from Orders", "Importar de Órdenes"))),
+      h("button", { className: "btn btn-amber", disabled: importing, onClick: doImport }, importing ? t("Importing…", "Importando…") : "📥 " + t("Import from Orders", "Importar de Órdenes")),
+      h("button", { className: "btn btn-ghost", disabled: !contacts.length, onClick: function () {
+        var escCsv = function (v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? "\"" + v.replace(/"/g, "\"\"") + "\"" : v; };
+        var cols = ["name", "phone", "whatsapp", "email", "address", "city", "state", "zip", "country", "preferred_language", "tags"];
+        var csv = cols.join(",") + "\n" + contacts.map(function (c) {
+          return cols.map(function (k) { return escCsv(k === "tags" ? (c.tags || []).join("; ") : c[k]); }).join(",");
+        }).join("\n");
+        var blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "address-book-" + new Date().toISOString().slice(0, 10) + ".csv";
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+      } }, "📤 " + t("Export CSV", "Exportar CSV"))),
     // stat
     h("div", { className: "xs mut", style: { marginBottom: 8 } }, filtered.length + " " + t("contacts", "contactos")),
     // list
@@ -23523,6 +23538,15 @@ var BackwardGateModal = function BackwardGateModal(_ref120) {
    CUSTOMER QUICK-SEARCH — autocomplete from past orders
 ════════════════════════════════════════════ */
 var CustomerSearch = function CustomerSearch(_ref121) {
+  // R2 polish: quick-fill also searches the address_book contact directory.
+  var _sAB = React.useState([]), abRows = _sAB[0], setAbRows = _sAB[1];
+  React.useEffect(function () {
+    var alive = true;
+    if (typeof _db !== "undefined" && _db.loadAddressBook) {
+      _db.loadAddressBook().then(function (rows) { if (alive) setAbRows(rows || []); }).catch(function () {});
+    }
+    return function () { alive = false; };
+  }, []);
   var _ref121$orders = _ref121.orders,
     orders = _ref121$orders === void 0 ? [] : _ref121$orders,
     onFill = _ref121.onFill,
@@ -23569,6 +23593,24 @@ var CustomerSearch = function CustomerSearch(_ref121) {
         var _o$phone2;
         var key = ((_o$phone2 = o.phone) === null || _o$phone2 === void 0 ? void 0 : _o$phone2.replace(/[^0-9]/g, "")) || o.name;
         if (!seen.has(key)) seen.set(key, o);
+      }
+    });
+    // Merge address_book contacts (orders win on dedupe; contacts fill the gaps)
+    abRows.forEach(function (c) {
+      if (!c || c.is_active === false) return;
+      var cNameMatch = false;
+      if (!isNumeric && c.name && c.name.toLowerCase) {
+        var cn = c.name.toLowerCase().trim();
+        cNameMatch = cn.startsWith(lower) || cn.split(/\s+/).some(function (tok) { return tok.startsWith(lower); });
+      }
+      var cDigits = String(c.phone || "").replace(/[^0-9]/g, "");
+      var cPhoneMatch = isNumeric && cDigits && cDigits.includes(val.replace(/[^0-9]/g, ""));
+      if (cNameMatch || cPhoneMatch) {
+        var cKey = cDigits || c.name;
+        if (!seen.has(cKey)) seen.set(cKey, {
+          name: c.name || "", phone: c.phone || "", whatsapp: c.whatsapp || c.phone || "",
+          address: c.address || "", city: c.city || "", state: c.state || "", zip: c.zip || "", office: ""
+        });
       }
     });
     var r = _toConsumableArray(seen.values()).slice(0, 5);
@@ -30211,7 +30253,7 @@ setOrders(function (prev) {
       driversList: tenantDrivers
     });
     // Phase 6 — Slice 1: Map View (HQ-only, role gate enforced by nav config)
-    if (page === "map_view") return /*#__PURE__*/React.createElement(MapViewPage, { orders: orders, session: session, notify: notify, driversList: tenantDrivers, onCoordOverride: function(oid, patch) { setOrders(function(prev) { return prev.map(function(o) { return o.id === oid ? Object.assign({}, o, patch) : o; }); }); } });
+    if (page === "map_view") return /*#__PURE__*/React.createElement(window.RouteOptimizerPage || MapViewPage, { orders: orders, session: session, notify: notify, driversList: tenantDrivers, onSave: saveOrder, onStatusChange: changeStatus, onCoordOverride: function(oid, patch) { setOrders(function(prev) { return prev.map(function(o) { return o.id === oid ? Object.assign({}, o, patch) : o; }); }); } });
     // Phase 6 — Slice 4: Tape Direct (HQ + Office)
     if (page === "tape_direct") return /*#__PURE__*/React.createElement(TapeDirectPage, { session: session, notify: notify, roleKey: roleKey });
     // Phase 6 — Slice 4: Box Sale Tracking (HQ + Office; no driver margin)
@@ -30376,10 +30418,12 @@ setOrders(function (prev) {
       onStatusChange: changeStatus
     });
     // Driver
-    if (page === "driver_route") return /*#__PURE__*/React.createElement(DriverRoutePage, {
+    if (page === "driver_route") return /*#__PURE__*/React.createElement(window.DriverRouteLite || DriverRoutePage, {
       orders: orders,
       driverName: _activeDriverName,
       driverUserId: _activeDriverUserId,
+      notify: notify,
+      onSave: saveOrder,
       onStatusChange: changeStatus,
       onReceipt: setReceiptOrder,
       onRunningLate: function onRunningLate(id) {
