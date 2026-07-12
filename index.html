@@ -31683,7 +31683,9 @@ setOrders(function (prev) {
                         h("span", { style: { fontSize: 11.5, color: "var(--red)" } }, T("Verification failed.", "La verificación falló.")),
                         h("button", { type: "button", className: "btn btn-ghost btn-sm", onClick: retryTurnstile }, T("Retry", "Reintentar")))
                     : h("div", { style: { fontSize: 11.5, color: "var(--text3)" } }, T("Verifying\u2026", "Verificando\u2026")))
-            : null,
+            : h("div", { className: "alert alert-a", style: { marginBottom: 10, fontSize: 12 } },
+                T("Text-alert signup is temporarily unavailable while we finish setup. Your package tracking above still works.",
+                  "El registro de alertas por texto no está disponible temporalmente mientras terminamos la configuración. El rastreo de tu paquete arriba sigue funcionando.")),
 
           submitState === "error" ? h("div", { className: "alert alert-r" }, submitErrMsg(submitCode)) : null,
 
