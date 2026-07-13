@@ -4991,6 +4991,7 @@ var OrderDetail = function OrderDetail(_ref22) {
     shipmentsList = _ref22$shipmentsList === void 0 ? [] : _ref22$shipmentsList,
     _ref22$boxConfig = _ref22.boxConfig,
     boxConfig = _ref22$boxConfig === void 0 ? BOX_CONFIG : _ref22$boxConfig;
+  var t = useT();
   var _stBoxEdits = useState({}), _stBoxEdits2 = _slicedToArray(_stBoxEdits, 2),
       boxEdits = _stBoxEdits2[0], setBoxEdits = _stBoxEdits2[1];
   var _stSelSub = useState((order.boxes && order.boxes[0] && order.boxes[0].subId) || null);
@@ -5431,8 +5432,8 @@ var OrdersPage = function OrdersPage(_ref31) {
         }
       }
       if (filter !== "all" && o.status !== filter) return false;
-      var q = search.toLowerCase();
-      return !q || o.name.toLowerCase().includes(q) || o.phone.includes(q) || o.id.toLowerCase().includes(q) || o.address.toLowerCase().includes(q);
+      var q = (search || "").toLowerCase();
+      return !q || (o.name || "").toLowerCase().includes(q) || String(o.phone || "").includes(q) || String(o.id || "").toLowerCase().includes(q) || (o.address || "").toLowerCase().includes(q);
     });
   }, [orders, filter, search, officeFilter]);
   return /*#__PURE__*/React.createElement("div", {
@@ -20278,12 +20279,15 @@ var CustomerProfilePage = function CustomerProfilePage(_ref113) {
   var customers = React.useMemo(function () {
     var map = {};
     orders.forEach(function (o) {
-      if (!map[o.phone]) {
-        map[o.phone] = {
-          name: o.name,
-          phone: o.phone,
+      if (o.voided) return;
+      var pk = String(o.phone || "").replace(/\D/g, "") || ("noname:" + (o.name || o.id || "?"));
+      o = Object.assign({}, o, { __pk: pk });
+      if (!map[o.__pk]) {
+        map[o.__pk] = {
+          name: o.name || "Unknown customer",
+          phone: o.phone || "",
           whatsapp: o.whatsapp,
-          address: "".concat(o.address, ", ").concat(o.city, " ").concat(o.state),
+          address: [o.address, [o.city, o.state].filter(Boolean).join(" ")].filter(Boolean).join(", "),
           orders: [],
           totalSpent: 0,
           totalBoxes: 0,
@@ -20292,10 +20296,10 @@ var CustomerProfilePage = function CustomerProfilePage(_ref113) {
           offices: new Set()
         };
       }
-      map[o.phone].orders.push(o);
-      map[o.phone].totalSpent += o.payment.paid || 0;
-      map[o.phone].totalBoxes += o.boxCount || 1;
-      map[o.phone].offices.add(o.office);
+      map[o.__pk].orders.push(o);
+      map[o.__pk].totalSpent += (o.payment && o.payment.paid) || 0;
+      map[o.__pk].totalBoxes += o.boxCount || 1;
+      if (o.office) map[o.__pk].offices.add(o.office);
     });
     return Object.values(map).map(function (c) {
       return _objectSpread(_objectSpread({}, c), {}, {
@@ -20310,13 +20314,14 @@ var CustomerProfilePage = function CustomerProfilePage(_ref113) {
     });
   }, [orders]);
   var filtered = customers.filter(function (c) {
-    return c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search);
+    var q = (search || "").toLowerCase();
+    return (c.name || "").toLowerCase().includes(q) || String(c.phone || "").includes(search || "");
   });
   if (selected) {
     var _c$orders;
     var c = selected;
     var unpaid = c.orders.reduce(function (s, o) {
-      return s + Math.max(0, (o.payment.amount || 0) - (o.payment.paid || 0));
+      return s + Math.max(0, ((o.payment && o.payment.amount) || 0) - ((o.payment && o.payment.paid) || 0));
     }, 0);
     return /*#__PURE__*/React.createElement("div", {
       className: "fu"
@@ -20516,12 +20521,12 @@ var CustomerProfilePage = function CustomerProfilePage(_ref113) {
           color: "var(--green)",
           fontFamily: "'IBM Plex Mono',monospace"
         }
-      }, "$", o.payment.paid || 0), /*#__PURE__*/React.createElement("td", {
+      }, "$", (o.payment && o.payment.paid) || 0), /*#__PURE__*/React.createElement("td", {
         style: {
-          color: o.payment.amount - o.payment.paid > 0 ? "var(--red)" : "var(--green)",
+          color: ((o.payment && o.payment.amount) || 0) - ((o.payment && o.payment.paid) || 0) > 0 ? "var(--red)" : "var(--green)",
           fontFamily: "'IBM Plex Mono',monospace"
         }
-      }, "$", Math.max(0, (o.payment.amount || 0) - (o.payment.paid || 0))));
+      }, "$", Math.max(0, ((o.payment && o.payment.amount) || 0) - ((o.payment && o.payment.paid) || 0))));
     }))))), /*#__PURE__*/React.createElement("div", {
       className: "row g10",
       style: {
@@ -24016,7 +24021,7 @@ var PhoneDupeBanner = function PhoneDupeBanner(_ref123) {
   if (!phone || phone.length < 7) return null;
   var clean = phone.replace(/\D/g, "");
   var dupes = orders.filter(function (o) {
-    return o.id !== currentId && o.phone.replace(/\D/g, "") === clean;
+    return o.id !== currentId && String(o.phone || "").replace(/\D/g, "") === clean;
   });
   if (!dupes.length) return null;
   return /*#__PURE__*/React.createElement("div", {
