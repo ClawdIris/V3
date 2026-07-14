@@ -31486,6 +31486,7 @@ setOrders(function (prev) {
     var _tx = useState(false), txn = _tx[0], setTxn = _tx[1];
 
     var _ss = useState("idle"), submitState = _ss[0], setSubmitState = _ss[1];
+    var _hpS = useState(""), hp = _hpS[0], setHp = _hpS[1];
     var _se = useState(null), submitCode = _se[0], setSubmitCode = _se[1];
     var _ts = useState(null), tsToken = _ts[0], setTsToken = _ts[1];
     var _tss = useState("idle"), tsStatus = _tss[0], setTsStatus = _tss[1]; // idle|pending|ready|error
@@ -31534,11 +31535,12 @@ setOrders(function (prev) {
       } else { s.addEventListener("load", renderWidget); }
     }, [lookupState]);
 
-    var captchaReady = TURNSTILE_CONFIGURED ? !!tsToken : false;
+    // Consent capture is decoupled from SMS delivery. Turnstile, WHEN configured,
+    // is required (bot protection); when not yet configured the consent still
+    // saves (server marks it unverified + holds it from auto-dispatch). Required
+    // fields: name + valid phone + package-alerts consent. ZIP/tracking optional.
+    var captchaReady = TURNSTILE_CONFIGURED ? !!tsToken : true;
     var optinOnly = publicView === "sms-opt-in";
-    // TCPA/A2P: consent capture must never be gated on an order, tracking lookup,
-    // ZIP match, or any transaction. Required: name + valid phone + package-alerts
-    // consent (+ captcha). ZIP and tracking number are optional metadata only.
     var canSubmit = firstName.trim() && lastName.trim() && isValidPhone(phone) && txn === true &&
       captchaReady && submitState !== "submitting";
 
@@ -31555,6 +31557,7 @@ setOrders(function (prev) {
           trackingNumber: (query || "").trim().toUpperCase() || null, // optional metadata
           pkgConsent: txn === true, mktConsent: mkt === true,
           lang: lang,
+          company_website: hp,                                       // honeypot (real users leave blank)
           consentCopyVersion: "tcpa-2026-07-11",
           sourceUrl: (typeof location !== "undefined" ? location.href : ""),
           turnstileToken: tsToken
@@ -31703,9 +31706,14 @@ setOrders(function (prev) {
                         h("span", { style: { fontSize: 11.5, color: "var(--red)" } }, T("Verification failed.", "La verificación falló.")),
                         h("button", { type: "button", className: "btn btn-ghost btn-sm", onClick: retryTurnstile }, T("Retry", "Reintentar")))
                     : h("div", { style: { fontSize: 11.5, color: "var(--text3)" } }, T("Verifying\u2026", "Verificando\u2026")))
-            : h("div", { className: "alert alert-a", style: { marginBottom: 10, fontSize: 12 } },
-                T("Text-alert signup is temporarily unavailable while we finish setup. Your package tracking above still works.",
-                  "El registro de alertas por texto no está disponible temporalmente mientras terminamos la configuración. El rastreo de tu paquete arriba sigue funcionando.")),
+            : h("input", {
+                // Honeypot: hidden from real users; bots that fill it are dropped
+                // server-side. Rendered only when Turnstile isn't configured yet.
+                type: "text", value: hp, onChange: function (e) { setHp(e.target.value); },
+                name: "company_website", tabIndex: -1, autoComplete: "off",
+                "aria-hidden": "true",
+                style: { position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }
+              }),
 
           submitState === "error" ? h("div", { className: "alert alert-r" }, submitErrMsg(submitCode)) : null,
 
@@ -31717,8 +31725,8 @@ setOrders(function (prev) {
 
       submitState === "success" ? h("div", { className: "alert alert-g", style: { fontSize: 13, lineHeight: 1.6 } },
         h("div", null,
-          h("strong", null, T("You're signed up for text alerts for this package. ", "Estás registrado para recibir alertas por texto de este paquete. ")),
-          T("Reply STOP to unsubscribe.", "Responde STOP para cancelar."))) : null
+          h("strong", null, T("You're signed up — you'll start receiving text alerts shortly. ", "Listo — pronto comenzarás a recibir alertas por texto. ")),
+          T("Reply STOP to unsubscribe at any time.", "Responde STOP para cancelar en cualquier momento."))) : null
     );
   }
 
