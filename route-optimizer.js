@@ -543,6 +543,23 @@ var OVERLAY_HTML = [
 var RO = window.RO = window.RO || {};
 RO.props = null; RO.pageEl = null; RO.ovEl = null;
 RO.session = { completedTns: {}, completed: [], boxesOut: [] };  /* survives re-renders */
+/* Persist the shift session per-day so a mid-shift page refresh does NOT lose
+   completed stops or the cash tally (real operational risk for live drivers).
+   Keyed by date; yesterday's session is ignored automatically. Order/payment
+   writes still persist through onSave — this only protects the session view. */
+var RO_SESS_KEY = "casabe_ro_session_v2";
+function roSessLoad() {
+  try {
+    var raw = JSON.parse(localStorage.getItem(RO_SESS_KEY) || "null");
+    if (raw && raw.day === new Date().toDateString() && raw.data) {
+      RO.session = { completedTns: raw.data.completedTns || {}, completed: raw.data.completed || [], boxesOut: raw.data.boxesOut || [] };
+    }
+  } catch (e) {}
+}
+function roSessSave() {
+  try { localStorage.setItem(RO_SESS_KEY, JSON.stringify({ day: new Date().toDateString(), data: RO.session })); } catch (e) {}
+}
+roSessLoad();
 
 var state = RO.state = {
   driverId: "", drivers: [],
@@ -1386,6 +1403,7 @@ RO.completePickup = function () {
 
   RO.session.completedTns[o.tn] = 1;
   RO.session.completed.push({ tn: o.tn, name: o.name, service: "pickup", due: saCtx.due, collected: collected, method: method, owed: owed, receipt: receipt, driver: o.driver || state.driverId, placedBy: o.placedBy, placedByType: o.placedByType });
+  roSessSave();
   o.done = true; state.removed.add(o.tn);
   RO.closeStop(); renderAll();
 
@@ -1408,7 +1426,9 @@ RO.completeDrop = function () {
   }, "box_dropped_off", "Drop box — " + qty + "× " + box + (note ? " · " + note : ""));
   RO.session.completedTns[o.tn] = 1;
   RO.session.completed.push({ tn: o.tn, name: o.name, service: "dropbox", due: 0, collected: 0, method: "", owed: 0, receipt: false, driver: o.driver || state.driverId, placedBy: o.placedBy, placedByType: o.placedByType });
+  roSessSave();
   if (toQueue) RO.session.boxesOut.push({ tn: o.tn, name: o.name, phone: o.phone, addr: o.addr, box: box, driver: o.driver || state.driverId, date: "Today", notify: notify, placedBy: o.placedBy, placedByType: o.placedByType });
+  roSessSave();
   o.done = true; state.removed.add(o.tn);
   RO.closeStop(); renderAll(); if (toQueue) RO.switchTab("boxes");
   toast("📦 Box dropped", o.name + " delivered" + (toQueue ? " · added to Boxes Out queue" : "") + (notify ? " · shipment campaign enabled" : "") + ".");

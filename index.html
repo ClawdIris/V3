@@ -36,6 +36,39 @@
     var SUPABASE_ANON_KEY = "sb_publishable_vqS6u4BduAw6fYYaLP-2aA_gfETHuH1";
     var _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // ── Client error tracking (live-business observability) ─────────────────
+    // Reports crashes to Supabase (client_errors via rate-limited definer RPC)
+    // so real-user failures are queryable instead of silent. Fire-and-forget,
+    // throttled client-side (max 5/session, deduped by message) so an error
+    // loop can never spam the network or the table.
+    window.__CK_BUILD = "ck-2026-07-15";
+    (function () {
+      var sent = {}; var count = 0;
+      window.__logClientError = function (msg, stack, source) {
+        try {
+          msg = String(msg || "").slice(0, 500);
+          if (!msg || count >= 5 || sent[msg]) return;
+          sent[msg] = 1; count++;
+          _supabase.rpc("log_client_error", {
+            p_message: msg,
+            p_stack: String(stack || "").slice(0, 2000),
+            p_source: String(source || "onerror"),
+            p_url: String(location.href || "").slice(0, 300),
+            p_role: String((window.__CK_ROLE || "")).slice(0, 20),
+            p_tenant: String((window.__CK_TENANT || "")).slice(0, 60),
+            p_marker: window.__CK_BUILD
+          }).then(function () {}, function () {});
+        } catch (_e) {}
+      };
+      window.addEventListener("error", function (e) {
+        window.__logClientError(e && e.message, e && e.error && e.error.stack, "onerror");
+      });
+      window.addEventListener("unhandledrejection", function (e) {
+        var r = e && e.reason;
+        window.__logClientError(r && (r.message || String(r)), r && r.stack, "unhandledrejection");
+      });
+    })();
+
     // ── Google Maps BROWSER key (Maps JS + Places only) ──────────────────────
     // Option A (Jeffrey 2026-06-29): this is the BROWSER key, HTTP-referrer-locked
     // to casabekonnect-app.netlify.app and restricted to Maps JavaScript + Places APIs.
@@ -31989,6 +32022,7 @@ var AppErrorBoundary = /*#__PURE__*/function(_React$Component) {
     // Surface the real cause (console + window for the smoke/e2e gate to read)
     try {
       console.error("[AppErrorBoundary] caught render error:", error, info && info.componentStack);
+      if (window.__logClientError) window.__logClientError(String(error && error.message || error), (error && error.stack || "") + "\n--component--\n" + String(info && info.componentStack || "").slice(0,600), "boundary");
       window.__APP_LAST_ERROR = { message: String(error && error.message || error), stack: error && error.stack, componentStack: info && info.componentStack, at: new Date().toISOString() };
     } catch (_e) {}
     this.setState({ info: info });
