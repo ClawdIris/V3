@@ -798,6 +798,7 @@ var computeShipmentMetrics = function computeShipmentMetrics(shipment, allOrders
 
 // ── Net revenue — uses getOrderCommission so legacy multi-box is correct ────
 var calculateNetRevenue = function calculateNetRevenue(order, tenant) {
+  if (!order || typeof order !== "object") return 0;
   // Only use snapshot if it passes validation
   if (isValidSnapshot(order.commissionSnapshot, order)) return order.commissionSnapshot.netRevenue;
   var gross = parseFloat(order.payment && order.payment.amount) || 0;
@@ -13193,7 +13194,7 @@ var ReceiptModal = function ReceiptModal(_ref83) {
         color: "#555",
         marginTop: 3
       }
-    }, "Method: ", receipt.paymentMethod.toUpperCase(), receipt.depositPaid ? " · $10 box deposit included" : "")), receipt.notes && /*#__PURE__*/React.createElement("div", {
+    }, "Method: ", String(receipt.paymentMethod || "cash").toUpperCase(), receipt.depositPaid ? " · $10 box deposit included" : "")), receipt.notes && /*#__PURE__*/React.createElement("div", {
       style: {
         marginTop: 8,
         fontSize: 11,
@@ -26559,6 +26560,7 @@ function AppShell(_ref130) {
     var _ordersChan = _db.subscribeOrders(function(evt) {
       var o = evt.order;
       if (!o || !o.id) return;
+      o = normalizeOrderForUi(o); // realtime rows bypass the load-path normalizer; do it here so status/payment are always present
       if (evt.eventType === "DELETE") {
         setOrders(function(prev) { return prev.filter(function(x) { return x.id !== o.id; }); });
         return;
@@ -27950,7 +27952,7 @@ setOrders(function (prev) {
                         /*#__PURE__*/React.createElement("span", {
                           className: "badge",
                           style: { background: statusColor(o.status) + "22", color: statusColor(o.status) }
-                        }, o.status.replace(/_/g, " "))
+                        }, (o.status || "unknown").replace(/_/g, " "))
                       ),
                       /*#__PURE__*/React.createElement("td", { className: "mut" }, (o.address || "") + (o.city ? ", " + o.city : "")),
                       /*#__PURE__*/React.createElement("td", null,
@@ -32549,11 +32551,12 @@ if (typeof STRIPE_CHECKOUT_URL === "undefined") {
     })()
   );
 
-  // P6.6: HQ-only gate on payment link
-  assert("P6: HQ-only gate on payment link",
+  // P6.6: payment-link gate — HQ + office allowed, other roles blocked.
+  // (Office was added to match stripe-checkout backend authz.) Verify a role
+  // that is STILL blocked returns null without invoking hooks.
+  assert("P6: payment link gate blocks non-authorized roles",
     (function() {
-      // GeneratePaymentLink returns null for non-HQ roles
-      var result = GeneratePaymentLink({ roleKey: "office" });
+      var result = GeneratePaymentLink({ roleKey: "driver" });
       return result === null;
     })()
   );
