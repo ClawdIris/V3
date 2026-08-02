@@ -24968,6 +24968,7 @@ var LoginScreen = function LoginScreen(_ref126) {
                   var roleKey     = ROLE_MAP[dbRole] || "office";
                   var displayName = membership.display_name || authRes.data.user.email;
                   var tenantId    = membership.tenant_id;
+                  try { window.__CK_ROLE = roleKey; window.__CK_TENANT = tenantId; } catch (e) {} // context for client_errors logging
                   _db.init(tenantId);
                   onLogin({
                     userId:      authRes.data.user.id,
@@ -31608,6 +31609,7 @@ setOrders(function (prev) {
     var _tx = useState(false), txn = _tx[0], setTxn = _tx[1];
 
     var _ss = useState("idle"), submitState = _ss[0], setSubmitState = _ss[1];
+    var _scS = useState({ txn: false, mkt: false }), submittedConsent = _scS[0], setSubmittedConsent = _scS[1];
     var _hpS = useState(""), hp = _hpS[0], setHp = _hpS[1];
     var _se = useState(null), submitCode = _se[0], setSubmitCode = _se[1];
     var _ts = useState(null), tsToken = _ts[0], setTsToken = _ts[1];
@@ -31657,17 +31659,20 @@ setOrders(function (prev) {
       } else { s.addEventListener("load", renderWidget); }
     }, [lookupState]);
 
-    // Consent capture is decoupled from SMS delivery. Turnstile, WHEN configured,
-    // is required (bot protection); when not yet configured the consent still
-    // saves (server marks it unverified + holds it from auto-dispatch). Required
-    // fields: name + valid phone + package-alerts consent. ZIP/tracking optional.
+    // A2P/carrier requirement: ALL SMS consent must be fully voluntary. Neither
+    // checkbox may gate submission — the form must submit with zero, one, or both
+    // boxes checked. Required to submit: first name, last name, valid phone (+
+    // captcha when configured). Consent flags are recorded per submission state.
     var captchaReady = TURNSTILE_CONFIGURED ? !!tsToken : true;
     var optinOnly = publicView === "sms-opt-in";
-    var canSubmit = firstName.trim() && lastName.trim() && isValidPhone(phone) && txn === true &&
+    var canSubmit = firstName.trim() && lastName.trim() && isValidPhone(phone) &&
       captchaReady && submitState !== "submitting";
 
     var doSubmit = function () {
       if (!canSubmit) return;
+      // Snapshot the exact consent state for this submission (drives confirmation copy).
+      var submittedTxn = txn === true, submittedMkt = mkt === true;
+      setSubmittedConsent({ txn: submittedTxn, mkt: submittedMkt });
       setSubmitState("submitting"); setSubmitCode(null);
       fetch(SMS_OPTIN_EDGE_URL, {
         method: "POST",
@@ -31677,10 +31682,10 @@ setOrders(function (prev) {
           phone: phone.trim(),
           zip: zip.trim() || null,                                   // optional
           trackingNumber: (query || "").trim().toUpperCase() || null, // optional metadata
-          pkgConsent: txn === true, mktConsent: mkt === true,
+          pkgConsent: submittedTxn, mktConsent: submittedMkt,        // both fully optional
           lang: lang,
           company_website: hp,                                       // honeypot (real users leave blank)
-          consentCopyVersion: "tcpa-2026-07-11",
+          consentCopyVersion: "tcpa-2026-07-30",
           sourceUrl: (typeof location !== "undefined" ? location.href : ""),
           turnstileToken: tsToken
         })
@@ -31846,9 +31851,26 @@ setOrders(function (prev) {
           h("div", { style: { color: "var(--text4)", fontSize: 10.5, marginTop: 8, textAlign: "center" } }, T("Consent is not required to track your package.", "No es necesario dar consentimiento para rastrear tu paquete.")))) : null,
 
       submitState === "success" ? h("div", { className: "alert alert-g", style: { fontSize: 13, lineHeight: 1.6 } },
-        h("div", null,
-          h("strong", null, T("You're signed up — you'll start receiving text alerts shortly. ", "Listo — pronto comenzarás a recibir alertas por texto. ")),
-          T("Reply STOP to unsubscribe at any time.", "Responde STOP para cancelar en cualquier momento."))) : null
+        (function () {
+          // Four states per spec: none / transactional / marketing-only / both.
+          if (submittedConsent.txn) {
+            // transactional (with or without marketing) — existing copy
+            return h("div", null,
+              h("strong", null, T("You're signed up — you'll start receiving text alerts shortly. ", "Listo — pronto comenzarás a recibir alertas por texto. ")),
+              T("Reply STOP to unsubscribe at any time.", "Responde STOP para cancelar en cualquier momento."));
+          }
+          if (submittedConsent.mkt) {
+            // marketing only
+            return h("div", null,
+              h("strong", null, T("You're signed up for " + PUBLIC_BRAND + " promotional texts. ", "Te registraste para textos promocionales de " + PUBLIC_BRAND + ". ")),
+              T("Reply STOP to unsubscribe at any time.", "Responde STOP para cancelar en cualquier momento."));
+          }
+          // both unchecked — contact saved, no opt-in
+          return h("div", null,
+            h("strong", null, T("Thanks — your contact info has been saved. ", "Gracias — tu información de contacto se ha guardado. ")),
+            T("You have not opted in to text messages. You can sign up for text alerts anytime on this page.",
+              "No te has registrado para recibir mensajes de texto. Puedes registrarte para alertas por texto en cualquier momento en esta página."));
+        })()) : null
     );
   }
 
