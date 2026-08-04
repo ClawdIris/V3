@@ -3358,6 +3358,16 @@ var OrderForm = function OrderForm(_ref4) {
     var amt = calcBoxTotal(dest, boxType, ins, declVal);
     if (amt > 0 && !priceOverridden) setPay("amount", amt);
   };
+  // Auto-match a Guatemala department from a typed city name (case-insensitive).
+  // Lets orders save without manually opening the dropdown: if the recipient city
+  // itself is a known department (e.g. "Livingston"), it becomes the default.
+  var matchGtDept = function(city) {
+    if (!city) return null;
+    var c = String(city).trim().toLowerCase();
+    if (!c) return null;
+    var hit = GT_DEPARTMENTS.find(function(d){ return d.dept.toLowerCase() === c; });
+    return hit || null;
+  };
   var save = function save() {
     if (!f.name || !f.phone) {
       alert("Name and phone are required.");
@@ -3382,6 +3392,13 @@ var OrderForm = function OrderForm(_ref4) {
     if (cleanPhone.length < 7) {
       alert("Please enter a valid phone number.");
       return;
+    }
+    // Save-time fallback for Department/City: if not chosen but the recipient
+    // city matches a known Guatemala department, default it (user can edit after).
+    // Keeps saves unblocked for programmatic/API-style order creation.
+    if ((f.destination || "Guatemala") === "Guatemala" && !f.gtDept) {
+      var _dm = matchGtDept(f.consigneeCity);
+      if (_dm) { f = Object.assign({}, f, { gtDept: _dm.dept, zone: f.zone || _dm.zone }); }
     }
     var baseId = f.id || genId((tenant === null || tenant === void 0 ? void 0 : tenant.prefix) || "CC");
     // RISK #12: Stamp price at creation so future pricing changes don't affect this order
@@ -3940,7 +3957,7 @@ var OrderForm = function OrderForm(_ref4) {
             /*#__PURE__*/React.createElement("div", { className: "fg" },
               /*#__PURE__*/React.createElement("label", { className: "fl" }, t("Destination", "Destino")),
               /*#__PURE__*/React.createElement("select", {
-                key: "dest-" + idx + "-" + (box.destinationCountry || "Guatemala"),
+                key: "dest-" + idx,
                 className: "fi", value: box.destinationCountry || "Guatemala",
                 onChange: function(e) { updateBox("destinationCountry", e.target.value, e.target.value !== "Guatemala" ? { gtDept: "", zone: "" } : undefined); }
               }, destinations.map(function(d) { return /*#__PURE__*/React.createElement("option", { key: d }, d); }))
@@ -3959,7 +3976,7 @@ var OrderForm = function OrderForm(_ref4) {
               /*#__PURE__*/React.createElement("div", { className: "fg" },
                 /*#__PURE__*/React.createElement("label", { className: "fl", style: { fontSize: 11 } }, "\uD83D\uDCCD " + t("Department / City", "Departamento / Ciudad")),
                 /*#__PURE__*/React.createElement("select", {
-                  key: "dept-" + idx + "-" + (box.gtDept || ""),
+                  key: "dept-" + idx,
                   className: "fi", value: box.gtDept || "",
                   onChange: function(e) { updateBox("gtDept", e.target.value); }
                 },
@@ -4407,7 +4424,26 @@ var OrderForm = function OrderForm(_ref4) {
     className: "fi",
     value: f.consigneeCity,
     onChange: function onChange(e) {
-      return set("consigneeCity", e.target.value);
+      var v = e.target.value;
+      // Option A: typing a recipient city that IS a Guatemala department
+      // auto-selects it in the Department/City dropdown (user can override).
+      setF(function(prev) {
+        var next = Object.assign({}, prev, { consigneeCity: v });
+        var isGT = (prev.destination || "Guatemala") === "Guatemala";
+        if (isGT && !prev.gtDept) {
+          var m = typeof matchGtDept === "function" ? matchGtDept(v) : null;
+          if (m) {
+            next.gtDept = m.dept;
+            next.zone = m.zone;
+            if (prev.boxes && prev.boxes.length > 0) {
+              next.boxes = prev.boxes.map(function(b, i){
+                return (i === 0 && !b.gtDept) ? Object.assign({}, b, { gtDept: m.dept, zone: m.zone }) : b;
+              });
+            }
+          }
+        }
+        return next;
+      });
     },
     placeholder: "Tegucigalpa"
   })), /*#__PURE__*/React.createElement("div", {
