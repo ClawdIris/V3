@@ -31520,7 +31520,14 @@ setOrders(function (prev) {
   var _legalCfg = (typeof window !== "undefined" && window.__BRAND_CONFIG) || {};
   var TERMS_URL = _legalCfg.termsUrl || "/?public=terms";
   var PRIVACY_URL = _legalCfg.privacyUrl || "/?public=privacy";
-  var SUPPORT_EMAIL = _legalCfg.supportEmail || "hello@casabekonnect.com";
+  // Business identity (SSOT for public SMS pages): Casabe LLC d/b/a Casabe Xpress.
+  // Tenant-overridable via brand config; defaults are the verified A2P identity block.
+  var LEGAL_ENTITY  = _legalCfg.legalEntity  || "Casabe LLC";
+  var LEGAL_DBA     = _legalCfg.legalDba     || "Casabe Xpress";
+  var LEGAL_ADDRESS = _legalCfg.legalAddress || "342 N Queen St, Warehouse D, Lancaster, PA 17603";
+  var LEGAL_PHONE   = _legalCfg.legalPhone   || "(347) 400-9755";
+  var LEGAL_EMAIL   = _legalCfg.legalEmail   || "casabexpressny@gmail.com";
+  var SUPPORT_EMAIL = _legalCfg.supportEmail || LEGAL_EMAIL;
   var EDGE_URL = SUPABASE_URL + "/functions/v1/track-sms-optin";
   var SMS_OPTIN_EDGE_URL = SUPABASE_URL + "/functions/v1/sms-opt-in";
 
@@ -31585,10 +31592,12 @@ setOrders(function (prev) {
         h("a", { href: TERMS_URL, target: "_blank", rel: "noopener noreferrer", style: { color: "var(--text3)" } }, props.lang === "es" ? "Términos" : "Terms"),
         "  ·  ",
         h("a", { href: PRIVACY_URL, target: "_blank", rel: "noopener noreferrer", style: { color: "var(--text3)" } }, props.lang === "es" ? "Política de Privacidad" : "Privacy Policy"),
-        h("div", { style: { marginTop: 8 } }, "© ", new Date().getFullYear(), " ", PUBLIC_BRAND)));
+        h("div", { style: { marginTop: 8 } }, "© ", new Date().getFullYear(), " ", LEGAL_ENTITY + " d/b/a " + LEGAL_DBA)));
   }
 
   function PublicTrackingAlertsPage() {
+    document.title = (LEGAL_DBA + " \u2014 Text Alerts Sign-Up");
+    (function(){ try { var m = document.querySelector('meta[name="description"]'); if (!m) { m = document.createElement("meta"); m.setAttribute("name","description"); document.head.appendChild(m); } m.setAttribute("content", ("Sign up for " + LEGAL_DBA + " package text alerts. Track your shipment and get delivery updates by SMS.")); } catch(e){} })();
     var _l = useState((navigator.language || "en").toLowerCase().indexOf("es") === 0 ? "es" : "en"),
         lang = _l[0], setLang = _l[1];
     var T = function (en, es) { return lang === "es" ? es : en; };
@@ -31911,6 +31920,8 @@ setOrders(function (prev) {
   }
 
   function PublicTermsPage() {
+    document.title = (LEGAL_DBA + " \u2014 SMS Terms of Service");
+    (function(){ try { var m = document.querySelector('meta[name="description"]'); if (!m) { m = document.createElement("meta"); m.setAttribute("name","description"); document.head.appendChild(m); } m.setAttribute("content", (LEGAL_DBA + " SMS Terms of Service \u2014 package tracking and text alert terms for " + LEGAL_ENTITY + " d/b/a " + LEGAL_DBA + ".")); } catch(e){} })();
     var _l = useState((navigator.language || "en").toLowerCase().indexOf("es") === 0 ? "es" : "en"),
         lang = _l[0], setLang = _l[1];
     var T = function (en, es) { return lang === "es" ? es : en; };
@@ -31919,19 +31930,29 @@ setOrders(function (prev) {
     return h(PublicShell, { lang: lang, setLang: setLang },
       h("h1", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, marginBottom: 6 } }, T("Terms of Service", "Términos del Servicio")),
       h("div", { style: { color: "var(--text4)", fontSize: 11, marginBottom: 16 } }, T("Effective", "Vigente desde"), ": ", T(EFFECTIVE_DATE_EN, EFFECTIVE_DATE_ES), "  ·  ", T("Version", "Versión"), " ", CONSENT_VERSION),
-      P(T("These terms govern your use of the " + PUBLIC_BRAND + " package tracking and text-alert service. By using this page you agree to them.", "Estos términos rigen tu uso del servicio de rastreo de paquetes y alertas por texto de " + PUBLIC_BRAND + ". Al usar esta página, los aceptas.")),
+      P(T("These terms govern your use of the " + LEGAL_DBA + " package tracking and text-alert service, operated by " + LEGAL_ENTITY + " d/b/a " + LEGAL_DBA + ". By using this page you agree to them.", "Estos términos rigen tu uso del servicio de rastreo de paquetes y alertas por texto de " + LEGAL_DBA + ", operado por " + LEGAL_ENTITY + " d/b/a " + LEGAL_DBA + ". Al usar esta página, los aceptas.")),
+      P(T(LEGAL_DBA + " messaging is operated on the Casabe Konnect platform by " + LEGAL_ENTITY + ".", "La mensajería de " + LEGAL_DBA + " se opera en la plataforma Casabe Konnect por " + LEGAL_ENTITY + ".")),
       H(T("Package tracking", "Rastreo de paquetes")),
       P(T("You can look up the status of a package using its tracking number without creating an account or providing consent to receive messages.", "Puedes consultar el estado de un paquete usando su número de rastreo sin crear una cuenta ni dar consentimiento para recibir mensajes.")),
       H(T("Text alerts (SMS)", "Alertas por texto (SMS)")),
       P(T("If you opt in, " + PUBLIC_BRAND + " sends text messages about your shipments: pickup, transit, customs, delivery, delay, and attempted-delivery updates. Message frequency varies. Message and data rates may apply. Reply STOP to unsubscribe at any time, or HELP for help. Consent is not a condition of any purchase.", "Si te registras, " + PUBLIC_BRAND + " envía mensajes de texto sobre tus envíos: actualizaciones de recogida, tránsito, aduana, entrega, demoras e intentos de entrega. La frecuencia de los mensajes varía. Pueden aplicarse tarifas de mensajes y datos. Responde STOP para cancelar en cualquier momento o HELP para ayuda. El consentimiento no es condición de ninguna compra.")),
+      P(T("These messages are part of the " + LEGAL_DBA + " Package Alerts program.", "Estos mensajes forman parte del programa " + LEGAL_DBA + " Package Alerts.")),
+      P(T("You can opt in by completing the sign-up form at https://casabekonnect.app/?public=sms-opt-in. This online form is the sole opt-in method.", "Puedes registrarte completando el formulario en https://casabekonnect.app/?public=sms-opt-in. Este formulario en línea es el único método de registro.")),
       P(T("Carriers are not liable for delayed or undelivered messages.", "Los operadores no son responsables de mensajes demorados o no entregados.")),
       H(T("Marketing messages", "Mensajes de marketing")),
       P(T("Marketing texts are optional and separate from package alerts. You can opt out of marketing at any time by replying STOP.", "Los mensajes de marketing son opcionales y están separados de las alertas del paquete. Puedes cancelar el marketing en cualquier momento respondiendo STOP.")),
+      P(T("Marketing messages are sent only to users who separately check the optional marketing consent box on the sign-up form.", "Los mensajes de marketing se envían solo a usuarios que marcan por separado la casilla opcional de consentimiento de marketing en el formulario de registro.")),
       H(T("Contact", "Contacto")),
-      P(h("span", null, T("Questions? Email ", "¿Preguntas? Escribe a "), h("a", { href: "mailto:" + SUPPORT_EMAIL, style: { color: "var(--amber)" } }, SUPPORT_EMAIL), ".")));
+      h("div", { style: { color: "var(--text2)", fontSize: 13, lineHeight: 1.8 } },
+        h("div", null, LEGAL_ENTITY + " d/b/a " + LEGAL_DBA),
+        h("div", null, LEGAL_ADDRESS),
+        h("div", null, T("Phone: ", "Teléfono: ") + LEGAL_PHONE),
+        h("div", null, T("Email: ", "Correo: "), h("a", { href: "mailto:" + LEGAL_EMAIL, style: { color: "var(--amber)" } }, LEGAL_EMAIL))));
   }
 
   function PublicPrivacyPage() {
+    document.title = (LEGAL_DBA + " \u2014 Privacy Policy");
+    (function(){ try { var m = document.querySelector('meta[name="description"]'); if (!m) { m = document.createElement("meta"); m.setAttribute("name","description"); document.head.appendChild(m); } m.setAttribute("content", (LEGAL_DBA + " Privacy Policy \u2014 how " + LEGAL_ENTITY + " d/b/a " + LEGAL_DBA + " handles information for package tracking and text alerts.")); } catch(e){} })();
     var _l = useState((navigator.language || "en").toLowerCase().indexOf("es") === 0 ? "es" : "en"),
         lang = _l[0], setLang = _l[1];
     var T = function (en, es) { return lang === "es" ? es : en; };
@@ -31941,7 +31962,8 @@ setOrders(function (prev) {
     return h(PublicShell, { lang: lang, setLang: setLang },
       h("h1", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 22, marginBottom: 6 } }, T("Privacy Policy", "Política de Privacidad")),
       h("div", { style: { color: "var(--text4)", fontSize: 11, marginBottom: 16 } }, T("Effective", "Vigente desde"), ": ", T(EFFECTIVE_DATE_EN, EFFECTIVE_DATE_ES), "  ·  ", T("Version", "Versión"), " ", CONSENT_VERSION),
-      P(T("This policy explains how " + PUBLIC_BRAND + " handles information collected through the package tracking and text-alert service.", "Esta política explica cómo " + PUBLIC_BRAND + " maneja la información recopilada a través del servicio de rastreo de paquetes y alertas por texto.")),
+      P(T("This policy explains how " + LEGAL_ENTITY + ", doing business as " + LEGAL_DBA + ", handles information collected through the package tracking and text-alert service.", "Esta política explica cómo " + LEGAL_ENTITY + ", operando como " + LEGAL_DBA + ", maneja la información recopilada a través del servicio de rastreo de paquetes y alertas por texto.")),
+      P(T(LEGAL_DBA + " messaging is operated on the Casabe Konnect platform by " + LEGAL_ENTITY + ".", "La mensajería de " + LEGAL_DBA + " se opera en la plataforma Casabe Konnect por " + LEGAL_ENTITY + ".")),
       H(T("What we collect", "Qué recopilamos")),
       P(T("When you sign up for text alerts we collect your first name, last name, and mobile phone number, along with a record of your consent. A ZIP code is optional.", "Cuando te registras para recibir alertas por texto, recopilamos tu nombre, apellido y número de teléfono móvil, junto con un registro de tu consentimiento. El código postal es opcional.")),
       H(T("How your mobile number is used", "Cómo se usa tu número de móvil")),
@@ -31952,7 +31974,11 @@ setOrders(function (prev) {
       H(T("Data sharing", "Compartir datos")),
       P(T("Text messages are delivered through our messaging provider solely to send the alerts you requested. SMS consent and phone numbers are never sold, rented, or shared for third-party marketing.", "Los mensajes de texto se entregan a través de nuestro proveedor de mensajería únicamente para enviar las alertas que solicitaste. El consentimiento de SMS y los números de teléfono nunca se venden, alquilan ni comparten para marketing de terceros.")),
       H(T("Contact", "Contacto")),
-      P(h("span", null, T("Questions about your data? Email ", "¿Preguntas sobre tus datos? Escribe a "), h("a", { href: "mailto:" + SUPPORT_EMAIL, style: { color: "var(--amber)" } }, SUPPORT_EMAIL), ".")));
+      h("div", { style: { color: "var(--text2)", fontSize: 13, lineHeight: 1.8 } },
+        h("div", null, LEGAL_ENTITY + " d/b/a " + LEGAL_DBA),
+        h("div", null, LEGAL_ADDRESS),
+        h("div", null, T("Phone: ", "Teléfono: ") + LEGAL_PHONE),
+        h("div", null, T("Email: ", "Correo: "), h("a", { href: "mailto:" + LEGAL_EMAIL, style: { color: "var(--amber)" } }, LEGAL_EMAIL))));
   }
 
   var Page = publicView === "terms" ? PublicTermsPage
