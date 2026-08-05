@@ -36,3 +36,9 @@ cache/
 .bolt-mission.md
 .forge-handoff.md
 BOLT.md
+test-results/
+webiste/
+website/
+.netlify/
+FETCH_HEAD
+*.md
