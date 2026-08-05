@@ -3264,6 +3264,9 @@ var OrderForm = function OrderForm(_ref4) {
     _useState2 = _slicedToArray(_useState, 2),
     f = _useState2[0],
     setF = _useState2[1];
+  var _seSt = React.useState("");
+  var saveErr = _seSt[0];
+  var setSaveErr = _seSt[1];
   var _stPaid = useState(false), _stPaid2 = _slicedToArray(_stPaid, 2),
       paidSendPending = _stPaid2[0], setPaidSendPending = _stPaid2[1];
   var _stPO = useState(null), _stPO2 = _slicedToArray(_stPO, 2),
@@ -3369,8 +3372,12 @@ var OrderForm = function OrderForm(_ref4) {
     return hit || null;
   };
   var save = function save() {
+    setSaveErr("");
     if (!f.name || !f.phone) {
-      alert("Name and phone are required.");
+      var _missing = [];
+      if (!String(f.name || "").trim()) _missing.push(t("customer name", "nombre del cliente"));
+      if (!String(f.phone || "").trim()) _missing.push(t("customer phone", "tel\u00e9fono del cliente"));
+      setSaveErr(t("Cannot save \u2014 missing: ", "No se puede guardar \u2014 falta: ") + _missing.join(", ") + t(". If these fields look filled on screen, the text never registered in the form \u2014 retype them.", ". Si estos campos se ven llenos en pantalla, el texto no se registr\u00f3 en el formulario \u2014 escr\u00edbelos de nuevo."));
       return;
     }
     // Other-1: Hard-block UUID-less driver assignments.
@@ -3379,18 +3386,18 @@ var OrderForm = function OrderForm(_ref4) {
     // This guard is the suspenders: if a driver name is selected but has no UUID,
     // abort the save rather than creating an unroutable order.
     if (f.assignedDriver && !f.assignedDriverUserId) {
-      alert("Please select a valid driver with an assigned account. The selected driver (" + f.assignedDriver + ") has no user account linked and cannot be assigned.");
+      setSaveErr(t("Cannot save \u2014 the selected driver (", "No se puede guardar \u2014 el conductor seleccionado (") + f.assignedDriver + t(") has no user account linked. Pick a driver with an account.", ") no tiene cuenta vinculada. Elige un conductor con cuenta."));
       return;
     }
     // RISK #11: Insurance verification for high-value items
     if (f.declaredValue > 800 && !f.insuranceVerified) {
       var ok = window.confirm("\u26A0\uFE0F Declared value is $".concat(f.declaredValue, ". Items over $800 require manager approval.\nMark as manager-approved and continue?"));
-      if (!ok) return;
+      if (!ok) { setSaveErr(t("Save cancelled at the insurance approval confirmation.", "Guardado cancelado en la confirmaci\u00f3n de aprobaci\u00f3n del seguro.")); return; }
     }
     // RISK #9: Phone format validation
     var cleanPhone = f.phone.replace(/[^0-9+]/g, "");
     if (cleanPhone.length < 7) {
-      alert("Please enter a valid phone number.");
+      setSaveErr(t("Cannot save \u2014 the customer phone number is not valid.", "No se puede guardar \u2014 el tel\u00e9fono del cliente no es v\u00e1lido."));
       return;
     }
     // Save-time fallback for Department/City: if not chosen but the recipient
@@ -4505,7 +4512,11 @@ var OrderForm = function OrderForm(_ref4) {
     style: {
       marginTop: 4
     }
-  }, /*#__PURE__*/React.createElement("button", {
+  }, saveErr ? /*#__PURE__*/React.createElement("div", {
+    id: "save-error",
+    role: "alert",
+    style: { flexBasis: "100%", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.45)", color: "#FCA5A5", borderRadius: 10, padding: "10px 14px", fontSize: 13, marginBottom: 8 }
+  }, "\u26A0\uFE0F ", saveErr) : null, /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost",
     onClick: onClose
   }, t("Cancel", "Cancelar")), /*#__PURE__*/React.createElement("button", {
