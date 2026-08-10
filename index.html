@@ -5509,7 +5509,8 @@ var OrderDetail = function OrderDetail(_ref22) {
    ORDERS PAGE (Core of everything)
 ════════════════════════════════════════════ */
 var OrdersPage = function OrdersPage(_ref31) {
-  var orders = _ref31.orders,
+  var globalSearch = _ref31.globalSearch,
+    orders = _ref31.orders,
     onNew = _ref31.onNew,
     onEdit = _ref31.onEdit,
     onStatusChange = _ref31.onStatusChange,
@@ -5535,6 +5536,9 @@ var OrdersPage = function OrdersPage(_ref31) {
     _useState6 = _slicedToArray(_useState5, 2),
     search = _useState6[0],
     setSearch = _useState6[1];
+  React.useEffect(function () {
+    if (typeof globalSearch === "string" && globalSearch.trim()) setSearch(globalSearch);
+  }, [globalSearch]);
   var filtered = useMemo(function () {
     return orders.filter(function (o) {
       if (o.voided) return false;
@@ -26363,6 +26367,7 @@ function AppShell(_ref130) {
     _useState128 = _slicedToArray(_useState127, 2),
     roleKey = _useState128[0],
     setRoleKey = _useState128[1];
+  var _tsrch = React.useState(""), topSearch = _tsrch[0], setTopSearch = _tsrch[1];
   var _useState129 = useState("overview"),
     _useState130 = _slicedToArray(_useState129, 2),
     page = _useState130[0],
@@ -30561,6 +30566,7 @@ setOrders(function (prev) {
     }))))));
     // Shared
     if (page === "all_orders") return /*#__PURE__*/React.createElement(OrdersPage, {
+      globalSearch: topSearch,
       orders: orders,
       onNew: function onNew() {
         return setShowNewOrder(true);
@@ -30944,7 +30950,7 @@ setOrders(function (prev) {
     boxConfig: appBoxConfig,
     destinations: destinations
   }), selectedOrder && /*#__PURE__*/React.createElement(OrderDetail, {
-    order: selectedOrder,
+    order: orders.find(function (o) { return o.id === selectedOrder.id; }) || selectedOrder,
     onClose: function onClose() {
       return setSelectedOrder(null);
     },
@@ -31451,8 +31457,15 @@ setOrders(function (prev) {
     }
   }, lang === "en" ? "🇬🇹 ES" : "🇺🇸 EN"), /*#__PURE__*/React.createElement("div", {
     className: "srch"
-  }, /*#__PURE__*/React.createElement("span", null, "\uD83D\uDD0D"), /*#__PURE__*/React.createElement("input", {
-    placeholder: t("Search...", "Buscar...")
+  }, /*#__PURE__*/React.createElement("span", {
+    style: { cursor: "pointer" },
+    title: t("Search orders", "Buscar \u00f3rdenes"),
+    onClick: function onClick() { if (topSearch.trim()) setPage("all_orders"); }
+  }, "\uD83D\uDD0D"), /*#__PURE__*/React.createElement("input", {
+    placeholder: t("Search orders...", "Buscar \u00f3rdenes..."),
+    value: topSearch,
+    onChange: function onChange(e) { setTopSearch(e.target.value); },
+    onKeyDown: function onKeyDown(e) { if (e.key === "Enter" && topSearch.trim()) setPage("all_orders"); }
   })), /*#__PURE__*/React.createElement("button", {
     className: "btn btn-ghost btn-sm nd",
     onClick: function onClick() { setPage("notifications"); },
