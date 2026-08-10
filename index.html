@@ -3366,13 +3366,15 @@ var OrderForm = function OrderForm(_ref4) {
   // itself is a known department (e.g. "Livingston"), it becomes the default.
   var matchGtDept = function(city) {
     if (!city) return null;
-    var c = String(city).trim().toLowerCase();
+    var fold = function(x){ try { return String(x).normalize("NFD").replace(/[\u0300-\u036f]/g, ""); } catch(e){ return String(x); } };
+    var c = fold(city).trim().toLowerCase();
     if (!c) return null;
-    var hit = GT_DEPARTMENTS.find(function(d){ return d.dept.toLowerCase() === c; });
+    var hit = GT_DEPARTMENTS.find(function(d){ return fold(d.dept).toLowerCase() === c; });
     return hit || null;
   };
   var save = function save() {
     setSaveErr("");
+    try {
     if (!f.name || !f.phone) {
       var _missing = [];
       if (!String(f.name || "").trim()) _missing.push(t("customer name", "nombre del cliente"));
@@ -3559,7 +3561,49 @@ var OrderForm = function OrderForm(_ref4) {
     if (order.payment.status === "paid" && _prevPay !== "paid") {
       setPendingPaidOrder(order); setPaidSendPending(true);
     } else { onSave(order); }
+    console.info("[OrderForm] save ok:", order.id);
+    } catch (_se) {
+      console.error("[OrderForm.save] exception:", _se);
+      setSaveErr(t("Save failed: ", "Error al guardar: ") + ((_se && _se.message) || String(_se)));
+    }
   };
+  // ── Official automation bridge (documented; for programmatic order entry) ──
+  // While this form is open: window.__CK_FORM = { fill(patch), save(), get(), shipments }
+  // fill() merges directly into React state (no DOM events needed), applying the
+  // same conveniences as manual entry: WhatsApp autofill from phone, shipment
+  // name→id resolution, and recipient-city→department auto-match.
+  React.useEffect(function () {
+    window.__CK_FORM = {
+      fill: function (patch) {
+        patch = patch || {};
+        console.info("[CK_FORM] fill:", Object.keys(patch).join(", "));
+        setF(function (prev) {
+          var next = Object.assign({}, prev, patch);
+          if (patch.payment) next.payment = Object.assign({}, prev.payment, patch.payment);
+          if (patch.phone && !next.whatsapp) next.whatsapp = String(patch.phone).indexOf("+") === 0 ? String(patch.phone) : "+1 " + patch.phone;
+          if (patch.shipmentName && !patch.shipmentId) {
+            var _q = String(patch.shipmentName).toLowerCase();
+            var _sm = (shipmentsList || []).find(function (sh) {
+              return String(sh.id).toLowerCase() === _q
+                || String(sh.name || "").toLowerCase().indexOf(_q) >= 0
+                || String(sh.destination || "").toLowerCase().indexOf(_q) >= 0;
+            });
+            if (_sm) next.shipmentId = _sm.id;
+          }
+          if ((next.destination || "Guatemala") === "Guatemala" && !next.gtDept) {
+            var _am = matchGtDept(next.consigneeCity);
+            if (_am) { next.gtDept = _am.dept; next.zone = _am.zone; }
+          }
+          return next;
+        });
+        return { ok: true, applied: Object.keys(patch) };
+      },
+      save: function () { save(); return true; },
+      get: function () { return f; },
+      shipments: (shipmentsList || []).map(function (sh) { return { id: sh.id, name: sh.name || sh.id, destination: sh.destination, status: sh.status }; })
+    };
+    return function () { try { delete window.__CK_FORM; } catch (e) { window.__CK_FORM = undefined; } };
+  });
   // Internal-only commission preview — computed at render time, never shown on invoice
   // v9.15 Fix 2: resolve the commission source via resolveOrderSource — the same
   // partner-aware resolver the submit/stamp path uses (see _phaseB_resolved).
@@ -3994,7 +4038,7 @@ var OrderForm = function OrderForm(_ref4) {
                     "\uD83D\uDD35 Blue (2 days)": GT_DEPARTMENTS.filter(function(d){ return d.zone === "blue"; }),
                     "\uD83D\uDD34 Red (2 days)": GT_DEPARTMENTS.filter(function(d){ return d.zone === "red"; }),
                     "\uD83D\uDFE0 Orange (2 days)": GT_DEPARTMENTS.filter(function(d){ return d.zone === "orange"; })
-                  }).map(function(entry) {
+                  }).filter(function(entry){ return entry[1].length > 0; }).map(function(entry) {
                     var grp = entry[0], depts = entry[1];
                     return /*#__PURE__*/React.createElement("optgroup", { key: grp, label: grp },
                       depts.map(function(d) { return /*#__PURE__*/React.createElement("option", { key: d.dept, value: d.dept }, d.dept); })
