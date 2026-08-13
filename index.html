@@ -3375,6 +3375,18 @@ var OrderForm = function OrderForm(_ref4) {
   var save = function save() {
     setSaveErr("");
     try {
+    // Normalize WhatsApp: if the phone number got doubled (autofill + typing),
+    // collapse it back to a single "+1 <phone>".
+    if (f.whatsapp && f.phone) {
+      var _pd = String(f.phone).replace(/\D/g, "");
+      var _wd = String(f.whatsapp).replace(/\D/g, "");
+      if (_pd.length >= 7) {
+        var _occ = _wd.split(_pd).length - 1;
+        if (_occ >= 2 || _wd === "1" + _pd + _pd) {
+          f = Object.assign({}, f, { whatsapp: "+1 " + f.phone });
+        }
+      }
+    }
     if (!f.name || !f.phone) {
       var _missing = [];
       if (!String(f.name || "").trim()) _missing.push(t("customer name", "nombre del cliente"));
