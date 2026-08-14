@@ -71,7 +71,7 @@
 
     // ── Google Maps BROWSER key (Maps JS + Places only) ──────────────────────
     // Option A (Jeffrey 2026-06-29): this is the BROWSER key, HTTP-referrer-locked
-    // to casabekonnect-app.netlify.app and restricted to Maps JavaScript + Places APIs.
+    // to casabekonnect.app (plus the Netlify preview domain) and restricted to Maps JavaScript + Places APIs.
     // It is SAFE to expose in page source BECAUSE of the referrer lock.
     // The SERVER key (Geocoding + Routes) is NEVER here — it lives only in Supabase
     // Edge Function secrets (GOOGLE_GEOCODING_KEY / GOOGLE_ROUTES_KEY).
@@ -8111,7 +8111,8 @@ var TrackingPage = function TrackingPage(_ref_tp) {
 
 var HQOverview = function HQOverview(_ref51) {
   var _boxMix$find;
-  var orders = _ref51.orders,
+  var driversList = _ref51.driversList,
+    orders = _ref51.orders,
     _ref51$destinations = _ref51.destinations,
     destinations = _ref51$destinations === void 0 ? DESTINATIONS : _ref51$destinations,
     _ref51$shipments = _ref51.shipments,
@@ -8160,6 +8161,14 @@ var HQOverview = function HQOverview(_ref51) {
       var drivers = assigned.map(function(o){ return o.assignedDriver; });
       // All same driver already? skip
       var uniq = drivers.filter(function(d,i){ return drivers.indexOf(d) === i; });
+      // Identity guard: only drivers with a linked user account can win a
+      // consolidation — name-only drivers have no identity for the Driver tabs.
+      var _dl = driversList || [];
+      uniq = uniq.filter(function(nm){
+        var m = _dl.find(function(d){ return (typeof d === "string" ? d : d && d.name) === nm; });
+        return !!(m && typeof m === "object" && m.userId);
+      });
+      if (uniq.length === 0) return;
       if (uniq.length === 1 && assigned.length === g.length) return;
       // Count occurrences per driver at this address
       var counts = {};
@@ -8191,7 +8200,10 @@ var HQOverview = function HQOverview(_ref51) {
     }
     setOptimizing(true);
     plan.forEach(function(item){
-      var updated = Object.assign({}, item.order, { assignedDriver: item.toDriver });
+      var _wm = (driversList || []).find(function(d){ return (typeof d === "string" ? d : d && d.name) === item.toDriver; });
+      var _wid = _wm && typeof _wm === "object" ? (_wm.userId || "") : "";
+      if (!_wid) { console.info("[optimize] skip name-only driver:", item.toDriver); return; }
+      var updated = Object.assign({}, item.order, { assignedDriver: item.toDriver, assignedDriverUserId: _wid });
       try { onSave(updated); } catch(e) { console.error("[optimize reassign]", e); }
     });
     setOptimizing(false);
@@ -16443,8 +16455,11 @@ var RoutesPage = function RoutesPage(_ref101) {
         }
       }, /*#__PURE__*/React.createElement("option", {
         value: ""
-      }, "\u2014 Assign Driver \u2014"), (driversList || DRIVERS_LIST).map(function (d) {
-        var name = typeof d === "string" ? d : (d && d.name) || "";
+      }, "\u2014 Assign Driver \u2014"), (driversList || DRIVERS_LIST).filter(function (d) {
+        // Identity guard: only offer drivers with a linked user account.
+        return typeof d === "object" && d !== null && d.active !== false && !!d.userId;
+      }).map(function (d) {
+        var name = (d && d.name) || "";
         return /*#__PURE__*/React.createElement("option", {
           key: name,
           value: name
@@ -26885,9 +26900,12 @@ setOrders(function (prev) {
             if (counts[b] !== counts[a]) return counts[b] - counts[a];
             return (driverLoad[a]||0) - (driverLoad[b]||0);
           })[0];
+          var _wm2 = (tenantDrivers || []).find(function(d){ return (typeof d === "string" ? d : d && d.name) === winner; });
+          var _wid2 = _wm2 && typeof _wm2 === "object" ? (_wm2.userId || "") : "";
+          if (!_wid2) { console.info("[auto-optimize] skip name-only driver:", winner); return; }
           g.forEach(function(o){
             if (o.assignedDriver !== winner) {
-              reassigns.push(Object.assign({}, o, { assignedDriver: winner }));
+              reassigns.push(Object.assign({}, o, { assignedDriver: winner, assignedDriverUserId: _wid2 }));
             }
           });
         });
@@ -30156,6 +30174,7 @@ setOrders(function (prev) {
     var renderPage = function renderPage() {
     // HQ pages
     if (page === "overview") return /*#__PURE__*/React.createElement(HQOverview, {
+      driversList: tenantDrivers,
       orders: orders,
       destinations: destinations,
       shipments: shipments,
@@ -32894,13 +32913,6 @@ window.__R4RunTests = function() { return window.__R4TestSummary; };
   </script>
 <style id="casabe-redesign">
 /* Casabe Konnect redesign overlay v1 */
-@import, keep that at the very
-        top of the CSS string) to the end of the `var CSS = "…"` string.
-   Every class rule is scoped `html body .x` so it outranks the app's
-   single-class rules regardless of load order — no !important needed.
-   Zone / status colors stay distinct + print-legible (hard requirement).
-   ═══════════════════════════════════════════════════════════════ */
-
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&display=swap');
 
 /* ── 1. TOKENS ─────────────────────────────────────────────────
