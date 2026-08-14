@@ -71,7 +71,7 @@
 
     // ── Google Maps BROWSER key (Maps JS + Places only) ──────────────────────
     // Option A (Jeffrey 2026-06-29): this is the BROWSER key, HTTP-referrer-locked
-    // to casabekonnect.app (plus the Netlify preview domain) and restricted to Maps JavaScript + Places APIs.
+    // to casabekonnect.app (plus approved preview domains) and restricted to Maps JavaScript + Places APIs.
     // It is SAFE to expose in page source BECAUSE of the referrer lock.
     // The SERVER key (Geocoding + Routes) is NEVER here — it lives only in Supabase
     // Edge Function secrets (GOOGLE_GEOCODING_KEY / GOOGLE_ROUTES_KEY).
@@ -6334,7 +6334,18 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
   // ── Auto-group duplicate-address stops ─────────────────────────────────
   var groupedStops = React.useMemo(function() {
     var allOrders = [].concat(_toConsumableArray(myPickups), _toConsumableArray(myDropoffs));
+    var _minSeq = function (g) {
+      var m = Infinity;
+      (g.orders || []).forEach(function (o) {
+        if (o.route_sequence != null && o.route_sequence < m) m = o.route_sequence;
+      });
+      return m;
+    };
     return groupStops(allOrders, null).slice().sort(function(a,b) {
+      // HQ's optimized sequence is the route (SSOT: orders.route_sequence).
+      // Sequenced stops first, in HQ order; unsequenced after, legacy order.
+      var sa = _minSeq(a), sb = _minSeq(b);
+      if (sa !== sb) return sa - sb;
       if (a.type !== b.type) return a.type === "pickup" ? -1 : 1;
       return (a.zip||"").localeCompare(b.zip||"");
     });
@@ -6343,7 +6354,7 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
   var allStops = React.useMemo(function() {
     return groupedStops.reduce(function(acc,g){ return acc.concat(g.orders); }, []);
   }, [groupedStops]);
-  var optimized = groupedStops;
+  var optimized = groupedStops; // owner decision: HQ sequences, driver follows (no driver-side optimize)
 
   // ── SLICE 3: Google Maps effect — read-only driver route map ──
   React.useEffect(function() {
@@ -6432,14 +6443,14 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
 
   // Google Maps — one waypoint per grouped stop (not per order)
   var googleRouteUrl = React.useMemo(function () {
-    if (!groupedStops.length) return null;
-    var waypts = groupedStops.map(function(g) {
+    if (!optimized.length) return null;
+    var waypts = optimized.map(function(g) {
       return encodeURIComponent((g.address + ", " + g.city + " " + g.state).trim());
     });
     return waypts.length === 1
       ? "https://www.google.com/maps/dir/?api=1&origin=current+location&destination=" + waypts[0] + "&travelmode=driving"
       : "https://www.google.com/maps/dir/?api=1&origin=current+location&destination=" + waypts[waypts.length-1] + "&waypoints=" + waypts.slice(0,-1).join("|") + "&travelmode=driving";
-  }, [groupedStops]);
+  }, [optimized]);
 
   // ── GPS TRACKING ──────────────────────────────────────
   var startGps = function startGps() {
@@ -19009,10 +19020,11 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
               /*#__PURE__*/React.createElement("tbody", null,
                 (Array.isArray(editBoxCfg) ? editBoxCfg : []).map(function(box, bIdx) {
                   return /*#__PURE__*/React.createElement("tr", { key: box.key + bIdx },
-                    /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "badge bg" }, box.key)),
+                    /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", { className: "badge bg" }, box.key), box.key && box.label && box.key !== box.label ? /*#__PURE__*/React.createElement("span", { title: "Key differs from label \u2014 legacy type; renaming requires a data migration (orders reference this key).", style: { marginLeft: 6, color: "var(--amber)", fontSize: 10, fontWeight: 700 } }, "\u2260 label") : null),
                     /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", {
                       value: box.label || "",
-                      onChange: function(e) { var vi = bIdx; setEditBoxCfg(function(p) { return p.map(function(b, i) { return i === vi ? Object.assign({}, b, { label: e.target.value }) : b; }); }); },
+                      onChange: function(e) { var vi = bIdx; var _nv = e.target.value; setEditBoxCfg(function(p) { return p.map(function(b, i) { return i === vi ? Object.assign({}, b, b.isNew ? { label: _nv, key: _nv } : { label: _nv }) : b; }); }); },
+                      placeholder: "Type label \u2014 key follows",
                       style: { padding: "4px 8px", fontSize: 12 }
                     })),
                     /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("input", {
@@ -19044,7 +19056,7 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
           /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 12 } },
             /*#__PURE__*/React.createElement("button", {
               className: "btn btn-ghost btn-sm",
-              onClick: function() { var k = "Custom" + Date.now().toString().slice(-4); setEditBoxCfg(function(p) { return p.concat([{ key: k, label: k, code: "", dims: "", active: true }]); }); }
+              onClick: function() { setEditBoxCfg(function(p) { return p.concat([{ key: "", label: "", code: "", dims: "", active: true, isNew: true }]); }); }
             }, "+ Add Box Type")
           )
         )
@@ -24573,7 +24585,7 @@ var _db = {
     // order ID as the row id (not inside data), so without this, loaded
     // orders have no o.id and parent-id lookups (TEST-001 etc.) fail.
     var selectCols = (table === "orders")
-      ? "id, data, office_id, partner_id"
+      ? "id, data, office_id, partner_id, route_id, route_sequence"
       : "data";
     return _supabase
       .from(table)
@@ -24591,9 +24603,11 @@ var _db = {
           // For non-orders tables this is a no-op (only `data` present).
           if (table === "orders") {
             return normalizeOrderForUi(Object.assign({}, r.data, {
-              id:         r.id,
-              office_id:  r.office_id  || null,
-              partner_id: r.partner_id || null
+              id:             r.id,
+              office_id:      r.office_id  || null,
+              partner_id:     r.partner_id || null,
+              route_id:       r.route_id   || null,
+              route_sequence: (r.route_sequence == null ? null : r.route_sequence)
             }));
           }
           return r.data;
