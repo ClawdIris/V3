@@ -26413,6 +26413,14 @@ function AppShell(_ref130) {
     _useState130 = _slicedToArray(_useState129, 2),
     page = _useState130[0],
     setPage = _useState130[1];
+  // Ticket: drivers land on Today's Route — never the Overview dashboard.
+  // Covers login, refresh, session restore, and direct open (roleKey resolves
+  // after auth; this effect re-fires when it does).
+  React.useEffect(function () {
+    if (roleKey === "driver" && (page === "overview" || page === "analytics")) {
+      setPage("driver_route");
+    }
+  }, [roleKey, page]);
   var _useState131 = useState(false),
     _useState132 = _slicedToArray(_useState131, 2),
     showCustomer = _useState132[0],
@@ -30186,6 +30194,11 @@ setOrders(function (prev) {
     var _activeDriverUserId = (session && session.userId) || "";
 
     var renderPage = function renderPage() {
+    // Security guard: Overview/Analytics expose revenue + pipeline metrics.
+    // Driver sessions render their route instead (redirect effect completes it).
+    if (roleKey === "driver" && (page === "overview" || page === "analytics")) {
+      return /*#__PURE__*/React.createElement("div", { style: { padding: 24, color: "var(--text3)" } }, t("Loading your route\u2026", "Cargando tu ruta\u2026"));
+    }
     // HQ pages
     if (page === "overview") return /*#__PURE__*/React.createElement(HQOverview, {
       driversList: tenantDrivers,
