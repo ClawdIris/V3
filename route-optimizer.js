@@ -987,6 +987,8 @@ function runOrdering(stops) {
 }
 /* write optimized sequence back to order records (route_sequence) */
 function persistSequence(tns) {
+  /* HQ/office own route_sequence; driver sessions must never write it back. */
+  if ((window.__CK_ROLE || "") === "driver") return;
   var save = RO.props && RO.props.onSave; if (!save) return;
   tns.forEach(function (tn, idx) {
     var o = orderByTn(tn); if (!o || !o._raw) return;
@@ -1820,7 +1822,7 @@ window.DriverRouteLite = function (props) {
       ),
       h("div", { style: { flex: 1 } }),
       h("button", { className: "btn", onClick: openAllMaps, disabled: !stops.length }, "📍 Open route in Google Maps"),
-      h("button", { className: "btn primary", onClick: optimizeLite, disabled: busy || !stops.length }, busy ? "Ordering…" : "⚡ Optimize my stops")
+      null /* owner decision: HQ owns the route sequence — driver follows dispatcher order (optimize button removed) */
     ),
     h("div", { style: { background: "var(--green-soft)", border: "1px solid rgba(39,194,129,.28)", borderRadius: 12, padding: "10px 14px", fontSize: 12, color: "#a9e8cd", marginBottom: 14 } },
       "📡 ", h("b", { style: { color: "#cfffe9" } }, "Live"), " — stops come from dispatch in real time. Tap a stop's payment action; the order, payment and receipt all update automatically."),
