@@ -36,6 +36,71 @@
     var SUPABASE_ANON_KEY = "sb_publishable_vqS6u4BduAw6fYYaLP-2aA_gfETHuH1";
     var _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // ── Accounts & Access, Part 1: password reset config ──────────────────
+    // Reset emails redirect to the app root; the recovery hash is handled in
+    // App(). Support address is tenant-branded after login (populated from
+    // companies.settings.supportEmail) and falls back to the platform address
+    // pre-auth, where no tenant is known yet.
+    var CK_RESET_REDIRECT = "https://casabekonnect.app";
+    var CK_DEFAULT_SUPPORT_EMAIL = "support@casabekonnect.app";
+    window.__CK_SUPPORT_EMAIL = window.__CK_SUPPORT_EMAIL || "";
+    function ckSupportEmail() {
+      try { return window.__CK_SUPPORT_EMAIL || CK_DEFAULT_SUPPORT_EMAIL; }
+      catch (e) { return CK_DEFAULT_SUPPORT_EMAIL; }
+    }
+
+    // ── Accounts & Access, Part 0.4: one ROLE_MAP, and it fails closed ─────
+    // This map was previously duplicated in four places with differing
+    // contents, behind a `|| "office"` default -- so any unrecognised role
+    // silently rendered the full Office UI (a 'customer' member did exactly
+    // that). ckResolveRole returns null for anything unmapped; every caller
+    // must treat null as "deny and sign out", never as a role.
+    var CK_ROLE_MAP = {
+      owner:      "hq",
+      admin:      "hq",
+      hq:         "hq",
+      office:     "office",
+      dispatcher: "office",
+      finance:    "office",
+      readonly:   "office",
+      driver:     "driver"
+      // 'customer' is intentionally absent: not an operational role.
+    };
+    function ckResolveRole(dbRole) {
+      var k = String(dbRole == null ? "" : dbRole).trim().toLowerCase();
+      return Object.prototype.hasOwnProperty.call(CK_ROLE_MAP, k) ? CK_ROLE_MAP[k] : null;
+    }
+
+    // ── Accounts & Access, Part 2: capabilities ───────────────────────────
+    // Capabilities live in members.metadata.capabilities (jsonb, already
+    // present -- no migration). A member with no capabilities key falls back
+    // to role-derived defaults, so this is a no-op until a backfill runs.
+    // Mirrors public.has_capability() in Postgres; the DB remains the
+    // authority, this copy only drives what the UI offers.
+    var CK_CAPABILITY_FALLBACK = {
+      hq:     ["office", "manage_team", "view_financials"],
+      office: ["office"],
+      driver: ["origin_pickup", "origin_dropoff"]
+    };
+    function ckCapabilities(membership, roleKey) {
+      try {
+        var meta = membership && membership.metadata;
+        var caps = meta && meta.capabilities;
+        if (Object.prototype.toString.call(caps) === "[object Array]" && caps.length) {
+          var out = [];
+          for (var i = 0; i < caps.length; i++) out.push(String(caps[i]));
+          return out;
+        }
+      } catch (e) {}
+      return (CK_CAPABILITY_FALLBACK[roleKey] || []).slice();
+    }
+    // Read a capability off a session object. UI gates should prefer this
+    // over roleKey comparisons.
+    function ckCan(session, cap) {
+      try { return !!session && !!session.capabilities && session.capabilities.indexOf(cap) >= 0; }
+      catch (e) { return false; }
+    }
+
     // ── Client error tracking (live-business observability) ─────────────────
     // Reports crashes to Supabase (client_errors via rate-limited definer RPC)
     // so real-user failures are queryable instead of silent. Fire-and-forget,
@@ -25040,15 +25105,7 @@ var LoginScreen = function LoginScreen(_ref126) {
     _useState116 = _slicedToArray(_useState115, 2),
     msg = _useState116[0],
     setMsg = _useState116[1];
-  var ROLE_MAP = {
-    owner: "hq",
-    admin: "hq",
-    hq: "hq",
-    dispatcher: "office",
-    driver: "driver",
-    finance: "office",
-    readonly: "office"
-  };
+  // ROLE_MAP removed — see CK_ROLE_MAP / ckResolveRole in runtime config.
   var handleLogin = /*#__PURE__*/function () {
     var _ref127 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee5() {
       var _data$user, _data$user2, data, _data$error, dbRole, roleKey, displayName, _t;
@@ -25077,7 +25134,7 @@ var LoginScreen = function LoginScreen(_ref126) {
               // Auth succeeded — now resolve tenant from members table
               return _supabase
                 .from("members")
-                .select("tenant_id, role, display_name")
+                .select("tenant_id, role, app_role, display_name, metadata")
                 .eq("user_id", authRes.data.user.id)
                 .eq("active", true)
                 .then(function(mRes) {
@@ -25099,12 +25156,18 @@ var LoginScreen = function LoginScreen(_ref126) {
                     return;
                   }
                   var membership = rows[0];
-                  var ROLE_MAP = { owner: "hq", admin: "hq", hq: "hq", dispatcher: "office", driver: "driver", finance: "office", readonly: "office" };
-                  var dbRole      = membership.role;
-                  var roleKey     = ROLE_MAP[dbRole] || "office";
+                  var dbRole      = membership.app_role || membership.role;
+                  var roleKey     = ckResolveRole(dbRole);
+                  if (!roleKey) {
+                    // Fail closed. An unmapped role must never inherit a UI.
+                    _supabase.auth.signOut();
+                    setError("Your account role is not enabled for this app. Contact " + ckSupportEmail() + ".");
+                    return;
+                  }
+                  var capabilities = ckCapabilities(membership, roleKey);
                   var displayName = membership.display_name || authRes.data.user.email;
                   var tenantId    = membership.tenant_id;
-                  try { window.__CK_ROLE = roleKey; window.__CK_TENANT = tenantId; } catch (e) {} // context for client_errors logging
+                  try { window.__CK_ROLE = roleKey; window.__CK_TENANT = tenantId; window.__CK_CAPS = capabilities.join(","); } catch (e) {} // context for client_errors logging
                   _db.init(tenantId);
                   onLogin({
                     userId:      authRes.data.user.id,
@@ -25112,7 +25175,8 @@ var LoginScreen = function LoginScreen(_ref126) {
                     roleKey:     roleKey,
                     displayName: displayName,
                     dbRole:      dbRole,
-                    tenantId:    tenantId
+                    tenantId:    tenantId,
+                    capabilities: capabilities
                   });
                 });
             })
@@ -25158,7 +25222,7 @@ var LoginScreen = function LoginScreen(_ref126) {
         }
         return _supabase
           .from("members")
-          .select("tenant_id, role, display_name")
+          .select("tenant_id, role, app_role, display_name, metadata")
           .eq("user_id", authRes.data.user.id)
           .eq("active", true)
           .then(function(mRes) {
@@ -25180,9 +25244,14 @@ var LoginScreen = function LoginScreen(_ref126) {
               return;
             }
             var membership = rows[0];
-            var TEST_ROLE_MAP = { owner: "hq", admin: "hq", hq: "hq", dispatcher: "office", office: "office", driver: "driver", finance: "office", readonly: "office" };
-            var dbRole      = membership.role;
-            var roleKey     = TEST_ROLE_MAP[dbRole] || "office";
+            var dbRole      = membership.app_role || membership.role;
+            var roleKey     = ckResolveRole(dbRole);
+            if (!roleKey) {
+              _supabase.auth.signOut();
+              setError("Test user role '" + String(dbRole) + "' is not an operational role.");
+              return;
+            }
+            var capabilities = ckCapabilities(membership, roleKey);
             var displayName = membership.display_name || authRes.data.user.email;
             var tenantId    = membership.tenant_id;
             _db.init(tenantId);
@@ -25192,7 +25261,8 @@ var LoginScreen = function LoginScreen(_ref126) {
               roleKey:     roleKey,
               displayName: displayName,
               dbRole:      dbRole,
-              tenantId:    tenantId
+              tenantId:    tenantId,
+              capabilities: capabilities
             });
           });
       })
@@ -25241,7 +25311,7 @@ var LoginScreen = function LoginScreen(_ref126) {
             setMsg("");
             // Signup is admin-provisioned for the pilot.
             // This form still exists for future self-service onboarding.
-            setError("New accounts must be created by your administrator. Contact Admin@casabexpress.com.");
+            setError("New accounts must be created by your administrator. Contact " + ckSupportEmail() + ".");
             setLoading(false);
             return _context6.a(2);
           case 3:
@@ -25266,39 +25336,26 @@ var LoginScreen = function LoginScreen(_ref126) {
       return _ref128.apply(this, arguments);
     };
   }();
-  var handleReset = /*#__PURE__*/function () {
-    var _ref129 = _asyncToGenerator(/*#__PURE__*/_regenerator().m(function _callee7() {
-      var _t3;
-      return _regenerator().w(function (_context7) {
-        while (1) switch (_context7.p = _context7.n) {
-          case 0:
-            setLoading(true);
-            setError("");
-            setMsg("");
-            // Password reset via Railway API — Phase 2.
-            // For pilot: admin resets passwords directly in the database.
-            setMsg("📧 Contact your administrator to reset your password: Admin@casabexpress.com");
-            setLoading(false);
-            return _context7.a(2);
-          case 2:
-            setMsg("📧 Password reset email sent. Check your inbox.");
-            _context7.n = 4;
-            break;
-          case 3:
-            _context7.p = 3;
-            _t3 = _context7.v;
-            setError("Connection error.");
-          case 4:
-            setLoading(false);
-          case 5:
-            return _context7.a(2);
-        }
-      }, _callee7, null, [[1, 3]]);
-    }));
-    return function handleReset() {
-      return _ref129.apply(this, arguments);
+  // Accounts & Access, Part 1: real reset. Sends a Supabase recovery link.
+  // The response is deliberately identical for a known address, an unknown
+  // address, and a transport failure, so the form cannot be used to probe
+  // which emails have accounts.
+  var handleReset = function handleReset() {
+    var addr = String(email || "").trim();
+    if (!addr) { setError("Please enter your email address."); return; }
+    setLoading(true); setError(""); setMsg("");
+    var GENERIC = "\uD83D\uDCE7 If an account exists for that address, a reset link is on its way. Check your inbox and spam folder.";
+    var settled = false;
+    var done = function done() {
+      if (settled) return;
+      settled = true;
+      setMsg(GENERIC); setLoading(false);
     };
-  }();
+    try {
+      var p = _supabase.auth.resetPasswordForEmail(addr, { redirectTo: CK_RESET_REDIRECT });
+      if (p && typeof p.then === "function") { p.then(done, done); } else { done(); }
+    } catch (e) { done(); }
+  };
   return /*#__PURE__*/React.createElement("div", {
     style: {
       minHeight: "100vh",
@@ -26228,6 +26285,105 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
 };
 
 /* ════════════════════════════════════════════
+   SET NEW PASSWORD  (password-recovery landing)
+════════════════════════════════════════════ */
+function SetNewPasswordScreen(props) {
+  var _sp1 = useState(""), _sp1a = _slicedToArray(_sp1, 2), pw = _sp1a[0], setPw = _sp1a[1];
+  var _sp2 = useState(""), _sp2a = _slicedToArray(_sp2, 2), pw2 = _sp2a[0], setPw2 = _sp2a[1];
+  var _sp3 = useState(false), _sp3a = _slicedToArray(_sp3, 2), busy = _sp3a[0], setBusy = _sp3a[1];
+  var _sp4 = useState(""), _sp4a = _slicedToArray(_sp4, 2), err = _sp4a[0], setErr = _sp4a[1];
+  var _sp5 = useState(""), _sp5a = _slicedToArray(_sp5, 2), ok = _sp5a[0], setOk = _sp5a[1];
+
+  var EXPIRED = "This reset link has expired or has already been used. Request a new one from the login screen.";
+
+  var submit = function submit() {
+    if (busy || ok) return;
+    if (pw.length < 8) { setErr("Password must be at least 8 characters."); return; }
+    if (pw !== pw2) { setErr("Passwords do not match."); return; }
+    setBusy(true); setErr(""); setOk("");
+    var fail = function fail() { setBusy(false); setErr(EXPIRED); };
+    try {
+      _supabase.auth.updateUser({ password: pw }).then(function (res) {
+        setBusy(false);
+        if (res && res.error) { setErr(EXPIRED); return; }
+        setOk("\u2705 Password updated. Sign in with your new password.");
+        setTimeout(function () { if (props.onDone) props.onDone(); }, 1800);
+      }, fail);
+    } catch (e) { fail(); }
+  };
+
+  var fieldStyle = {
+    width: "100%", padding: "10px 12px", background: "#141414",
+    border: "1px solid #333", borderRadius: 8, color: "#fff",
+    fontSize: 14, outline: "none", boxSizing: "border-box"
+  };
+  var labelStyle = {
+    fontSize: 12, fontWeight: 600, color: "#999", display: "block", marginBottom: 6
+  };
+
+  return /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex", alignItems: "center", justifyContent: "center",
+      height: "100vh", background: "#0b0b0b", fontFamily: "'IBM Plex Sans',system-ui,sans-serif"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 360, maxWidth: "90vw", background: "#111", border: "1px solid #262626",
+      borderRadius: 14, padding: 28
+    }
+  },
+    /*#__PURE__*/React.createElement("div", {
+      style: { fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 19, color: "#fff", marginBottom: 6 }
+    }, "Set a new password"),
+    /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 12.5, color: "#8a8a8a", marginBottom: 20, lineHeight: 1.5 }
+    }, "Choose a new password for your Casabe Konnect account."),
+
+    /*#__PURE__*/React.createElement("div", { style: { marginBottom: 14 } },
+      /*#__PURE__*/React.createElement("label", { style: labelStyle }, "New password"),
+      /*#__PURE__*/React.createElement("input", {
+        style: fieldStyle, type: "password", value: pw, autoComplete: "new-password",
+        disabled: busy || !!ok,
+        onChange: function (e) { setPw(e.target.value); setErr(""); }
+      })
+    ),
+    /*#__PURE__*/React.createElement("div", { style: { marginBottom: 18 } },
+      /*#__PURE__*/React.createElement("label", { style: labelStyle }, "Confirm new password"),
+      /*#__PURE__*/React.createElement("input", {
+        style: fieldStyle, type: "password", value: pw2, autoComplete: "new-password",
+        disabled: busy || !!ok,
+        onChange: function (e) { setPw2(e.target.value); setErr(""); },
+        onKeyDown: function (e) { if (e.key === "Enter") submit(); }
+      })
+    ),
+
+    err && /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 12.5, color: "#EF4444", marginBottom: 14, lineHeight: 1.5 }
+    }, err),
+    ok && /*#__PURE__*/React.createElement("div", {
+      style: { fontSize: 12.5, color: "#10B981", marginBottom: 14, lineHeight: 1.5 }
+    }, ok),
+
+    /*#__PURE__*/React.createElement("button", {
+      style: {
+        width: "100%", padding: "11px 12px", borderRadius: 8, border: "none",
+        background: (busy || ok) ? "#5a4a20" : "#E07B00", color: "#fff",
+        fontSize: 14, fontWeight: 600, cursor: (busy || ok) ? "default" : "pointer"
+      },
+      disabled: busy || !!ok,
+      onClick: submit
+    }, busy ? "Saving\u2026" : "Update password"),
+
+    /*#__PURE__*/React.createElement("div", {
+      style: { textAlign: "center", marginTop: 16, fontSize: 12.5 }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: { cursor: "pointer", color: "#E07B00" },
+      onClick: function () { if (props.onDone) props.onDone(); }
+    }, "Back to sign in"))
+  ));
+}
+
+/* ════════════════════════════════════════════
    APP ROOT
 ════════════════════════════════════════════ */
 function App() {
@@ -26239,33 +26395,54 @@ function App() {
     session = _useState118[0],
     setSession = _useState118[1];
 
+  // Accounts & Access, Part 1: recovery landing. Supabase returns from a reset
+  // link with #type=recovery; supabase-js consumes the hash and emits
+  // PASSWORD_RECOVERY. The hash is also read synchronously so a cold load goes
+  // straight to the set-password screen instead of flashing the app.
+  var _useStateRec = useState(function () {
+    try { return String(window.location.hash || "").indexOf("type=recovery") >= 0; }
+    catch (e) { return false; }
+  }),
+    _useStateRec2 = _slicedToArray(_useStateRec, 2),
+    recovery = _useStateRec2[0],
+    setRecovery = _useStateRec2[1];
+
   // On mount: restore Supabase session and re-resolve membership
   React.useEffect(function() {
     _supabase.auth.getSession().then(function(res) {
       if (!res.data.session) { setSession(false); return; }
       var user = res.data.session.user;
-      _supabase.from("members").select("tenant_id, role, display_name")
+      _supabase.from("members").select("tenant_id, role, app_role, display_name, metadata")
         .eq("user_id", user.id).eq("active", true)
         .then(function(mRes) {
           var rows = mRes.data || [];
           if (rows.length !== 1) { _supabase.auth.signOut(); setSession(false); return; }
           var membership = rows[0];
-          var ROLE_MAP = { owner: "hq", admin: "hq", hq: "hq", dispatcher: "office", driver: "driver", finance: "office", readonly: "office" };
+          var dbRole   = membership.app_role || membership.role;
+          var roleKey  = ckResolveRole(dbRole);
+          if (!roleKey) {
+            // Same fail-closed rule on refresh/restore as on fresh login.
+            _supabase.auth.signOut(); setSession(false); return;
+          }
+          var capabilities = ckCapabilities(membership, roleKey);
           var tenantId = membership.tenant_id;
+          try { window.__CK_ROLE = roleKey; window.__CK_TENANT = tenantId; window.__CK_CAPS = capabilities.join(","); } catch (e) {}
           _db.init(tenantId);
           setSession({
             userId:      user.id,
             email:       user.email,
-            roleKey:     ROLE_MAP[membership.role] || "office",
+            roleKey:     roleKey,
             displayName: membership.display_name || user.email,
-            dbRole:      membership.role,
-            tenantId:    tenantId
+            dbRole:      dbRole,
+            tenantId:    tenantId,
+            capabilities: capabilities
           });
         });
     });
     // Listen for token refresh / sign-out from other tabs
     var sub = _supabase.auth.onAuthStateChange(function(event) {
       if (event === "SIGNED_OUT") setSession(false);
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
     });
     return function() { if (sub && sub.data) sub.data.subscription.unsubscribe(); };
   }, []);
@@ -26284,6 +26461,17 @@ function App() {
     _supabase.auth.signOut();
     setSession(false);
   };
+
+  // Password recovery outranks the session gate: a user arriving from a reset
+  // link may already have a partial session, and must set a password first.
+  if (recovery) return /*#__PURE__*/React.createElement(SetNewPasswordScreen, {
+    onDone: function onDone() {
+      setRecovery(false);
+      try { window.history.replaceState(null, "", window.location.pathname + window.location.search); } catch (e) {}
+      try { _supabase.auth.signOut(); } catch (e) {}
+      setSession(false);
+    }
+  });
 
   // Still checking session
   if (session === null) return /*#__PURE__*/React.createElement("div", {
