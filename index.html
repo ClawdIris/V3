@@ -101,6 +101,24 @@
       catch (e) { return false; }
     }
 
+    // Same check for components that are not passed the session object.
+    // window.__CK_CAPS is written on login and on session restore.
+    function ckCapsGlobal() {
+      try { return String(window.__CK_CAPS || "").split(",").filter(Boolean); }
+      catch (e) { return []; }
+    }
+    function ckCanGlobal(cap) { return ckCapsGlobal().indexOf(cap) >= 0; }
+    // Origin = US pickup/drop-off work. Destination = final-mile delivery in
+    // the destination country. A hybrid driver holds both.
+    function ckHasOrigin(caps) {
+      caps = caps || ckCapsGlobal();
+      return caps.indexOf("origin_pickup") >= 0 || caps.indexOf("origin_dropoff") >= 0;
+    }
+    function ckHasDestination(caps) {
+      caps = caps || ckCapsGlobal();
+      return caps.indexOf("destination_delivery") >= 0;
+    }
+
     // ── Client error tracking (live-business observability) ─────────────────
     // Reports crashes to Supabase (client_errors via rate-limited definer RPC)
     // so real-user failures are queryable instead of silent. Fire-and-forget,
@@ -23769,6 +23787,46 @@ var ROLES = {
 /* HQ_NAV alias — used by test suite and any code referencing nav directly */
 var HQ_NAV = ROLES.hq.nav;
 
+/* ─── Accounts & Access Part 4: driver nav is built from capabilities ─────
+   ROLES.driver.nav is the origin-driver default. A destination delivery
+   driver gets the delivery group instead; a hybrid gets both, in workflow
+   order (origin first, then destination). Falls back to the origin nav when
+   a session predates capabilities, so nothing regresses. */
+function ckDriverNav(session) {
+  var caps = (session && session.capabilities) || ckCapsGlobal();
+  var origin = ckHasOrigin(caps);
+  var dest   = ckHasDestination(caps);
+  if (!origin && !dest) return ROLES.driver.nav;   // legacy session — unchanged
+
+  var nav = [];
+  if (origin) nav.push({
+    grp: "My Route",
+    items: [
+      { k: "driver_route", l: "Today's Route", ls: "Mi Ruta",     i: "\uD83D\uDDFA\uFE0F" },
+      { k: "pickup_list",  l: "My Pickups",    ls: "Recogidas",   i: "\uD83D\uDE9A", b: "*", bt: "amber" },
+      { k: "dropoff_list", l: "My Drop-Offs",  ls: "Entregas",    i: "\uD83D\uDCE6", b: "*", bt: "blue" }
+    ]
+  });
+  if (dest) nav.push({
+    grp: "Destination Delivery",
+    items: [
+      { k: "delivery_queue", l: "Delivery Queue", ls: "Cola de Entregas", i: "\uD83C\uDFE0", b: "*", bt: "green" }
+    ]
+  });
+  nav.push({
+    grp: "Log",
+    items: [
+      { k: "history", l: "Completed", ls: "Completado", i: "\u2705" },
+      { k: "issues",  l: "Issues",    ls: "Problemas",  i: "\u26A0\uFE0F" }
+    ]
+  });
+  nav.push({
+    grp: "Tools",
+    items: [{ k: "bulk", l: "Bulk Status Update", ls: "Actualizaci\u00F3n Masiva", i: "\u2328\uFE0F" }]
+  });
+  return nav;
+}
+
 /* ════════════════════════════════════════════
    APP ROOT
 ════════════════════════════════════════════ */
@@ -24437,23 +24495,25 @@ var MobileNav = function MobileNav(_ref125) {
       i: "📬",
       l: t("Drops", "Entregas")
     }],
-    driver: [{
-      k: "driver_route",
-      i: "🗺️",
-      l: t("Route", "Ruta")
-    }, {
-      k: "pickup_list",
-      i: "🚚",
-      l: t("Pickup", "Recogida")
-    }, {
-      k: "dropoff_list",
-      i: "📬",
-      l: t("Drop-off", "Entrega")
-    }, {
-      k: "history",
-      i: "✅",
-      l: t("Done", "Listo")
-    }]
+    driver: (function () {
+      // Part 4: destination-only drivers get delivery tabs; hybrids keep the
+      // origin tabs and gain the queue in place of the Done shortcut.
+      var origin = ckHasOrigin(), dest = ckHasDestination();
+      if (dest && !origin) return [
+        { k: "delivery_queue", i: "🏠", l: t("Deliver", "Entregar") },
+        { k: "issues",         i: "⚠️", l: t("Issues", "Problemas") },
+        { k: "history",        i: "✅", l: t("Done", "Listo") }
+      ];
+      var base = [
+        { k: "driver_route", i: "🗺️", l: t("Route", "Ruta") },
+        { k: "pickup_list",  i: "🚚", l: t("Pickup", "Recogida") },
+        { k: "dropoff_list", i: "📬", l: t("Drop-off", "Entrega") }
+      ];
+      base.push(dest
+        ? { k: "delivery_queue", i: "🏠", l: t("Deliver", "Entregar") }
+        : { k: "history",        i: "✅", l: t("Done", "Listo") });
+      return base;
+    })()
   }[roleKey] || [];
   var allItems = ((role === null || role === void 0 ? void 0 : role.nav) || []).flatMap(function (g) {
     return g.items || [];
@@ -26285,6 +26345,106 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
 };
 
 /* ════════════════════════════════════════════
+   DELIVERY QUEUE  (destination-country final mile)
+   Accounts & Access Part 4. Scoped to orders assigned to this user as
+   destination work (assignedDeliveryDriverUserId). Deliberately does NOT
+   fall back to matching on assignedDriver display name — destination
+   assignment is user-id only, per the ticket's authorization rule.
+════════════════════════════════════════════ */
+function DeliveryQueuePage(_refDQ) {
+  var orders       = _refDQ.orders || [];
+  var driverUserId = _refDQ.driverUserId || "";
+  var onStatusChange = _refDQ.onStatusChange;
+  var onSelect     = _refDQ.onSelect;
+  var t = useT();
+
+  var _dq1 = useState("active"), _dq1a = _slicedToArray(_dq1, 2), tab = _dq1a[0], setTab = _dq1a[1];
+
+  var mine = orders.filter(function (o) {
+    return !!driverUserId && o.assignedDeliveryDriverUserId === driverUserId;
+  });
+  var DONE = { delivered: 1, cancelled: 1 };
+  var active = mine.filter(function (o) { return !DONE[o.status]; });
+  var done   = mine.filter(function (o) { return !!DONE[o.status]; });
+  var rows   = tab === "active" ? active : done;
+
+  var pill = function pill(status) {
+    var color = status === "delivered" ? "var(--green)"
+              : status === "attempted" ? "var(--red)"
+              : status === "out_for_delivery" ? "var(--amber)"
+              : "var(--text2)";
+    var label = { out_for_delivery: t("Out for Delivery", "En Reparto"),
+                  delivered:        t("Delivered", "Entregado"),
+                  attempted:        t("Attempted", "Intento Fallido"),
+                  cancelled:        t("Cancelled", "Cancelado") }[status] || status;
+    return /*#__PURE__*/React.createElement("span", {
+      style: { color: color, border: "1px solid " + color, borderRadius: 999,
+               padding: "2px 9px", fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }
+    }, label);
+  };
+
+  var actionBtn = function actionBtn(label, status, order, tone) {
+    return /*#__PURE__*/React.createElement("button", {
+      className: "btn",
+      style: { background: tone, color: "#0b0b0b", border: "none", fontWeight: 600,
+               padding: "7px 12px", borderRadius: 7, cursor: "pointer", fontSize: 12 },
+      onClick: function () { if (onStatusChange) onStatusChange(order.id, status); }
+    }, label);
+  };
+
+  var tabBtn = function tabBtn(key, label, n) {
+    return /*#__PURE__*/React.createElement("button", {
+      style: { background: "none", border: "none", cursor: "pointer", padding: "8px 2px",
+               marginRight: 18, fontSize: 13, fontWeight: 600,
+               color: tab === key ? "var(--green)" : "var(--text3)",
+               borderBottom: tab === key ? "2px solid var(--green)" : "2px solid transparent" },
+      onClick: function () { setTab(key); }
+    }, label + " (" + n + ")");
+  };
+
+  return /*#__PURE__*/React.createElement("div", { className: "fu" },
+    /*#__PURE__*/React.createElement("div", { className: "alert alert-a mb12" },
+      "\uD83C\uDFE0 ", /*#__PURE__*/React.createElement("strong", null, t("Destination Delivery", "Entrega en Destino")),
+      " \u2014 ", t("these are your final-mile stops in the destination country.",
+                    "estas son tus paradas de entrega final en el pa\u00EDs de destino.")),
+
+    /*#__PURE__*/React.createElement("div", { style: { borderBottom: "1px solid var(--border)", marginBottom: 14 } },
+      tabBtn("active", t("To Deliver", "Por Entregar"), active.length),
+      tabBtn("done",   t("Completed", "Completado"),    done.length)),
+
+    rows.length === 0
+      ? /*#__PURE__*/React.createElement("div", {
+          style: { textAlign: "center", padding: 40, color: "var(--text3)" } },
+          tab === "active"
+            ? "\u2705 " + t("No deliveries assigned to you right now.", "No tienes entregas asignadas.")
+            : t("No completed deliveries yet.", "A\u00FAn no hay entregas completadas."))
+      : /*#__PURE__*/React.createElement("div", {
+          style: { display: "flex", flexDirection: "column", gap: 10 } },
+          rows.map(function (o) {
+            return /*#__PURE__*/React.createElement("div", { key: o.id, className: "card" },
+              /*#__PURE__*/React.createElement("div", {
+                style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 } },
+                /*#__PURE__*/React.createElement("div", { style: { minWidth: 0 } },
+                  /*#__PURE__*/React.createElement("div", {
+                    className: "tamb",
+                    style: { cursor: onSelect ? "pointer" : "default", textDecoration: onSelect ? "underline" : "none", fontWeight: 600 },
+                    onClick: function () { if (onSelect) onSelect(o); } }, o.id),
+                  /*#__PURE__*/React.createElement("div", { className: "tb", style: { marginTop: 3 } },
+                    o.recipientName || o.name || "\u2014"),
+                  /*#__PURE__*/React.createElement("div", {
+                    className: "mut", style: { fontSize: 12, marginTop: 3, lineHeight: 1.45 } },
+                    o.delivery_address || o.deliveryAddress || o.address || t("No delivery address on file", "Sin direcci\u00F3n de entrega"))),
+                pill(o.status)),
+
+              tab === "active" && /*#__PURE__*/React.createElement("div", {
+                style: { display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" } },
+                o.status !== "out_for_delivery" && actionBtn("\uD83D\uDE9B " + t("Out for Delivery", "En Reparto"), "out_for_delivery", o, "var(--amber)"),
+                actionBtn("\u2705 " + t("Delivered", "Entregado"), "delivered", o, "var(--green)"),
+                actionBtn("\u26A0\uFE0F " + t("Attempted", "Intento Fallido"), "attempted", o, "var(--red)")));
+          })));
+}
+
+/* ════════════════════════════════════════════
    SET NEW PASSWORD  (password-recovery landing)
 ════════════════════════════════════════════ */
 function SetNewPasswordScreen(props) {
@@ -26606,7 +26766,10 @@ function AppShell(_ref130) {
   // after auth; this effect re-fires when it does).
   React.useEffect(function () {
     if (roleKey === "driver" && (page === "overview" || page === "analytics")) {
-      setPage("driver_route");
+      // Part 4: a destination-only driver has no Today's Route — land them on
+      // their delivery queue instead. Origin and hybrid drivers are unchanged.
+      var caps = (session && session.capabilities) || ckCapsGlobal();
+      setPage(!ckHasOrigin(caps) && ckHasDestination(caps) ? "delivery_queue" : "driver_route");
     }
   }, [roleKey, page]);
   var _useState131 = useState(false),
@@ -26797,9 +26960,17 @@ function AppShell(_ref130) {
       }
     }),
     driver: _objectSpread(_objectSpread({}, ROLES.driver), {}, {
+      nav: ckDriverNav(session),
+      titles: _objectSpread(_objectSpread({}, ROLES.driver.titles), {}, {
+        delivery_queue: T("Delivery Queue", "Cola de Entregas")
+      }),
       user: {
         name: drvUser.name || T("Driver", "Conductor"),
-        role: T("Driver", "Conductor"),
+        role: ckHasDestination((session && session.capabilities) || ckCapsGlobal())
+                ? (ckHasOrigin((session && session.capabilities) || ckCapsGlobal())
+                    ? T("Driver \u00B7 Origin + Destination", "Conductor \u00B7 Origen + Destino")
+                    : T("Delivery Driver", "Repartidor"))
+                : T("Driver", "Conductor"),
         initials: mkInitials(drvUser.name || "DR"),
         bg: "var(--green)"
       }
@@ -30874,6 +31045,21 @@ setOrders(function (prev) {
       },
       onStatusChange: changeStatus
     });
+    // Driver — destination delivery (Part 4). Capability-gated: the page is
+    // unreachable without destination_delivery even by direct navigation.
+    if (page === "delivery_queue") {
+      if (!ckHasDestination((session && session.capabilities) || ckCapsGlobal())) {
+        return /*#__PURE__*/React.createElement("div", {
+          style: { textAlign: "center", padding: 40, color: "var(--text3)" }
+        }, "\uD83D\uDD12 This page requires the destination delivery capability.");
+      }
+      return /*#__PURE__*/React.createElement(DeliveryQueuePage, {
+        orders: orders,
+        driverUserId: _activeDriverUserId,
+        onStatusChange: changeStatus,
+        onSelect: setSelectedOrder
+      });
+    }
     // Driver
     if (page === "driver_route") return /*#__PURE__*/React.createElement(window.DriverRouteLite || DriverRoutePage, {
       orders: orders,
