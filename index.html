@@ -23827,6 +23827,21 @@ function ckDriverNav(session) {
   return nav;
 }
 
+/* ─── Accounts & Access Part 3: Team group, capability-gated ──────────────
+   Appended for anyone holding manage_team (HQ) or the office capability.
+   The Office build of the page is read-mostly and scoped to its own office
+   server-side; this only decides whether the link is offered. */
+function ckWithTeamNav(baseNav, session) {
+  var caps = (session && session.capabilities) || ckCapsGlobal();
+  var manage = caps.indexOf("manage_team") >= 0;
+  var office = caps.indexOf("office") >= 0;
+  if (!manage && !office) return baseNav;
+  return (baseNav || []).concat([{
+    grp: "Team",
+    items: [{ k: "team", l: "Team & Access", ls: "Equipo y Accesos", i: "\uD83D\uDC65" }]
+  }]);
+}
+
 /* ════════════════════════════════════════════
    APP ROOT
 ════════════════════════════════════════════ */
@@ -26345,6 +26360,262 @@ var ReceiptsInvoicesApp = function ReceiptsInvoicesApp(_ref_ri) {
 };
 
 /* ════════════════════════════════════════════
+   TEAM & ACCESS  (Accounts & Access Part 3)
+   Roster comes from public.list_team_members() -- a definer-side read, because
+   members has no email column and auth.users is not client-readable. Writes go
+   through public.update_team_member(), which merges into metadata rather than
+   replacing it and enforces the HQ/Office split server-side. This component
+   only decides what to *offer*; it is not the authority.
+════════════════════════════════════════════ */
+var CK_ALL_CAPABILITIES = [
+  { k: "origin_pickup",        l: "Origin pickup",        ls: "Recogida origen",     op: true },
+  { k: "origin_dropoff",       l: "Origin drop-off",      ls: "Entrega origen",      op: true },
+  { k: "destination_delivery", l: "Destination delivery", ls: "Entrega destino",     op: true },
+  { k: "office",               l: "Office tools",         ls: "Herramientas oficina", op: false },
+  { k: "manage_team",          l: "Manage team",          ls: "Gestionar equipo",    op: false },
+  { k: "view_financials",      l: "View financials",      ls: "Ver finanzas",        op: false }
+];
+
+function TeamPage(_refTP) {
+  var session   = _refTP.session || {};
+  var notify    = _refTP.notify || function () {};
+  var t = useT();
+  var canManage = ckCan(session, "manage_team");
+
+  var _tp1 = useState([]),    _tp1a = _slicedToArray(_tp1, 2), rows = _tp1a[0], setRows = _tp1a[1];
+  var _tp2 = useState(true),  _tp2a = _slicedToArray(_tp2, 2), loading = _tp2a[0], setLoading = _tp2a[1];
+  var _tp3 = useState(""),    _tp3a = _slicedToArray(_tp3, 2), err = _tp3a[0], setErr = _tp3a[1];
+  var _tp4 = useState([]),    _tp4a = _slicedToArray(_tp4, 2), offices = _tp4a[0], setOffices = _tp4a[1];
+  var _tp5 = useState(null),  _tp5a = _slicedToArray(_tp5, 2), editId = _tp5a[0], setEditId = _tp5a[1];
+  var _tp6 = useState(null),  _tp6a = _slicedToArray(_tp6, 2), draft = _tp6a[0], setDraft = _tp6a[1];
+  var _tp7 = useState(false), _tp7a = _slicedToArray(_tp7, 2), busy = _tp7a[0], setBusy = _tp7a[1];
+
+  var load = function load() {
+    setLoading(true); setErr("");
+    _supabase.rpc("list_team_members").then(function (res) {
+      setLoading(false);
+      if (res.error) { setErr(t("Could not load the team roster.", "No se pudo cargar el equipo.")); return; }
+      setRows(res.data || []);
+    }, function () {
+      setLoading(false);
+      setErr(t("Could not load the team roster.", "No se pudo cargar el equipo."));
+    });
+  };
+
+  React.useEffect(function () {
+    load();
+    _supabase.from("offices").select("id,name").then(function (res) {
+      if (!res.error) setOffices(res.data || []);
+    }, function () {});
+  }, []);
+
+  var effRole = function effRole(m) { return m.app_role || m.role || "\u2014"; };
+  var capsOf  = function capsOf(m) {
+    return Object.prototype.toString.call(m.capabilities) === "[object Array]" ? m.capabilities : null;
+  };
+
+  var beginEdit = function beginEdit(m) {
+    setEditId(m.member_id);
+    setDraft({
+      capabilities: (capsOf(m) || []).slice(),
+      inherited:    capsOf(m) === null,
+      office_id:    m.office_id || "",
+      route_label:  m.route_label || "",
+      app_role:     m.app_role || m.role || "driver",
+      active:       !!m.active
+    });
+  };
+
+  var toggleCap = function toggleCap(k) {
+    setDraft(function (d) {
+      var next = (d.capabilities || []).slice();
+      var i = next.indexOf(k);
+      if (i >= 0) next.splice(i, 1); else next.push(k);
+      return _objectSpread(_objectSpread({}, d), {}, { capabilities: next, inherited: false });
+    });
+  };
+
+  var save = function save(m) {
+    if (busy) return;
+    setBusy(true);
+    var patch = { route_label: draft.route_label, active: draft.active };
+    if (!draft.inherited) patch.capabilities = draft.capabilities;
+    if (canManage) { patch.app_role = draft.app_role; patch.office_id = draft.office_id || null; }
+    // Never send a self-edit the server will reject anyway.
+    if (m.user_id === session.userId) { delete patch.active; delete patch.capabilities; delete patch.app_role; }
+    _supabase.rpc("update_team_member", { p_member_id: m.member_id, p_patch: patch }).then(function (res) {
+      setBusy(false);
+      if (res.error) { notify("\u26A0\uFE0F " + (res.error.message || "Update rejected")); return; }
+      notify("\u2705 " + t("Saved", "Guardado") + " \u2014 " + (m.display_name || m.email || ""));
+      setEditId(null); setDraft(null); load();
+    }, function () { setBusy(false); notify("\u26A0\uFE0F " + t("Update failed.", "Error al guardar.")); });
+  };
+
+  var sendReset = function sendReset(m) {
+    if (!m.email) { notify("\u26A0\uFE0F " + t("No email on file for this user.", "Sin correo registrado.")); return; }
+    _supabase.auth.resetPasswordForEmail(m.email, { redirectTo: CK_RESET_REDIRECT }).then(function () {
+      notify("\uD83D\uDCE7 " + t("Reset link sent to", "Enlace enviado a") + " " + m.email);
+    }, function () {
+      notify("\uD83D\uDCE7 " + t("Reset link sent to", "Enlace enviado a") + " " + m.email);
+    });
+  };
+
+  var chip = function chip(label, tone) {
+    return /*#__PURE__*/React.createElement("span", {
+      key: label,
+      style: { fontSize: 10.5, padding: "2px 7px", borderRadius: 999, marginRight: 5, marginTop: 4,
+               display: "inline-block", border: "1px solid " + tone, color: tone, whiteSpace: "nowrap" }
+    }, label);
+  };
+
+  var fieldStyle = { width: "100%", padding: "7px 9px", background: "#141414",
+                     border: "1px solid #333", borderRadius: 7, color: "#fff", fontSize: 12.5,
+                     outline: "none", boxSizing: "border-box" };
+
+  if (loading) return /*#__PURE__*/React.createElement("div", {
+    style: { textAlign: "center", padding: 40, color: "var(--text3)" } },
+    t("Loading team\u2026", "Cargando equipo\u2026"));
+
+  return /*#__PURE__*/React.createElement("div", { className: "fu" },
+    /*#__PURE__*/React.createElement("div", { className: "alert alert-a mb12" },
+      "\uD83D\uDC65 ", /*#__PURE__*/React.createElement("strong", null, t("Team & Access", "Equipo y Accesos")), " \u2014 ",
+      canManage
+        ? t("you can manage every user in this company.", "puedes gestionar a todos los usuarios de la empresa.")
+        : t("you can manage drivers in your office only.", "solo puedes gestionar conductores de tu oficina.")),
+
+    err && /*#__PURE__*/React.createElement("div", {
+      style: { color: "var(--red)", fontSize: 12.5, marginBottom: 12 } }, err),
+
+    rows.length === 0
+      ? /*#__PURE__*/React.createElement("div", {
+          style: { textAlign: "center", padding: 40, color: "var(--text3)" } },
+          t("No team members visible to you.", "No hay usuarios visibles."))
+      : /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10 } },
+        rows.map(function (m) {
+          var caps = capsOf(m);
+          var isEditing = editId === m.member_id;
+          var isSelf = m.user_id === session.userId;
+          return /*#__PURE__*/React.createElement("div", {
+            key: m.member_id, className: "card",
+            style: { opacity: m.active ? 1 : 0.55 } },
+
+            /*#__PURE__*/React.createElement("div", {
+              style: { display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" } },
+              /*#__PURE__*/React.createElement("div", { style: { minWidth: 0 } },
+                /*#__PURE__*/React.createElement("div", { className: "tb", style: { fontWeight: 600 } },
+                  (m.display_name || m.email || "\u2014"),
+                  isSelf ? /*#__PURE__*/React.createElement("span", {
+                    style: { fontSize: 10.5, color: "var(--text3)", marginLeft: 7 } }, t("(you)", "(t\u00FA)")) : null),
+                /*#__PURE__*/React.createElement("div", { className: "mut", style: { fontSize: 11.5, marginTop: 2 } },
+                  m.email || t("no email", "sin correo")),
+                /*#__PURE__*/React.createElement("div", { style: { marginTop: 6 } },
+                  chip(effRole(m), "var(--amber)"),
+                  m.office_name ? chip(m.office_name, "var(--blue)") : null,
+                  m.route_label ? chip(m.route_label, "var(--purple)") : null,
+                  chip(m.active ? t("Active", "Activo") : t("Deactivated", "Desactivado"),
+                       m.active ? "var(--green)" : "var(--red)")),
+                /*#__PURE__*/React.createElement("div", { style: { marginTop: 4 } },
+                  caps === null
+                    ? chip(t("capabilities: inherited from role", "capacidades: heredadas del rol"), "var(--text3)")
+                    : caps.map(function (c) { return chip(c, "var(--teal)"); })),
+                /*#__PURE__*/React.createElement("div", { className: "mut", style: { fontSize: 11, marginTop: 6 } },
+                  t("Last seen", "\u00DAltimo acceso") + ": " +
+                  (m.last_seen_at ? new Date(m.last_seen_at).toLocaleString() : t("never", "nunca")))),
+
+              /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 7, alignItems: "flex-start", flexWrap: "wrap" } },
+                /*#__PURE__*/React.createElement("button", {
+                  className: "btn", style: _objectSpread({}, { background: "none", border: "1px solid var(--border2)",
+                    color: "var(--text2)", borderRadius: 7, padding: "6px 10px", fontSize: 12, cursor: "pointer" }),
+                  onClick: function () { sendReset(m); } }, "\uD83D\uDCE7 " + t("Reset link", "Enlace")),
+                /*#__PURE__*/React.createElement("button", {
+                  className: "btn", style: { background: isEditing ? "var(--border2)" : "var(--amber)",
+                    color: isEditing ? "var(--text)" : "#0b0b0b", border: "none", borderRadius: 7,
+                    padding: "6px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" },
+                  onClick: function () { if (isEditing) { setEditId(null); setDraft(null); } else beginEdit(m); } },
+                  isEditing ? t("Cancel", "Cancelar") : t("Edit", "Editar")))),
+
+            isEditing && draft ? /*#__PURE__*/React.createElement("div", {
+              style: { marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" } },
+
+              /*#__PURE__*/React.createElement("div", { style: { fontSize: 11.5, fontWeight: 600, color: "#999", marginBottom: 7 } },
+                t("Capabilities", "Capacidades")),
+              /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14 } },
+                CK_ALL_CAPABILITIES.map(function (c) {
+                  var allowed = canManage || c.op;
+                  return /*#__PURE__*/React.createElement("label", {
+                    key: c.k,
+                    style: { fontSize: 12, display: "flex", alignItems: "center", gap: 6,
+                             color: allowed ? "var(--text)" : "var(--text4)",
+                             cursor: allowed ? "pointer" : "not-allowed" } },
+                    /*#__PURE__*/React.createElement("input", {
+                      type: "checkbox", disabled: !allowed || isSelf,
+                      checked: (draft.capabilities || []).indexOf(c.k) >= 0,
+                      onChange: function () { toggleCap(c.k); } }),
+                    t(c.l, c.ls));
+                })),
+              draft.inherited ? /*#__PURE__*/React.createElement("div", {
+                style: { fontSize: 11, color: "var(--text3)", marginTop: -8, marginBottom: 12 } },
+                t("Currently inherited from role \u2014 ticking any box sets an explicit list.",
+                  "Actualmente heredadas del rol \u2014 marcar una casilla fija una lista expl\u00EDcita.")) : null,
+
+              /*#__PURE__*/React.createElement("div", {
+                style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", gap: 10 } },
+
+                canManage ? /*#__PURE__*/React.createElement("div", null,
+                  /*#__PURE__*/React.createElement("label", { style: { fontSize: 11.5, color: "#999", display: "block", marginBottom: 4 } },
+                    t("Role", "Rol")),
+                  /*#__PURE__*/React.createElement("select", {
+                    style: fieldStyle, value: draft.app_role, disabled: isSelf,
+                    onChange: function (e) { var v = e.target.value; setDraft(function (d) { return _objectSpread(_objectSpread({}, d), {}, { app_role: v }); }); } },
+                    ["hq", "office", "driver"].map(function (r) {
+                      return /*#__PURE__*/React.createElement("option", { key: r, value: r }, r);
+                    }))) : null,
+
+                canManage ? /*#__PURE__*/React.createElement("div", null,
+                  /*#__PURE__*/React.createElement("label", { style: { fontSize: 11.5, color: "#999", display: "block", marginBottom: 4 } },
+                    t("Office", "Oficina")),
+                  /*#__PURE__*/React.createElement("select", {
+                    style: fieldStyle, value: draft.office_id || "",
+                    onChange: function (e) { var v = e.target.value; setDraft(function (d) { return _objectSpread(_objectSpread({}, d), {}, { office_id: v }); }); } },
+                    [/*#__PURE__*/React.createElement("option", { key: "_none", value: "" }, t("\u2014 none \u2014", "\u2014 ninguna \u2014"))].concat(
+                      offices.map(function (o) {
+                        return /*#__PURE__*/React.createElement("option", { key: o.id, value: o.id }, o.name);
+                      })))) : null,
+
+                /*#__PURE__*/React.createElement("div", null,
+                  /*#__PURE__*/React.createElement("label", { style: { fontSize: 11.5, color: "#999", display: "block", marginBottom: 4 } },
+                    t("Route label", "Etiqueta de ruta")),
+                  /*#__PURE__*/React.createElement("input", {
+                    style: fieldStyle, value: draft.route_label, placeholder: "e.g. Miami South",
+                    onChange: function (e) { var v = e.target.value; setDraft(function (d) { return _objectSpread(_objectSpread({}, d), {}, { route_label: v }); }); } })),
+
+                /*#__PURE__*/React.createElement("div", null,
+                  /*#__PURE__*/React.createElement("label", { style: { fontSize: 11.5, color: "#999", display: "block", marginBottom: 4 } },
+                    t("Status", "Estado")),
+                  /*#__PURE__*/React.createElement("label", {
+                    style: { fontSize: 12, display: "flex", alignItems: "center", gap: 7,
+                             cursor: isSelf ? "not-allowed" : "pointer", paddingTop: 6 } },
+                    /*#__PURE__*/React.createElement("input", {
+                      type: "checkbox", checked: draft.active, disabled: isSelf,
+                      onChange: function (e) { var v = e.target.checked; setDraft(function (d) { return _objectSpread(_objectSpread({}, d), {}, { active: v }); }); } }),
+                    t("Active", "Activo")))),
+
+              isSelf ? /*#__PURE__*/React.createElement("div", {
+                style: { fontSize: 11, color: "var(--text3)", marginTop: 10 } },
+                t("You cannot change your own role, capabilities or status.",
+                  "No puedes cambiar tu propio rol, capacidades ni estado.")) : null,
+
+              /*#__PURE__*/React.createElement("div", { style: { marginTop: 14 } },
+                /*#__PURE__*/React.createElement("button", {
+                  className: "btn", disabled: busy,
+                  style: { background: "var(--green)", color: "#0b0b0b", border: "none", borderRadius: 7,
+                           padding: "8px 16px", fontSize: 12.5, fontWeight: 600,
+                           cursor: busy ? "default" : "pointer" },
+                  onClick: function () { save(m); } }, busy ? t("Saving\u2026", "Guardando\u2026") : t("Save changes", "Guardar")))) : null);
+        })));
+}
+
+/* ════════════════════════════════════════════
    DELIVERY QUEUE  (destination-country final mile)
    Accounts & Access Part 4. Scoped to orders assigned to this user as
    destination work (assignedDeliveryDriverUserId). Deliberately does NOT
@@ -26944,6 +27215,10 @@ function AppShell(_ref130) {
   };
   var LIVE_ROLES = {
     hq: _objectSpread(_objectSpread({}, ROLES.hq), {}, {
+      nav: ckWithTeamNav(ROLES.hq.nav, session),
+      titles: _objectSpread(_objectSpread({}, ROLES.hq.titles), {}, {
+        team: T("Team & Access", "Equipo y Accesos")
+      }),
       user: {
         name: hqUser.name || T("Owner", "Propietario"),
         role: T("Head Office", "Oficina Central"),
@@ -26952,6 +27227,10 @@ function AppShell(_ref130) {
       }
     }),
     office: _objectSpread(_objectSpread({}, ROLES.office), {}, {
+      nav: ckWithTeamNav(ROLES.office.nav, session),
+      titles: _objectSpread(_objectSpread({}, ROLES.office.titles), {}, {
+        team: T("Team & Access", "Equipo y Accesos")
+      }),
       user: {
         name: offUser.name || "Office",
         role: T("Office Worker", "Oficinista"),
@@ -31045,6 +31324,16 @@ setOrders(function (prev) {
       },
       onStatusChange: changeStatus
     });
+    // Team & Access (Part 3). Offered to manage_team or office; the server
+    // scopes what is actually visible and writable.
+    if (page === "team") {
+      if (!ckCan(session, "manage_team") && !ckCan(session, "office")) {
+        return /*#__PURE__*/React.createElement("div", {
+          style: { textAlign: "center", padding: 40, color: "var(--text3)" }
+        }, "\uD83D\uDD12 Team management is not available for your account.");
+      }
+      return /*#__PURE__*/React.createElement(TeamPage, { session: session, notify: notify });
+    }
     // Driver — destination delivery (Part 4). Capability-gated: the page is
     // unreachable without destination_delivery even by direct navigation.
     if (page === "delivery_queue") {
