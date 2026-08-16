@@ -26389,6 +26389,12 @@ function TeamPage(_refTP) {
   var _tp5 = useState(null),  _tp5a = _slicedToArray(_tp5, 2), editId = _tp5a[0], setEditId = _tp5a[1];
   var _tp6 = useState(null),  _tp6a = _slicedToArray(_tp6, 2), draft = _tp6a[0], setDraft = _tp6a[1];
   var _tp7 = useState(false), _tp7a = _slicedToArray(_tp7, 2), busy = _tp7a[0], setBusy = _tp7a[1];
+  var _tp8 = useState(false), _tp8a = _slicedToArray(_tp8, 2), inviteOpen = _tp8a[0], setInviteOpen = _tp8a[1];
+  var _tp9 = useState(false), _tp9a = _slicedToArray(_tp9, 2), inviting = _tp9a[0], setInviting = _tp9a[1];
+  var _tp10 = useState(""),   _tp10a = _slicedToArray(_tp10, 2), inviteErr = _tp10a[0], setInviteErr = _tp10a[1];
+  var _tp11 = useState({ email: "", display_name: "", app_role: "driver",
+                         office_id: "", route_label: "", capabilities: [] }),
+      _tp11a = _slicedToArray(_tp11, 2), inv = _tp11a[0], setInv = _tp11a[1];
 
   var load = function load() {
     setLoading(true); setErr("");
@@ -26451,6 +26457,63 @@ function TeamPage(_refTP) {
     }, function () { setBusy(false); notify("\u26A0\uFE0F " + t("Update failed.", "Error al guardar.")); });
   };
 
+  var setInvField = function setInvField(k, v) {
+    setInv(function (p) { var n = _objectSpread({}, p); n[k] = v; return n; });
+  };
+  var toggleInvCap = function toggleInvCap(k) {
+    setInv(function (p) {
+      var next = (p.capabilities || []).slice();
+      var i = next.indexOf(k);
+      if (i >= 0) next.splice(i, 1); else next.push(k);
+      return _objectSpread(_objectSpread({}, p), {}, { capabilities: next });
+    });
+  };
+
+  // Creating an auth user needs the service-role key, so this goes through the
+  // team-create-user Edge Function. Authority is re-derived there from the
+  // caller's JWT -- what we send is a request, not a grant.
+  var submitInvite = function submitInvite() {
+    if (inviting) return;
+    var email = String(inv.email || "").trim();
+    var name  = String(inv.display_name || "").trim();
+    if (!email || email.indexOf("@") < 0) { setInviteErr(t("Enter a valid email address.", "Introduce un correo v\u00E1lido.")); return; }
+    if (!name) { setInviteErr(t("Enter a name.", "Introduce un nombre.")); return; }
+    setInviting(true); setInviteErr("");
+    var payload = {
+      email: email,
+      display_name: name,
+      app_role: canManage ? inv.app_role : "driver",
+      capabilities: inv.capabilities,
+      route_label: inv.route_label || null
+    };
+    if (canManage && inv.office_id) payload.office_id = inv.office_id;
+
+    _supabase.functions.invoke("team-create-user", { body: payload }).then(function (res) {
+      setInviting(false);
+      var data = res && res.data;
+      if ((res && res.error) || !data || !data.success) {
+        var code = (data && data.error) || (res && res.error && res.error.message) || "invite_failed";
+        setInviteErr(({
+          email_already_registered:          t("That email already has an account.", "Ese correo ya tiene una cuenta."),
+          office_invites_disabled_for_tenant:t("Office invites are turned off for this company.", "Las invitaciones de oficina est\u00E1n desactivadas."),
+          office_may_only_create_drivers:    t("Offices can only create drivers.", "Las oficinas solo pueden crear conductores."),
+          not_authorised:                    t("You are not allowed to create users.", "No tienes permiso para crear usuarios."),
+          caller_has_no_office:              t("Your account has no office assigned.", "Tu cuenta no tiene oficina asignada.")
+        })[code] || String(code));
+        return;
+      }
+      notify("\u2705 " + t("Invited", "Invitado") + " " + data.email +
+             (data.invite_sent ? " \u2014 " + t("set-password email sent.", "correo enviado.")
+                               : " \u2014 " + t("account created, but the email failed to send.", "cuenta creada, pero el correo no se envi\u00F3.")));
+      setInviteOpen(false);
+      setInv({ email: "", display_name: "", app_role: "driver", office_id: "", route_label: "", capabilities: [] });
+      load();
+    }, function () {
+      setInviting(false);
+      setInviteErr(t("Could not reach the server. Try again.", "No se pudo conectar. Int\u00E9ntalo de nuevo."));
+    });
+  };
+
   var sendReset = function sendReset(m) {
     if (!m.email) { notify("\u26A0\uFE0F " + t("No email on file for this user.", "Sin correo registrado.")); return; }
     _supabase.auth.resetPasswordForEmail(m.email, { redirectTo: CK_RESET_REDIRECT }).then(function () {
@@ -26485,6 +26548,96 @@ function TeamPage(_refTP) {
 
     err && /*#__PURE__*/React.createElement("div", {
       style: { color: "var(--red)", fontSize: 12.5, marginBottom: 12 } }, err),
+
+    /*#__PURE__*/React.createElement("div", { style: { marginBottom: 14 } },
+      /*#__PURE__*/React.createElement("button", {
+        className: "btn",
+        style: { background: inviteOpen ? "var(--border2)" : "var(--amber)",
+                 color: inviteOpen ? "var(--text)" : "#0b0b0b", border: "none", borderRadius: 7,
+                 padding: "8px 14px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" },
+        onClick: function () { setInviteOpen(!inviteOpen); setInviteErr(""); } },
+        inviteOpen ? t("Cancel", "Cancelar") : "\uFF0B " + t("Invite user", "Invitar usuario"))),
+
+    inviteOpen ? /*#__PURE__*/React.createElement("div", {
+      className: "card", style: { marginBottom: 16, border: "1px solid var(--amber)" } },
+      /*#__PURE__*/React.createElement("div", {
+        style: { fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: 14, marginBottom: 4 } },
+        t("Invite a new user", "Invitar a un nuevo usuario")),
+      /*#__PURE__*/React.createElement("div", {
+        className: "mut", style: { fontSize: 11.5, marginBottom: 14, lineHeight: 1.5 } },
+        t("They receive an email to set their own password. You never see or set it.",
+          "Recibir\u00E1 un correo para crear su contrase\u00F1a. T\u00FA nunca la ves ni la defines.")),
+
+      /*#__PURE__*/React.createElement("div", {
+        style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10 } },
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("label", { style: { fontSize: 11.5, color: "#999", display: "block", marginBottom: 4 } },
+            t("Email", "Correo")),
+          /*#__PURE__*/React.createElement("input", {
+            style: fieldStyle, type: "email", value: inv.email, autoComplete: "off",
+            onChange: function (e) { setInvField("email", e.target.value); setInviteErr(""); } })),
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("label", { style: { fontSize: 11.5, color: "#999", display: "block", marginBottom: 4 } },
+            t("Full name", "Nombre completo")),
+          /*#__PURE__*/React.createElement("input", {
+            style: fieldStyle, value: inv.display_name,
+            onChange: function (e) { setInvField("display_name", e.target.value); setInviteErr(""); } })),
+        canManage ? /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("label", { style: { fontSize: 11.5, color: "#999", display: "block", marginBottom: 4 } },
+            t("Role", "Rol")),
+          /*#__PURE__*/React.createElement("select", {
+            style: fieldStyle, value: inv.app_role,
+            onChange: function (e) { setInvField("app_role", e.target.value); } },
+            ["driver", "office", "hq"].map(function (r) {
+              return /*#__PURE__*/React.createElement("option", { key: r, value: r }, r);
+            }))) : null,
+        canManage ? /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("label", { style: { fontSize: 11.5, color: "#999", display: "block", marginBottom: 4 } },
+            t("Office", "Oficina")),
+          /*#__PURE__*/React.createElement("select", {
+            style: fieldStyle, value: inv.office_id,
+            onChange: function (e) { setInvField("office_id", e.target.value); } },
+            [/*#__PURE__*/React.createElement("option", { key: "_n", value: "" }, t("\u2014 none \u2014", "\u2014 ninguna \u2014"))].concat(
+              offices.map(function (o) {
+                return /*#__PURE__*/React.createElement("option", { key: o.id, value: o.id }, o.name);
+              })))) : null,
+        /*#__PURE__*/React.createElement("div", null,
+          /*#__PURE__*/React.createElement("label", { style: { fontSize: 11.5, color: "#999", display: "block", marginBottom: 4 } },
+            t("Route label", "Etiqueta de ruta")),
+          /*#__PURE__*/React.createElement("input", {
+            style: fieldStyle, value: inv.route_label, placeholder: "e.g. Miami South",
+            onChange: function (e) { setInvField("route_label", e.target.value); } }))),
+
+      /*#__PURE__*/React.createElement("div", { style: { fontSize: 11.5, fontWeight: 600, color: "#999", margin: "14px 0 7px" } },
+        t("Capabilities", "Capacidades"),
+        /*#__PURE__*/React.createElement("span", { style: { fontWeight: 400, color: "var(--text3)" } },
+          " \u2014 " + t("leave all unticked to inherit from the role", "d\u00E9jalas sin marcar para heredar del rol"))),
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10 } },
+        CK_ALL_CAPABILITIES.map(function (c) {
+          var allowed = canManage || c.op;
+          return /*#__PURE__*/React.createElement("label", {
+            key: c.k,
+            style: { fontSize: 12, display: "flex", alignItems: "center", gap: 6,
+                     color: allowed ? "var(--text)" : "var(--text4)",
+                     cursor: allowed ? "pointer" : "not-allowed" } },
+            /*#__PURE__*/React.createElement("input", {
+              type: "checkbox", disabled: !allowed,
+              checked: (inv.capabilities || []).indexOf(c.k) >= 0,
+              onChange: function () { toggleInvCap(c.k); } }),
+            t(c.l, c.ls));
+        })),
+
+      inviteErr ? /*#__PURE__*/React.createElement("div", {
+        style: { color: "var(--red)", fontSize: 12, marginTop: 12 } }, inviteErr) : null,
+
+      /*#__PURE__*/React.createElement("div", { style: { marginTop: 14 } },
+        /*#__PURE__*/React.createElement("button", {
+          className: "btn", disabled: inviting,
+          style: { background: "var(--green)", color: "#0b0b0b", border: "none", borderRadius: 7,
+                   padding: "8px 16px", fontSize: 12.5, fontWeight: 600,
+                   cursor: inviting ? "default" : "pointer" },
+          onClick: submitInvite },
+          inviting ? t("Inviting\u2026", "Invitando\u2026") : t("Send invite", "Enviar invitaci\u00F3n")))) : null,
 
     rows.length === 0
       ? /*#__PURE__*/React.createElement("div", {
