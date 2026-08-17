@@ -2411,6 +2411,7 @@ var CalendarPicker = function CalendarPicker(props) {
 var PAID_INVOICE_EDGE_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/send-paid-invoice";
 var LOG_BOX_STATUS_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/log-box-status";
 var QB_CONNECT_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/quickbooks-connect";
+var CK_QB_ENABLED = false; // QuickBooks removed from beta scope (2026-08-17 gate decision). Endpoint is a 503 stub. Do not flip without the Workstream D2/D3 rebuild and owner approval.
 var STRIPE_CHECKOUT_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/stripe-checkout";
 // SUPABASE_ANON_KEY is set at init time (line 28) — use that single source.
 // The JWT below is kept as a comment for reference only; REST calls use the same publishable key.
@@ -7402,7 +7403,7 @@ var PaymentsPage = function PaymentsPage(_ref45) {
   });
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
-  }, /*#__PURE__*/React.createElement("div", {
+  }, CK_QB_ENABLED && /*#__PURE__*/React.createElement("div", {
     style: {
       background: "var(--bg2)",
       border: "1px solid var(--border)",
@@ -7441,7 +7442,7 @@ var PaymentsPage = function PaymentsPage(_ref45) {
     }
   }, "QuickBooks ", t("sync", "Sync")), /*#__PURE__*/React.createElement("div", {
     className: "xs mut"
-  }, qbConnected ? qbSynced ? "".concat(t("Last synced", "Última sincronización"), ": ").concat(qbSynced) : t("Connected — never synced", "Conectado — nunca sincronizado") : t("Not connected. Connect to auto-export revenue, invoices, and payments.", "No conectado. Conecta para exportar ingresos, facturas y pagos automáticamente."))), /*#__PURE__*/React.createElement("div", {
+  }, qbConnected ? qbSynced ? "".concat(t("Last synced", "Última sincronización"), ": ").concat(qbSynced) : t("Connected — never synced", "Conectado — nunca sincronizado") : t("Not connected. Accounting sync is not active.", "No conectado. La sincronización contable no está activa."))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
       gap: 8,
@@ -7468,12 +7469,12 @@ var PaymentsPage = function PaymentsPage(_ref45) {
     href: "https://quickbooks.intuit.com",
     target: "_blank",
     className: "btn btn-ghost btn-sm"
-  }, t("Open QB", "Abrir QB"), " \u2192"))), qbConnected && /*#__PURE__*/React.createElement("div", {
+  }, t("Open QB", "Abrir QB"), " \u2192"))), CK_QB_ENABLED && qbConnected && /*#__PURE__*/React.createElement("div", {
     className: "alert alert-g mb14",
     style: {
       fontSize: 12
     }
-  }, "\u2705 ", t("QuickBooks is synced. Revenue, invoices, and collected payments are automatically exported. Unpaid balances appear as open invoices in QuickBooks.", "QuickBooks sincronizado. Ingresos, facturas y pagos cobrados se exportan automáticamente. Los saldos sin pagar aparecen como facturas abiertas en QuickBooks.")), /*#__PURE__*/React.createElement("div", {
+  }, "\u2705 ", t("QuickBooks connection scaffolding is present, but accounting sync is not active.", "La conexión con QuickBooks está preparada, pero la sincronización contable no está activa.")), /*#__PURE__*/React.createElement("div", {
     className: "sg sg4 mb18"
   }, [{
     l: "Total Charged",
@@ -17185,8 +17186,8 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
       .then(function(r){ return r.json(); })
       .then(function(data){ if (Array.isArray(data)) setSendLog(data); })
       .catch(function(e){ console.warn("[async op]", e); });
-    // Load QB status
-    fetch(QB_CONNECT_URL + "?action=status&tenantId=" + tenantId)
+    // Load QB status — disabled while QuickBooks is out of release scope
+    if (CK_QB_ENABLED) fetch(QB_CONNECT_URL + "?action=status&tenantId=" + tenantId)
       .then(function(r){ return r.json(); })
       .then(function(data){ setQbStatus(data); })
       .catch(function(e){ console.error("[quickbooks status]", e); setErr("Could not load QuickBooks status. Check connection."); });
@@ -17442,7 +17443,7 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
     ),
 
     // ── QuickBooks status card ─────────────────────────────────────────────
-    /*#__PURE__*/React.createElement("div", { className: "card mb14" },
+    CK_QB_ENABLED && /*#__PURE__*/React.createElement("div", { className: "card mb14" },
       /*#__PURE__*/React.createElement("div", { className: "card-hd" },
         /*#__PURE__*/React.createElement("span", { className: "card-title" }, "\uD83D\uDCCA QuickBooks Integration"),
         qbStatus && qbStatus.connected && /*#__PURE__*/React.createElement("button", {
@@ -17738,6 +17739,7 @@ var QuickBooksPage = function QuickBooksPage(props) {
   }
 
   React.useEffect(function() {
+    if (!CK_QB_ENABLED) return;
     loadStatus();
     supaFetch("/qb_sync_log?tenant_id=eq." + encodeURIComponent(tenantId) + "&order=ts.desc&limit=20")
       .then(function(r){ return r.json(); })
@@ -17782,6 +17784,13 @@ var QuickBooksPage = function QuickBooksPage(props) {
   var notConnected   = status && status.configured && !status.connected;
   var connected      = status && status.connected;
   var tokenExpired   = connected && status.token_expired;
+
+  if (!CK_QB_ENABLED) {
+    return /*#__PURE__*/React.createElement("div", { className: "fu" },
+      /*#__PURE__*/React.createElement("div", { className: "card" },
+        /*#__PURE__*/React.createElement("div", { className: "card-bd mut" },
+          "QuickBooks is not part of the current release.")));
+  }
 
   return /*#__PURE__*/React.createElement("div", { className: "fu" },
 
@@ -23109,7 +23118,7 @@ integrations: function integrations() {
           status: data.qbConnected ? "configured" : "not_configured",
           action: T("Connect from Payments → QuickBooks","Conectar desde Pagos → QuickBooks")
         }
-      ];
+      ].filter(function (x) { return CK_QB_ENABLED || x.key !== "quickbooks"; });
       return /*#__PURE__*/React.createElement("div", null,
         /*#__PURE__*/React.createElement("div", {className:"alert alert-b mb14", style:{fontSize:12}},
           "ℹ️ ", T("Integrations are optional for launch. You can configure them later from the dashboard.","Las integraciones son opcionales. Puedes configurarlas después desde el panel.")
@@ -23601,7 +23610,7 @@ var ROLES = {
         l: "QuickBooks",
         ls: "QuickBooks",
         i: "📊"
-      }]
+      }].filter(function (x) { return CK_QB_ENABLED || x.k !== "quickbooks"; })
     }, {
       grp: "People",
       items: [{
@@ -31466,7 +31475,9 @@ setOrders(function (prev) {
     if (page === "integration") return /*#__PURE__*/React.createElement(IntegrationStatusPage, {
       session: session
     });
-    if (page === "quickbooks") return /*#__PURE__*/React.createElement(QuickBooksPage, {
+    if (page === "quickbooks") return CK_QB_ENABLED ? /*#__PURE__*/React.createElement(QuickBooksPage, {
+      session: session
+    }) : /*#__PURE__*/React.createElement(IntegrationStatusPage, {
       session: session
     });
     if (page === "notifications") return /*#__PURE__*/React.createElement(CampaignsPage, {
