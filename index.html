@@ -16322,9 +16322,11 @@ var RoutesPage = function RoutesPage(_ref101) {
       return o.status === "ready_pickup" || o.status === "need_box";
     });
     var groups = {};
+    var CK_NO_DEST_GROUP = "\u26A0 No destination set";
     pickups.forEach(function (o) {
-      if (!groups[o.destination]) groups[o.destination] = [];
-      groups[o.destination].push(o);
+      var k = o.destination || CK_NO_DEST_GROUP;
+      if (!groups[k]) groups[k] = [];
+      groups[k].push(o);
     });
     return groups;
   }, [orders]);
