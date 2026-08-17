@@ -26794,6 +26794,12 @@ function DeliveryQueuePage(_refDQ) {
   var t = useT();
 
   var _dq1 = useState("active"), _dq1a = _slicedToArray(_dq1, 2), tab = _dq1a[0], setTab = _dq1a[1];
+  // attemptFor holds the order id waiting on a reason, so only one row
+  // opens a panel at a time.
+  var _dq2 = useState(null), _dq2a = _slicedToArray(_dq2, 2), attemptFor    = _dq2a[0], setAttemptFor    = _dq2a[1];
+  var _dq3 = useState(""),   _dq3a = _slicedToArray(_dq3, 2), attemptPreset = _dq3a[0], setAttemptPreset = _dq3a[1];
+  var _dq4 = useState(""),   _dq4a = _slicedToArray(_dq4, 2), attemptNote   = _dq4a[0], setAttemptNote   = _dq4a[1];
+  var clearAttempt = function () { setAttemptFor(null); setAttemptPreset(""); setAttemptNote(""); };
 
   var mine = orders.filter(function (o) {
     return !!driverUserId && o.assignedDeliveryDriverUserId === driverUserId;
@@ -26875,7 +26881,52 @@ function DeliveryQueuePage(_refDQ) {
                 style: { display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" } },
                 o.status !== "out_for_delivery" && actionBtn("\uD83D\uDE9B " + t("Out for Delivery", "En Reparto"), "out_for_delivery", o, "var(--amber)"),
                 actionBtn("\u2705 " + t("Delivered", "Entregado"), "delivered", o, "var(--green)"),
-                actionBtn("\u26A0\uFE0F " + t("Attempted", "Intento Fallido"), "attempted", o, "var(--red)")));
+                /*#__PURE__*/React.createElement("button", {
+                  className: "btn",
+                  style: { background: "var(--red)", color: "#0b0b0b", border: "none", fontWeight: 600,
+                           padding: "7px 12px", borderRadius: 7, cursor: "pointer", fontSize: 12 },
+                  onClick: function () { setAttemptFor(o.id); setAttemptPreset(""); setAttemptNote(""); }
+                }, "\u26A0\uFE0F " + t("Attempted", "Intento Fallido"))),
+
+              tab === "active" && attemptFor === o.id && /*#__PURE__*/React.createElement("div", {
+                style: { marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }
+              },
+                /*#__PURE__*/React.createElement("div", {
+                  className: "mut", style: { fontSize: 12, marginBottom: 8 }
+                }, t("Why was delivery not completed? Required.", "\u00BFPor qu\u00E9 no se complet\u00F3 la entrega? Obligatorio.")),
+                ckReasonChips(attemptPreset, setAttemptPreset),
+                /*#__PURE__*/React.createElement("textarea", {
+                  value: attemptNote,
+                  rows: 2,
+                  style: { width: "100%", padding: "10px 12px", fontSize: 14, background: "#141414",
+                           color: "var(--text)", border: "1px solid var(--border)", borderRadius: 8,
+                           boxSizing: "border-box", resize: "vertical" },
+                  placeholder: attemptPreset === "Other"
+                    ? t("Required \u2014 what happened?", "Obligatorio \u2014 \u00BFqu\u00E9 pas\u00F3?")
+                    : t("Optional detail", "Detalle opcional"),
+                  onChange: function (e) { setAttemptNote(e.target.value); }
+                }),
+                /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
+                  /*#__PURE__*/React.createElement("button", {
+                    className: "btn",
+                    disabled: !ckReasonReady("attempted", attemptPreset, attemptNote),
+                    style: { background: ckReasonReady("attempted", attemptPreset, attemptNote) ? "var(--red)" : "var(--border)",
+                             color: ckReasonReady("attempted", attemptPreset, attemptNote) ? "#0b0b0b" : "var(--text3)",
+                             border: "none", fontWeight: 700, padding: "11px 14px", borderRadius: 8,
+                             fontSize: 13, flex: 1,
+                             cursor: ckReasonReady("attempted", attemptPreset, attemptNote) ? "pointer" : "not-allowed" },
+                    onClick: function () {
+                      if (!ckReasonReady("attempted", attemptPreset, attemptNote)) return;
+                      if (onStatusChange) onStatusChange(o.id, "attempted", undefined,
+                        ckReasonText("attempted", attemptPreset, attemptNote));
+                      clearAttempt();
+                    }
+                  }, t("Confirm attempt", "Confirmar intento")),
+                  /*#__PURE__*/React.createElement("button", {
+                    className: "btn btn-ghost",
+                    style: { padding: "11px 14px", borderRadius: 8, fontSize: 13, cursor: "pointer" },
+                    onClick: function () { clearAttempt(); }
+                  }, t("Cancel", "Cancelar")))));
           })));
 }
 
@@ -26946,6 +26997,55 @@ function ckScanResolve(orders, raw, driverUserId, caps) {
   return { ok: true, code: "ok", order: hit, box: box, query: q };
 }
 
+/* Exception-path reasons. 'attempted' takes a preset so the data stays
+   aggregatable (you can count "bad address" across a month); 'rerouted'
+   takes free text because the useful detail is always specific. "Other"
+   carries no meaning on its own, so it requires the note. */
+var CK_ATTEMPT_REASONS = [
+  "No answer",
+  "Customer not home",
+  "Bad address/access issue",
+  "Customer requested reschedule",
+  "Other"
+];
+
+function ckReasonReady(status, preset, note) {
+  var n = String(note == null ? "" : note).trim();
+  if (status === "rerouted") return n.length > 0;
+  if (status === "attempted") {
+    if (CK_ATTEMPT_REASONS.indexOf(preset) < 0) return false;
+    return preset === "Other" ? n.length > 0 : true;
+  }
+  return true;
+}
+
+function ckReasonText(status, preset, note) {
+  var n = String(note == null ? "" : note).trim();
+  if (status === "rerouted") return n;
+  if (preset === "Other") return n;
+  return preset + (n ? " \u00B7 " + n : "");
+}
+
+/* Shared chip row for the preset list. Kept as a plain function rather
+   than a component so both call sites render identical markup. */
+function ckReasonChips(preset, onPick) {
+  return /*#__PURE__*/React.createElement("div", {
+    style: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }
+  }, CK_ATTEMPT_REASONS.map(function (r) {
+    var on = preset === r;
+    return /*#__PURE__*/React.createElement("button", {
+      key: r,
+      type: "button",
+      style: { background: on ? "var(--amber)" : "transparent",
+               color: on ? "#0b0b0b" : "var(--text2)",
+               border: "1px solid " + (on ? "var(--amber)" : "var(--border)"),
+               borderRadius: 999, padding: "8px 12px", fontSize: 12,
+               fontWeight: on ? 700 : 500, cursor: "pointer" },
+      onClick: function () { onPick(r); }
+    }, r);
+  }));
+}
+
 function DriverScanPage(_refDS) {
   var orders         = _refDS.orders || [];
   var driverUserId   = _refDS.driverUserId || "";
@@ -26958,8 +27058,11 @@ function DriverScanPage(_refDS) {
   var _ds2 = useState(null), _ds2a = _slicedToArray(_ds2, 2), resolved  = _ds2a[0], setResolved  = _ds2a[1];
   var _ds3 = useState(null), _ds3a = _slicedToArray(_ds3, 2), feedback  = _ds3a[0], setFeedback  = _ds3a[1];
   var _ds4 = useState([]),   _ds4a = _slicedToArray(_ds4, 2), log       = _ds4a[0], setLog       = _ds4a[1];
-  var _ds5 = useState(false), _ds5a = _slicedToArray(_ds5, 2), reroute     = _ds5a[0], setReroute     = _ds5a[1];
-  var _ds6 = useState(""),    _ds6a = _slicedToArray(_ds6, 2), rerouteNote = _ds6a[0], setRerouteNote = _ds6a[1];
+  // reasonFor is null, "rerouted" or "attempted" — the status waiting on a reason.
+  var _ds5 = useState(null), _ds5a = _slicedToArray(_ds5, 2), reasonFor    = _ds5a[0], setReasonFor    = _ds5a[1];
+  var _ds6 = useState(""),   _ds6a = _slicedToArray(_ds6, 2), reasonNote   = _ds6a[0], setReasonNote   = _ds6a[1];
+  var _ds7 = useState(""),   _ds7a = _slicedToArray(_ds7, 2), reasonPreset = _ds7a[0], setReasonPreset = _ds7a[1];
+  var clearReason = function () { setReasonFor(null); setReasonNote(""); setReasonPreset(""); };
 
   var inputRef = React.useRef(null);
   React.useEffect(function () { if (inputRef.current) inputRef.current.focus(); }, [resolved]);
@@ -26981,8 +27084,7 @@ function DriverScanPage(_refDS) {
     var res = ckScanResolve(orders, raw, driverUserId, capabilities);
     if (!res) return;
     setScanInput("");
-    setReroute(false);
-    setRerouteNote("");
+    clearReason();
     if (res.ok) { setResolved(res); setFeedback(null); return; }
     setResolved(null);
     var msg = res.code === "not_assigned"
@@ -27001,8 +27103,7 @@ function DriverScanPage(_refDS) {
     // newDriver stays undefined so the driver assignment is untouched.
     if (onStatusChange) onStatusChange(oid, key, undefined, reason || undefined);
     setResolved(null);
-    setReroute(false);
-    setRerouteNote("");
+    clearReason();
     setFeedback({ tone: "good", text: oid + " \u2192 " + labelOf(key) });
     pushLog({ id: oid, ok: true, text: labelOf(key) + (reason ? " \u00B7 " + reason : ""), ts: Date.now() });
   };
@@ -27015,7 +27116,9 @@ function DriverScanPage(_refDS) {
     // written reason. Destination-capable drivers only, on an assigned
     // stop only, both of which are already true by the time we get here:
     // ckScanStatuses gates the button and ckScanResolve gates the order.
-    if (key === "rerouted") { setReroute(true); return; }
+    if (key === "rerouted" || key === "attempted") {
+      setReasonFor(key); setReasonNote(""); setReasonPreset(""); return;
+    }
     commitStatus(key, "");
   };
 
@@ -27074,35 +27177,47 @@ function DriverScanPage(_refDS) {
           onClick: function () { applyStatus(k); }
         }, labelOf(k));
       })),
-      reroute && /*#__PURE__*/React.createElement("div", {
+      reasonFor && /*#__PURE__*/React.createElement("div", {
         style: { marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }
       },
         /*#__PURE__*/React.createElement("div", {
-          className: "mut", style: { fontSize: 12, marginBottom: 6 }
-        }, t("Why is this being rerouted? Required.", "\u00BFPor qu\u00E9 se redirige? Obligatorio.")),
+          className: "mut", style: { fontSize: 12, marginBottom: 8 }
+        }, reasonFor === "attempted"
+             ? t("Why was delivery not completed? Required.", "\u00BFPor qu\u00E9 no se complet\u00F3 la entrega? Obligatorio.")
+             : t("Why is this being rerouted? Required.", "\u00BFPor qu\u00E9 se redirige? Obligatorio.")),
+        reasonFor === "attempted" && ckReasonChips(reasonPreset, setReasonPreset),
         /*#__PURE__*/React.createElement("textarea", {
-          value: rerouteNote,
+          value: reasonNote,
           rows: 2,
           style: { width: "100%", padding: "10px 12px", fontSize: 14, background: "#141414",
                    color: "var(--text)", border: "1px solid var(--border)", borderRadius: 8,
                    boxSizing: "border-box", resize: "vertical" },
-          placeholder: t("e.g. wrong department on the label", "ej. departamento incorrecto en la etiqueta"),
-          onChange: function (e) { setRerouteNote(e.target.value); }
+          placeholder: reasonFor === "attempted"
+            ? (reasonPreset === "Other"
+                 ? t("Required \u2014 what happened?", "Obligatorio \u2014 \u00BFqu\u00E9 pas\u00F3?")
+                 : t("Optional detail", "Detalle opcional"))
+            : t("e.g. wrong department on the label", "ej. departamento incorrecto en la etiqueta"),
+          onChange: function (e) { setReasonNote(e.target.value); }
         }),
         /*#__PURE__*/React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
           /*#__PURE__*/React.createElement("button", {
             className: "btn",
-            disabled: !rerouteNote.trim(),
-            style: { background: rerouteNote.trim() ? "var(--red)" : "var(--border)",
-                     color: rerouteNote.trim() ? "#0b0b0b" : "var(--text3)", border: "none",
+            disabled: !ckReasonReady(reasonFor, reasonPreset, reasonNote),
+            style: { background: ckReasonReady(reasonFor, reasonPreset, reasonNote) ? "var(--red)" : "var(--border)",
+                     color: ckReasonReady(reasonFor, reasonPreset, reasonNote) ? "#0b0b0b" : "var(--text3)", border: "none",
                      fontWeight: 700, padding: "11px 14px", borderRadius: 8, fontSize: 13, flex: 1,
-                     cursor: rerouteNote.trim() ? "pointer" : "not-allowed" },
-            onClick: function () { if (rerouteNote.trim()) commitStatus("rerouted", rerouteNote.trim()); }
-          }, t("Confirm reroute", "Confirmar redirecci\u00F3n")),
+                     cursor: ckReasonReady(reasonFor, reasonPreset, reasonNote) ? "pointer" : "not-allowed" },
+            onClick: function () {
+              if (!ckReasonReady(reasonFor, reasonPreset, reasonNote)) return;
+              commitStatus(reasonFor, ckReasonText(reasonFor, reasonPreset, reasonNote));
+            }
+          }, reasonFor === "attempted"
+               ? t("Confirm attempt", "Confirmar intento")
+               : t("Confirm reroute", "Confirmar redirecci\u00F3n")),
           /*#__PURE__*/React.createElement("button", {
             className: "btn btn-ghost",
             style: { padding: "11px 14px", borderRadius: 8, fontSize: 13, cursor: "pointer" },
-            onClick: function () { setReroute(false); setRerouteNote(""); }
+            onClick: function () { clearReason(); }
           }, t("Cancel", "Cancelar"))))),
 
     log.length > 0 && /*#__PURE__*/React.createElement("div", null,
