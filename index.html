@@ -23822,7 +23822,7 @@ function ckDriverNav(session) {
   });
   nav.push({
     grp: "Tools",
-    items: [{ k: "bulk", l: "Bulk Status Update", ls: "Actualizaci\u00F3n Masiva", i: "\u2328\uFE0F" }]
+    items: [{ k: "driver_scan", l: "Scan Mode", ls: "Modo Esc\u00E1ner", i: "\uD83D\uDCF7" }]
   });
   return nav;
 }
@@ -26868,6 +26868,201 @@ function DeliveryQueuePage(_refDQ) {
           })));
 }
 
+/* ─── Accounts & Access: Driver Scan Mode (page key: driver_scan) ──────────
+   Phone-first scan-and-set for drivers. Three rules, in order of importance:
+
+     1. Assignment-scoped. A scan only resolves if the order is assigned to
+        this driver BY USER ID — assignedDriverUserId for origin work,
+        assignedDeliveryDriverUserId for destination work. No display-name
+        fallback, same rule as the delivery queue page.
+     2. DRIVER_STATUS_KEYS only, narrowed further by capability: origin caps
+        get the pickup/warehouse half, destination_delivery gets the delivery
+        half, a hybrid gets both. Warehouse/customs/container ops are never
+        offered here.
+     3. The server is still the authority. This narrows what the UI offers;
+        RLS and can_access_order() do the enforcing.
+
+   Scan resolution mirrors BulkScanModal: box subId first, then a legacy
+   parent order id for orders with no boxes array, then the "scan the box,
+   not the order" hint for a parent that does have boxes. */
+var CK_SCAN_ORIGIN_STATUS = ["box_dropped_off", "need_box", "picked_up", "in_warehouse"];
+var CK_SCAN_DEST_STATUS   = ["out_for_delivery", "delivered", "attempted", "rerouted"];
+
+function ckScanStatuses(caps) {
+  caps = caps || ckCapsGlobal();
+  var out = [];
+  if (ckHasOrigin(caps)) out = out.concat(CK_SCAN_ORIGIN_STATUS);
+  if (ckHasDestination(caps)) out = out.concat(CK_SCAN_DEST_STATUS);
+  if (!out.length) out = CK_SCAN_ORIGIN_STATUS.slice();
+  // Belt and braces: never offer a key that is not driver-allowed, whatever
+  // the capability set says.
+  return out.filter(function (k) { return DRIVER_STATUS_KEYS.indexOf(k) >= 0; });
+}
+
+function ckScanResolve(orders, raw, driverUserId, caps) {
+  var q = String(raw == null ? "" : raw).trim().toUpperCase();
+  if (!q) return null;
+  orders = orders || [];
+  caps = caps || ckCapsGlobal();
+  var origin = ckHasOrigin(caps);
+  var dest   = ckHasDestination(caps);
+  var isMine = function (o) {
+    if (!driverUserId) return false;
+    if (origin && o.assignedDriverUserId === driverUserId) return true;
+    if (dest && o.assignedDeliveryDriverUserId === driverUserId) return true;
+    return false;
+  };
+
+  var hit = null, box = null, i, b, boxes;
+  for (i = 0; i < orders.length; i++) {
+    boxes = orders[i].boxes || [];
+    for (b = 0; b < boxes.length; b++) {
+      if (String(boxes[b].subId || "").toUpperCase() === q) { hit = orders[i]; box = boxes[b]; break; }
+    }
+    if (hit) break;
+    if (String(orders[i].id || "").toUpperCase() === q && !boxes.length) { hit = orders[i]; break; }
+  }
+
+  if (!hit) {
+    for (i = 0; i < orders.length; i++) {
+      if (String(orders[i].id || "").toUpperCase() === q && (orders[i].boxes || []).length) {
+        return { ok: false, code: "scan_the_box", order: orders[i], box: null, query: q };
+      }
+    }
+    return { ok: false, code: "not_found", order: null, box: null, query: q };
+  }
+  if (!isMine(hit)) return { ok: false, code: "not_assigned", order: hit, box: box, query: q };
+  return { ok: true, code: "ok", order: hit, box: box, query: q };
+}
+
+function DriverScanPage(_refDS) {
+  var orders         = _refDS.orders || [];
+  var driverUserId   = _refDS.driverUserId || "";
+  var capabilities   = _refDS.capabilities || ckCapsGlobal();
+  var onStatusChange = _refDS.onStatusChange;
+  var onSelect       = _refDS.onSelect;
+  var t = useT();
+
+  var _ds1 = useState(""),   _ds1a = _slicedToArray(_ds1, 2), scanInput = _ds1a[0], setScanInput = _ds1a[1];
+  var _ds2 = useState(null), _ds2a = _slicedToArray(_ds2, 2), resolved  = _ds2a[0], setResolved  = _ds2a[1];
+  var _ds3 = useState(null), _ds3a = _slicedToArray(_ds3, 2), feedback  = _ds3a[0], setFeedback  = _ds3a[1];
+  var _ds4 = useState([]),   _ds4a = _slicedToArray(_ds4, 2), log       = _ds4a[0], setLog       = _ds4a[1];
+
+  var inputRef = React.useRef(null);
+  React.useEffect(function () { if (inputRef.current) inputRef.current.focus(); }, [resolved]);
+
+  var allowed = ckScanStatuses(capabilities);
+  var labelOf = function (k) { return (STATUS_CFG[k] && STATUS_CFG[k].label) || k; };
+
+  var toneOf = function (k) {
+    if (k === "delivered" || k === "in_warehouse" || k === "picked_up") return "var(--green)";
+    if (k === "attempted" || k === "rerouted") return "var(--red)";
+    return "var(--amber)";
+  };
+
+  var pushLog = function (entry) {
+    setLog(function (prev) { return [entry].concat(prev).slice(0, 12); });
+  };
+
+  var submitScan = function (raw) {
+    var res = ckScanResolve(orders, raw, driverUserId, capabilities);
+    if (!res) return;
+    setScanInput("");
+    if (res.ok) { setResolved(res); setFeedback(null); return; }
+    setResolved(null);
+    var msg = res.code === "not_assigned"
+      ? t("Not assigned to you.", "No est\u00E1 asignado a ti.")
+      : res.code === "scan_the_box"
+        ? t("That is the order id. Scan the box label instead.", "Ese es el id del pedido. Escanea la etiqueta de la caja.")
+        : t("No match found.", "No se encontr\u00F3 coincidencia.");
+    setFeedback({ tone: "bad", text: res.query + " \u2014 " + msg });
+    pushLog({ id: res.query, ok: false, text: msg, ts: Date.now() });
+  };
+
+  var applyStatus = function (key) {
+    if (!resolved || !resolved.order) return;
+    var oid = resolved.order.id;
+    if (allowed.indexOf(key) < 0) return;
+    if (onStatusChange) onStatusChange(oid, key);
+    setResolved(null);
+    setFeedback({ tone: "good", text: oid + " \u2192 " + labelOf(key) });
+    pushLog({ id: oid, ok: true, text: labelOf(key), ts: Date.now() });
+  };
+
+  var fieldStyle = {
+    width: "100%", padding: "14px 14px", fontSize: 18, letterSpacing: "0.5px",
+    background: "#141414", color: "var(--text)", border: "1px solid var(--border)",
+    borderRadius: 9, fontFamily: "'IBM Plex Mono', monospace", boxSizing: "border-box"
+  };
+
+  return /*#__PURE__*/React.createElement("div", { className: "fu" },
+    /*#__PURE__*/React.createElement("div", { className: "alert alert-a mb12" },
+      "\uD83D\uDCF7 ", /*#__PURE__*/React.createElement("strong", null, t("Scan Mode", "Modo Esc\u00E1ner")),
+      " \u2014 ", t("scan a box label, then tap a status. Only orders assigned to you will resolve.",
+                    "escanea la etiqueta de una caja y toca un estado. Solo se resuelven los pedidos asignados a ti.")),
+
+    /*#__PURE__*/React.createElement("div", { style: { marginBottom: 14 } },
+      /*#__PURE__*/React.createElement("input", {
+        ref: inputRef,
+        value: scanInput,
+        style: fieldStyle,
+        autoComplete: "off",
+        autoCorrect: "off",
+        autoCapitalize: "characters",
+        spellCheck: false,
+        placeholder: t("Scan or type a box label", "Escanea o escribe una etiqueta"),
+        onChange: function (e) { setScanInput(e.target.value); },
+        onKeyDown: function (e) { if (e.key === "Enter") { e.preventDefault(); submitScan(scanInput); } }
+      })),
+
+    feedback && /*#__PURE__*/React.createElement("div", {
+      style: {
+        padding: "10px 12px", borderRadius: 8, marginBottom: 14, fontSize: 13, fontWeight: 600,
+        color: feedback.tone === "good" ? "var(--green)" : "var(--red)",
+        border: "1px solid " + (feedback.tone === "good" ? "var(--green)" : "var(--red)")
+      }
+    }, (feedback.tone === "good" ? "\u2705 " : "\u26A0\uFE0F ") + feedback.text),
+
+    resolved && resolved.order && /*#__PURE__*/React.createElement("div", { className: "card mb12" },
+      /*#__PURE__*/React.createElement("div", {
+        className: "tamb",
+        style: { fontWeight: 700, fontSize: 16, cursor: onSelect ? "pointer" : "default" },
+        onClick: function () { if (onSelect) onSelect(resolved.order); }
+      }, resolved.box ? resolved.box.subId : resolved.order.id),
+      /*#__PURE__*/React.createElement("div", { className: "tb", style: { marginTop: 3 } },
+        resolved.order.recipientName || resolved.order.name || "\u2014"),
+      /*#__PURE__*/React.createElement("div", { className: "mut", style: { fontSize: 12, marginTop: 3 } },
+        t("Current", "Actual") + ": " + labelOf(resolved.order.status)),
+      /*#__PURE__*/React.createElement("div", {
+        style: { display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }
+      }, allowed.map(function (k) {
+        return /*#__PURE__*/React.createElement("button", {
+          key: k,
+          className: "btn",
+          style: { background: toneOf(k), color: "#0b0b0b", border: "none", fontWeight: 700,
+                   padding: "12px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13, flex: "1 1 44%" },
+          onClick: function () { applyStatus(k); }
+        }, labelOf(k));
+      }))),
+
+    log.length > 0 && /*#__PURE__*/React.createElement("div", null,
+      /*#__PURE__*/React.createElement("div", {
+        className: "mut", style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 8 }
+      }, t("This session", "Esta sesi\u00F3n")),
+      /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } },
+        log.map(function (e, idx) {
+          return /*#__PURE__*/React.createElement("div", {
+            key: e.ts + "-" + idx,
+            style: { display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12,
+                     padding: "7px 10px", borderRadius: 6, border: "1px solid var(--border)" }
+          },
+            /*#__PURE__*/React.createElement("span", { className: "tamb" }, e.id),
+            /*#__PURE__*/React.createElement("span", {
+              style: { color: e.ok ? "var(--green)" : "var(--red)", textAlign: "right" }
+            }, (e.ok ? "\u2705 " : "\u26A0\uFE0F ") + e.text));
+        }))));
+}
+
 /* ════════════════════════════════════════════
    SET NEW PASSWORD  (password-recovery landing)
 ════════════════════════════════════════════ */
@@ -27394,7 +27589,8 @@ function AppShell(_ref130) {
     driver: _objectSpread(_objectSpread({}, ROLES.driver), {}, {
       nav: ckDriverNav(session),
       titles: _objectSpread(_objectSpread({}, ROLES.driver.titles), {}, {
-        delivery_queue: T("Delivery Queue", "Cola de Entregas")
+        delivery_queue: T("Delivery Queue", "Cola de Entregas"),
+        driver_scan: T("Scan Mode", "Modo Esc\u00E1ner")
       }),
       user: {
         name: drvUser.name || T("Driver", "Conductor"),
@@ -31498,6 +31694,23 @@ setOrders(function (prev) {
       return /*#__PURE__*/React.createElement(DeliveryQueuePage, {
         orders: orders,
         driverUserId: _activeDriverUserId,
+        onStatusChange: changeStatus,
+        onSelect: setSelectedOrder
+      });
+    }
+    // Driver — Scan Mode. Assignment-scoped and capability-narrowed;
+    // unreachable without a driver capability even by direct navigation.
+    if (page === "driver_scan") {
+      var _dsCaps = (session && session.capabilities) || ckCapsGlobal();
+      if (!ckHasOrigin(_dsCaps) && !ckHasDestination(_dsCaps)) {
+        return /*#__PURE__*/React.createElement("div", {
+          style: { textAlign: "center", padding: 40, color: "var(--text3)" }
+        }, "\uD83D\uDD12 Scan Mode requires a driver capability.");
+      }
+      return /*#__PURE__*/React.createElement(DriverScanPage, {
+        orders: orders,
+        driverUserId: _activeDriverUserId,
+        capabilities: _dsCaps,
         onStatusChange: changeStatus,
         onSelect: setSelectedOrder
       });
