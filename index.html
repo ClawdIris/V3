@@ -114,6 +114,13 @@
       caps = caps || ckCapsGlobal();
       return caps.indexOf("origin_pickup") >= 0 || caps.indexOf("origin_dropoff") >= 0;
     }
+    // Bulk Status Update is an office/HQ tool. Drivers act on their own
+    // assigned work through Scan Mode, which is assignment-scoped; bulk is
+    // not. Single predicate so the nav, the route and the component cannot
+    // drift apart.
+    function ckBulkAllowed(roleKey) {
+      return roleKey === "hq" || roleKey === "office";
+    }
     function ckHasDestination(caps) {
       caps = caps || ckCapsGlobal();
       return caps.indexOf("destination_delivery") >= 0;
@@ -19236,6 +19243,12 @@ var PricingAdminPage = function PricingAdminPage(_ref107) {
 /* ════════════════════════════════════════════
    BULK STATUS UPDATE (warehouse scanner)
 ════════════════════════════════════════════ */
+/* ckBulkAllowed is defined with the capability helpers in the runtime
+   config block; this alias makes the dependency explicit at the point of
+   use rather than relying on a bare global. */
+var ckBulkAllowedRef = typeof ckBulkAllowed === "function"
+  ? ckBulkAllowed
+  : function (r) { return r === "hq" || r === "office"; };
 var BulkStatusPage = function BulkStatusPage(_ref112) {
   var orders = _ref112.orders,
     onStatusChange = _ref112.onStatusChange,
@@ -19415,6 +19428,13 @@ var BulkStatusPage = function BulkStatusPage(_ref112) {
   var warehouse_statuses = roleKey === "driver"
     ? DRIVER_STATUS_KEYS
     : ["picked_up", "in_warehouse", "loaded_container", "en_route", "in_customs", "customs_released", "sorting", "out_for_delivery", "delivered"];
+  // Defensive: bulk is not a driver tool. Placed after every hook so the
+  // hook order is identical on every render, whatever the role resolves to.
+  if (!ckBulkAllowedRef(roleKey)) {
+    return /*#__PURE__*/React.createElement("div", {
+      style: { textAlign: "center", padding: 40, color: "var(--text3)" }
+    }, "\uD83D\uDD12 Bulk Status Update is not available for drivers. Use Scan Mode.");
+  }
   return /*#__PURE__*/React.createElement("div", {
     className: "fu"
   }, /*#__PURE__*/React.createElement("div", {
@@ -23765,22 +23785,13 @@ var ROLES = {
         ls: "Problemas",
         i: "⚠️"
       }]
-    }, {
-      grp: "Tools",
-      items: [{
-        k: "bulk",
-        l: "Bulk Status Update",
-        ls: "Actualización Masiva",
-        i: "⌨️"
-      }]
     }],
     titles: {
       driver_route: "Today's Route",
       pickup_list: "My Pickups",
       dropoff_list: "My Drop-Offs",
       history: "Completed Stops",
-      issues: "Issues",
-      bulk: "Bulk Status Update"
+      issues: "Issues"
     }
   }
 };
@@ -31319,6 +31330,24 @@ setOrders(function (prev) {
       tenant: tenant,
       notify: notify
     });
+    // Drivers are redirected to Scan Mode rather than shown a dead end;
+    // the scan page is the assignment-scoped equivalent of what they came
+    // here for.
+    if (page === "bulk" && roleKey === "driver") {
+      var _bgCaps = (session && session.capabilities) || ckCapsGlobal();
+      if (!ckHasOrigin(_bgCaps) && !ckHasDestination(_bgCaps)) {
+        return /*#__PURE__*/React.createElement("div", {
+          style: { textAlign: "center", padding: 40, color: "var(--text3)" }
+        }, "\uD83D\uDD12 Bulk Status Update is not available for drivers.");
+      }
+      return /*#__PURE__*/React.createElement(DriverScanPage, {
+        orders: orders,
+        driverUserId: _activeDriverUserId,
+        capabilities: _bgCaps,
+        onStatusChange: changeStatus,
+        onSelect: setSelectedOrder
+      });
+    }
     if (page === "bulk") return /*#__PURE__*/React.createElement(BulkStatusPage, {
       orders: orders,
       onStatusChange: changeStatus,
