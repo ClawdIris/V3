@@ -22103,7 +22103,7 @@ var OnboardingWizard = function OnboardingWizard(_ref116) {
           value: "hq"
         }, "\uD83C\uDFE2 HQ / Owner"), /*#__PURE__*/React.createElement("option", {
           value: "office"
-        }, "\uD83D\uDDA5 Office Worker"), /*#__PURE__*/React.createElement("option", {
+        }, "\uD83D\uDDA5 Office"), /*#__PURE__*/React.createElement("option", {
           value: "driver"
         }, "\uD83D\uDE9A Driver")))), /*#__PURE__*/React.createElement("div", {
           className: "fr mb10"
@@ -23645,7 +23645,7 @@ var ROLES = {
     color: "var(--blue)",
     user: {
       name: "Laura Mendez",
-      role: "Office Worker · Miami",
+      role: "Office",
       initials: "LM",
       bg: "var(--blue)"
     },
@@ -27710,29 +27710,10 @@ function AppShell(_ref130) {
     return getOfficeOptions(tenant);
   }, [tenant && tenant.offices]);
 
-  // Derive ROLES user names from tenant users config
-  var tenantUsers = (tenant === null || tenant === void 0 ? void 0 : tenant.users) || [];
-  var hqUser = tenantUsers.find(function (u) {
-    return u.role === "hq";
-  }) || {
-    name: "Owner",
-    role: "Head Office",
-    initials: "HQ"
-  };
-  var offUser = tenantUsers.find(function (u) {
-    return u.role === "office";
-  }) || {
-    name: "Office",
-    role: "Office Worker",
-    initials: "OW"
-  };
-  var drvUser = ((tenant === null || tenant === void 0 ? void 0 : tenant.drivers) || []).filter(function (d) {
-    return d.name;
-  })[0] || {
-    name: "Driver",
-    role: "Driver",
-    initials: "DR"
-  };
+  // The signed-in membership is the single source of truth for the identity
+  // shown throughout the shell. Tenant settings may contain many users and
+  // must never choose another person's name for the current session.
+  var sessionName = session && (session.displayName || session.email) || "User";
   var mkInitials = function mkInitials(n) {
     return n ? n.split(" ").map(function (w) {
       return w[0];
@@ -27745,9 +27726,9 @@ function AppShell(_ref130) {
         team: T("Team & Access", "Equipo y Accesos")
       }),
       user: {
-        name: hqUser.name || T("Owner", "Propietario"),
+        name: sessionName,
         role: T("Head Office", "Oficina Central"),
-        initials: mkInitials(hqUser.name || "HQ"),
+        initials: mkInitials(sessionName),
         bg: "linear-gradient(135deg,var(--amber),#D97706)"
       }
     }),
@@ -27757,9 +27738,9 @@ function AppShell(_ref130) {
         team: T("Team & Access", "Equipo y Accesos")
       }),
       user: {
-        name: offUser.name || "Office",
-        role: T("Office Worker", "Oficinista"),
-        initials: mkInitials(offUser.name || "OW"),
+        name: sessionName,
+        role: T("Office", "Oficina"),
+        initials: mkInitials(sessionName),
         bg: "var(--blue)"
       }
     }),
@@ -27770,13 +27751,13 @@ function AppShell(_ref130) {
         driver_scan: T("Scan Mode", "Modo Esc\u00E1ner")
       }),
       user: {
-        name: drvUser.name || T("Driver", "Conductor"),
+        name: sessionName,
         role: ckHasDestination((session && session.capabilities) || ckCapsGlobal())
                 ? (ckHasOrigin((session && session.capabilities) || ckCapsGlobal())
                     ? T("Driver \u00B7 Origin + Destination", "Conductor \u00B7 Origen + Destino")
                     : T("Delivery Driver", "Repartidor"))
                 : T("Driver", "Conductor"),
-        initials: mkInitials(drvUser.name || "DR"),
+        initials: mkInitials(sessionName),
         bg: "var(--green)"
       }
     })
