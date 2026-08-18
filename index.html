@@ -3609,6 +3609,12 @@ var OrderForm = function OrderForm(_ref4) {
       netRevenue: Math.round((amt - _commAmt) * 100) / 100,
       commissionCalculatedAt: now()
     };
+    var _depositSnapshotRaw = Number(tenant && tenant.depositAmount);
+    var _depositSnapshot = Number.isFinite(_depositSnapshotRaw)
+      && _depositSnapshotRaw >= 0
+      && _depositSnapshotRaw <= 500
+        ? Math.round(_depositSnapshotRaw * 100) / 100
+        : null;
     var firstBox = boxes[0] || {};
     var order = _objectSpread(_objectSpread({}, f), {}, {
       id: baseId,
@@ -3623,6 +3629,9 @@ var OrderForm = function OrderForm(_ref4) {
       declaredValue: parseFloat(f.declaredValue) || 0,
       boxDeposit: f.boxDeposit,
       depositCredited: f.depositCredited || false,
+      // P0 Pack 1: financial rules use the order-time snapshot. Legacy
+      // orders without it receive one server-side on their first credit.
+      depositAmountSnapshot: f.boxDeposit ? _depositSnapshot : null,
       // Phase B: RELATIONAL TRUTH — top-level FK columns
       office_id:  f.office_id  || null,
       partner_id: f.partner_id || null,
@@ -6021,7 +6030,7 @@ var PickupListPage = function PickupListPage(_ref34) {
     }, "\u2705 Picked Up (no receipt)"), /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost btn-sm",
       onClick: function onClick() {
-        return onStatusChange(o.id, "attempted");
+        return onStatusChange(o.id, "attempted", undefined, "No answer", undefined, null, "no_answer", null);
       }
     }, "\uD83D\uDD04 No Answer"), /*#__PURE__*/React.createElement("a", {
       className: "btn btn-ghost btn-sm",
@@ -6145,7 +6154,7 @@ var DropOffListPage = function DropOffListPage(_ref35) {
     }, "\u2713 Box Delivered"), /*#__PURE__*/React.createElement("button", {
       className: "btn btn-ghost btn-sm",
       onClick: function onClick() {
-        return onStatusChange(o.id, "attempted");
+        return onStatusChange(o.id, "attempted", undefined, "No answer", undefined, null, "no_answer", null);
       }
     }, "\uD83D\uDD04 No Answer"), /*#__PURE__*/React.createElement("a", {
       className: "btn btn-ghost btn-sm",
@@ -7045,7 +7054,7 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
                   onClick: function() { return isPickup ? onReceipt(o) : onStatusChange(o.id, "in_warehouse"); }
                 }, isPickup ? "\u2713 Picked Up" : "\u2713 Dropped Off"),
                 /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm",
-                  onClick: function() { return onStatusChange(o.id, "attempted"); }
+                  onClick: function() { return onStatusChange(o.id, "attempted", undefined, "No answer", undefined, null, "no_answer", null); }
                 }, "No Answer")
               )
             );
@@ -7065,7 +7074,7 @@ var DriverRoutePage = function DriverRoutePage(_ref36) {
                 onClick: function() { return onStatusChange(repOrder.id, "in_warehouse"); }
               }, "\u2713 Dropped Off"),
           /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm",
-            onClick: function() { return onStatusChange(repOrder.id, "attempted"); }
+            onClick: function() { return onStatusChange(repOrder.id, "attempted", undefined, "No answer", undefined, null, "no_answer", null); }
           }, "No Answer"),
           /*#__PURE__*/React.createElement("button", { className: "btn btn-ghost btn-sm",
             onClick: function() { return onRunningLate && onRunningLate(repOrder.id); }
@@ -26928,8 +26937,16 @@ function DeliveryQueuePage(_refDQ) {
                              cursor: ckReasonReady("attempted", attemptPreset, attemptNote) ? "pointer" : "not-allowed" },
                     onClick: function () {
                       if (!ckReasonReady("attempted", attemptPreset, attemptNote)) return;
-                      if (onStatusChange) onStatusChange(o.id, "attempted", undefined,
-                        ckReasonText("attempted", attemptPreset, attemptNote));
+                      if (onStatusChange) onStatusChange(
+                        o.id,
+                        "attempted",
+                        undefined,
+                        ckReasonText("attempted", attemptPreset, attemptNote),
+                        undefined,
+                        null,
+                        ckReasonCode("attempted", attemptPreset),
+                        attemptNote
+                      );
                       clearAttempt();
                     }
                   }, t("Confirm attempt", "Confirmar intento")),
@@ -27037,6 +27054,18 @@ function ckReasonText(status, preset, note) {
   return preset + (n ? " \u00B7 " + n : "");
 }
 
+function ckReasonCode(status, preset) {
+  if (status === "rerouted") return "rerouted";
+  if (status !== "attempted") return null;
+  return {
+    "No answer": "no_answer",
+    "Customer not home": "customer_not_home",
+    "Bad address/access issue": "bad_address_access",
+    "Customer requested reschedule": "customer_reschedule",
+    "Other": "other"
+  }[preset] || null;
+}
+
 /* Shared chip row for the preset list. Kept as a plain function rather
    than a component so both call sites render identical markup. */
 function ckReasonChips(preset, onPick) {
@@ -27073,6 +27102,7 @@ function DriverScanPage(_refDS) {
   var _ds5 = useState(null), _ds5a = _slicedToArray(_ds5, 2), reasonFor    = _ds5a[0], setReasonFor    = _ds5a[1];
   var _ds6 = useState(""),   _ds6a = _slicedToArray(_ds6, 2), reasonNote   = _ds6a[0], setReasonNote   = _ds6a[1];
   var _ds7 = useState(""),   _ds7a = _slicedToArray(_ds7, 2), reasonPreset = _ds7a[0], setReasonPreset = _ds7a[1];
+  var _ds8 = useState(false), _ds8a = _slicedToArray(_ds8, 2), statusBusy = _ds8a[0], setStatusBusy = _ds8a[1];
   var clearReason = function () { setReasonFor(null); setReasonNote(""); setReasonPreset(""); };
 
   var inputRef = React.useRef(null);
@@ -27107,20 +27137,44 @@ function DriverScanPage(_refDS) {
     pushLog({ id: res.query, ok: false, text: msg, ts: Date.now() });
   };
 
-  var commitStatus = function (key, reason) {
-    if (!resolved || !resolved.order) return;
+  var commitStatus = function (key, reason, reasonCode, reasonNote) {
+    if (!resolved || !resolved.order || statusBusy) return;
     var oid = resolved.order.id;
-    // changeStatus(id, newStatus, newDriver, reason, newDriverUserId).
+    var boxSubId = resolved.box ? resolved.box.subId : null;
+    // changeStatus(id, newStatus, newDriver, reason, newDriverUserId,
+    //              boxSubId, reasonCode, reasonNote).
     // newDriver stays undefined so the driver assignment is untouched.
-    if (onStatusChange) onStatusChange(oid, key, undefined, reason || undefined);
-    setResolved(null);
-    clearReason();
-    setFeedback({ tone: "good", text: oid + " \u2192 " + labelOf(key) });
-    pushLog({ id: oid, ok: true, text: labelOf(key) + (reason ? " \u00B7 " + reason : ""), ts: Date.now() });
+    if (!onStatusChange) return;
+    setStatusBusy(true);
+    setFeedback({ tone: "wait", text: t("Saving status\u2026", "Guardando estado\u2026") });
+    var request = onStatusChange(
+      oid,
+      key,
+      undefined,
+      reason || undefined,
+      undefined,
+      boxSubId,
+      reasonCode || null,
+      reasonNote || null
+    );
+    Promise.resolve(request).then(function(result) {
+      if (!result || result.success !== true) {
+        setFeedback({ tone: "bad", text: t("Status was not saved. Try again.", "El estado no se guard\u00F3. Intenta de nuevo.") });
+        return;
+      }
+      setResolved(null);
+      clearReason();
+      var suffix = result.changed === false ? t(" (already current)", " (ya estaba actualizado)") : "";
+      setFeedback({ tone: "good", text: oid + " \u2192 " + labelOf(key) + suffix });
+      pushLog({ id: oid, ok: true, text: labelOf(key) + (reason ? " \u00B7 " + reason : "") + suffix, ts: Date.now() });
+    }).catch(function(err) {
+      console.error("[DriverScanPage] status request failed", err);
+      setFeedback({ tone: "bad", text: t("Status was not saved. Try again.", "El estado no se guard\u00F3. Intenta de nuevo.") });
+    }).then(function() { setStatusBusy(false); });
   };
 
   var applyStatus = function (key) {
-    if (!resolved || !resolved.order) return;
+    if (!resolved || !resolved.order || statusBusy) return;
     if (allowed.indexOf(key) < 0) return;
     // Rerouted is an exception path, not a step in the flow (flow: -3), so
     // it never commits on a single tap. It opens a panel and requires a
@@ -27162,10 +27216,10 @@ function DriverScanPage(_refDS) {
     feedback && /*#__PURE__*/React.createElement("div", {
       style: {
         padding: "10px 12px", borderRadius: 8, marginBottom: 14, fontSize: 13, fontWeight: 600,
-        color: feedback.tone === "good" ? "var(--green)" : "var(--red)",
-        border: "1px solid " + (feedback.tone === "good" ? "var(--green)" : "var(--red)")
+        color: feedback.tone === "good" ? "var(--green)" : feedback.tone === "wait" ? "var(--amber)" : "var(--red)",
+        border: "1px solid " + (feedback.tone === "good" ? "var(--green)" : feedback.tone === "wait" ? "var(--amber)" : "var(--red)")
       }
-    }, (feedback.tone === "good" ? "\u2705 " : "\u26A0\uFE0F ") + feedback.text),
+    }, (feedback.tone === "good" ? "\u2705 " : feedback.tone === "wait" ? "\u23F3 " : "\u26A0\uFE0F ") + feedback.text),
 
     resolved && resolved.order && /*#__PURE__*/React.createElement("div", { className: "card mb12" },
       /*#__PURE__*/React.createElement("div", {
@@ -27183,8 +27237,9 @@ function DriverScanPage(_refDS) {
         return /*#__PURE__*/React.createElement("button", {
           key: k,
           className: "btn",
+          disabled: statusBusy,
           style: { background: toneOf(k), color: "#0b0b0b", border: "none", fontWeight: 700,
-                   padding: "12px 14px", borderRadius: 8, cursor: "pointer", fontSize: 13, flex: "1 1 44%" },
+                   padding: "12px 14px", borderRadius: 8, cursor: statusBusy ? "wait" : "pointer", fontSize: 13, flex: "1 1 44%" },
           onClick: function () { applyStatus(k); }
         }, labelOf(k));
       })),
@@ -27220,7 +27275,12 @@ function DriverScanPage(_refDS) {
                      cursor: ckReasonReady(reasonFor, reasonPreset, reasonNote) ? "pointer" : "not-allowed" },
             onClick: function () {
               if (!ckReasonReady(reasonFor, reasonPreset, reasonNote)) return;
-              commitStatus(reasonFor, ckReasonText(reasonFor, reasonPreset, reasonNote));
+              commitStatus(
+                reasonFor,
+                ckReasonText(reasonFor, reasonPreset, reasonNote),
+                ckReasonCode(reasonFor, reasonPreset),
+                reasonNote
+              );
             }
           }, reasonFor === "attempted"
                ? t("Confirm attempt", "Confirmar intento")
@@ -28143,7 +28203,47 @@ setOrders(function (prev) {
     setSelectedOrder(null);
     notify("\u26A0\uFE0F Order " + order.id + " voided and hidden from active views");
   };
-  var changeStatus = useCallback(function (id, newStatus, newDriver, reason, newDriverUserId) {
+  var dispatchCommittedStatusNotifications = useCallback(function (notifyOrder, newStatus, boxSubId) {
+    if (!notifyOrder) return;
+    var notifyBoxes = (notifyOrder.boxes && notifyOrder.boxes.length > 0)
+      ? notifyOrder.boxes.filter(function(b) {
+          if (boxSubId) return b.subId === boxSubId;
+          return b.orderStatus === newStatus || b.status === newStatus;
+        })
+      : [];
+    if (!notifyBoxes.length && !boxSubId && notifyOrder.notifyOnStatusChange) {
+      notifyBoxes = [{ subId: notifyOrder.id, notifyOnStatusChange: true, orderStatus: newStatus }];
+    }
+    var tenantId2 = session && session.tenantId ? session.tenantId : "casabe-xpress";
+    var trackBase = (tenant && tenant.trackingUrl) || "https://casabe-connect.netlify.app";
+    var statusLbl = (STATUS_CFG && STATUS_CFG[newStatus] && STATUS_CFG[newStatus].label) || newStatus;
+    notifyBoxes.forEach(function(box) {
+      if (!box.notifyOnStatusChange) return;
+      var target = getSenderNotificationTarget(notifyOrder, box);
+      if (!target.phone || target.phone.trim().length < 7) return;
+      var trackingNum = box.subId || notifyOrder.id;
+      var msgBody = renderMessageTemplate(newStatus, tenant, notifyOrder, box) || ("Hi " + target.name + ", your package " + trackingNum + " status: " + statusLbl + ".\nTrack: " + trackBase + "?number=" + encodeURIComponent(trackingNum) + "\n\u2014 " + getCompanyName(tenant));
+      fetch(PAID_INVOICE_EDGE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: notifyOrder.id,
+          boxId: box.subId || notifyOrder.id,
+          trackingNumber: trackingNum,
+          tenantId: tenantId2,
+          targetRole: "sender",
+          targetPhone: target.phone.trim(),
+          phone: target.phone.trim(),
+          channels: ["whatsapp"],
+          messageBody: msgBody,
+          source: "status_change",
+          triggeredBy: roleKey || "system"
+        })
+      }).catch(function(e) { console.error("[status notify]", e); });
+    });
+  }, [roleKey, session, tenant]);
+
+  var changeStatus = useCallback(function (id, newStatus, newDriver, reason, newDriverUserId, boxSubId, reasonCode, reasonNote) {
     var _STATUS_CFG$newStatus;
     // ── BACKWARD STATUS GATE ──────────────────────────────────
     var cur = orders.find(function (o) {
@@ -28163,6 +28263,65 @@ setOrders(function (prev) {
         return;
       }
     }
+
+    // P0 Pack 1: drivers use one transactional server-owned write path.
+    // The committed row returned by the RPC is the only source for local UI
+    // and customer notifications. A rejected/no-op call never notifies.
+    if (roleKey === "driver") {
+      if (!(session && session.tenantId)) {
+        notify("\u274C Status update failed. Please sign in again.");
+        return Promise.resolve({ success: false, changed: false });
+      }
+      _db.init(session.tenantId);
+      try {
+        return supabase.rpc("driver_update_order_status", {
+          p_order_id: id,
+          p_new_status: newStatus,
+          p_box_sub_id: boxSubId || null,
+          p_reason_code: reasonCode || null,
+          p_reason_note: reasonNote || null
+        }).then(function(res) {
+          if (res.error) throw res.error;
+          var payload = res.data || {};
+          if (payload.success !== true) throw new Error("driver_status_failed");
+          if (payload.changed !== true) {
+            notify("\u2139\uFE0F Status was already up to date.");
+            return payload;
+          }
+
+          var committed = normalizeOrderForUi(Object.assign({}, cur || {}, payload.order_data || {}, {
+            id: id,
+            office_id: cur && cur.office_id || null,
+            partner_id: cur && cur.partner_id || null,
+            route_id: cur && cur.route_id || null,
+            route_sequence: cur && cur.route_sequence != null ? cur.route_sequence : null
+          }));
+          setOrders(function(prev) {
+            return prev.map(function(o) { return o.id === id ? committed : o; });
+          });
+          dispatchCommittedStatusNotifications(committed, newStatus, boxSubId || null);
+
+          var credited = Number(payload.deposit_credited_amount || 0);
+          if (credited > 0) {
+            notify("\u2705 Box picked up \u2014 $" + credited.toFixed(2) + " deposit credited to account");
+          } else {
+            var driverRule = AUTOMATION_RULES.find(function(r) { return r.trigger === newStatus; });
+            if (driverRule) notify("\u26A1 " + driverRule.action);
+            else notify("\u2713 Status updated to " + ((STATUS_CFG[newStatus] && STATUS_CFG[newStatus].label) || newStatus));
+          }
+          return payload;
+        }).catch(function(err) {
+          console.error("[changeStatus] driver RPC error", err);
+          notify("\u274C Status update failed. Please try again.");
+          return { success: false, changed: false, error: err };
+        });
+      } catch (err) {
+        console.error("[changeStatus] driver RPC sync error", err);
+        notify("\u274C Status update failed. Please try again.");
+        return Promise.resolve({ success: false, changed: false, error: err });
+      }
+    }
+
     // v9.7.2: refactor away the `_csUpdated` outer-scope capture pattern.
     // setOrders is async, so checking _csUpdated synchronously after
     // setOrders returns races with the updater. Routes-page driver changes
@@ -28220,100 +28379,15 @@ setOrders(function (prev) {
     if (!updatedOrder) return;
     if (session && session.tenantId) {
       _db.init(session.tenantId);
-      if (roleKey === "driver") {
-        // v9.10: drivers use a narrow SECURITY DEFINER RPC that only writes
-        // `data.status` (via jsonb_set) and `updated_at` — no payment,
-        // customer, or assignment fields are exposed. The broad _db.upsert
-        // was replaced because it would have required a wide UPDATE RLS policy.
-        //
-        // v9.10.1 (JSONB path fix): status lives in orders.data->>'status',
-        // NOT as a top-level column. RPC patched accordingly.
-        //
-        // OPTIMISTIC UI GUARD: setOrders is called ONLY after a successful
-        // RPC response to prevent false local state on RPC error.
-        // If the RPC throws (e.g. invalid transition, network error), local
-        // state is NOT mutated — the catch block notifies the driver instead.
-        // Consistent with Test G in forbidden-write-tests.md.
-        try {
-          supabase.rpc('update_driver_status', {
-            p_order_id:   id,
-            p_new_status: newStatus
-          }).then(function(res) {
-            if (res.error) {
-              console.error('[changeStatus] driver RPC error', res.error);
-              notify('❌ Status update failed. Please try again.');
-              // Do NOT update local state — UI stays showing previous status.
-              // (setOrders is intentionally NOT called here)
-              return;
-            }
-            // Only on success: apply optimistic update to local state.
-            // References o.data.status (JSONB path) consistent with the RPC fix.
-            setOrders(function(prev) {
-              return prev.map(function(o) {
-                return o.id === id
-                  ? Object.assign({}, o, {
-                      data: Object.assign({}, o.data, { status: newStatus })
-                    })
-                  : o;
-              });
-            });
-          })['catch'](function(err) {
-            console.error('[changeStatus] driver RPC catch', err);
-            notify('❌ Status update failed. Please try again.');
-            // Do NOT update local state on network/unexpected error.
-          });
-        } catch(err) {
-          console.error('[changeStatus] driver RPC sync error', err);
-          notify('❌ Status update failed. Please try again.');
-        }
-      } else {
-        // Non-driver roles: keep existing optimistic pattern.
-        // HQ/Office upserts are reconciled by Supabase Realtime.
-        setOrders(updatedOrders);
-        _db.upsert("orders", id, updatedOrder);
-      }
+      // Driver calls returned above. HQ/Office retain the existing optimistic
+      // path and are reconciled by Supabase Realtime.
+      setOrders(updatedOrders);
+      _db.upsert("orders", id, updatedOrder);
     } else {
       // No session: still apply local-only optimistic update (offline/dev mode)
       setOrders(updatedOrders);
     }
-    // ── Sender-only WhatsApp/SMS status notifications ─────────────────────────
-    (function() {
-      var notifyOrder = updatedOrder;
-      var notifyBoxes = (notifyOrder.boxes && notifyOrder.boxes.length > 0)
-        ? notifyOrder.boxes.filter(function(b){ return b.orderStatus === newStatus || b.status === newStatus; })
-        : [];
-      // For legacy orders with no child boxes, notify at order level
-      if (!notifyBoxes.length && notifyOrder.notifyOnStatusChange) {
-        notifyBoxes = [{ subId: notifyOrder.id, notifyOnStatusChange: true, orderStatus: newStatus }];
-      }
-      var tenantId2 = session && session.tenantId ? session.tenantId : "casabe-xpress";
-      var trackBase = (tenant && tenant.trackingUrl) || "https://casabe-connect.netlify.app";
-      var statusLbl = (STATUS_CFG && STATUS_CFG[newStatus] && STATUS_CFG[newStatus].label) || newStatus;
-      notifyBoxes.forEach(function(box) {
-        if (!box.notifyOnStatusChange) return;
-        var target = getSenderNotificationTarget(notifyOrder, box);
-        if (!target.phone || target.phone.trim().length < 7) return;
-        var trackingNum = box.subId || notifyOrder.id;
-        var msgBody = renderMessageTemplate(newStatus, tenant, notifyOrder, box) || ("Hi " + target.name + ", your package " + trackingNum + " status: " + statusLbl + ".\nTrack: " + trackBase + "?number=" + encodeURIComponent(trackingNum) + "\n\u2014 " + getCompanyName(tenant));
-        fetch(PAID_INVOICE_EDGE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            orderId:        notifyOrder.id,
-            boxId:          box.subId || notifyOrder.id,
-            trackingNumber: trackingNum,
-            tenantId:       tenantId2,
-            targetRole:     "sender",
-            targetPhone:    target.phone.trim(),
-            phone:          target.phone.trim(),
-            channels:       ["whatsapp"],
-            messageBody:    msgBody,
-            source:         "status_change",
-            triggeredBy:    roleKey || "system"
-          })
-        }).catch(function(e){ console.error("[status notify]", e); });
-      });
-    })();
+    dispatchCommittedStatusNotifications(updatedOrder, newStatus, null);
     if (newStatus === "in_warehouse") {
       notify("✅ Box picked up — $10 deposit credited to account");
     }
@@ -28321,7 +28395,7 @@ setOrders(function (prev) {
       return r.trigger === newStatus;
     });
     if (rule) notify("\u26A1 ".concat(rule.action));else if (newDriver !== undefined) notify("\u2713 Assigned to ".concat(newDriver || "unassigned"));else if (reason) notify("\u26A0 Status reversed \u2014 reason logged");else notify("\u2713 Status updated to ".concat((_STATUS_CFG$newStatus = STATUS_CFG[newStatus]) === null || _STATUS_CFG$newStatus === void 0 ? void 0 : _STATUS_CFG$newStatus.label));
-  }, [notify, orders, roleKey]);
+  }, [dispatchCommittedStatusNotifications, notify, orders, roleKey, session]);
 
   // P4: box-scoped status change. Used by BulkStatusPage when a scan matched a
   // child box subId rather than a parent order id. Updates only that specific
