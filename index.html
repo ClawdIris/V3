@@ -26411,7 +26411,7 @@ function TeamPage(_refTP) {
   var session   = _refTP.session || {};
   var notify    = _refTP.notify || function () {};
   var t = useT();
-  var canManage = ckCan(session, "manage_team");
+  var canManage = session.roleKey === "hq" && ckCan(session, "manage_team");
 
   var _tp1 = useState([]),    _tp1a = _slicedToArray(_tp1, 2), rows = _tp1a[0], setRows = _tp1a[1];
   var _tp2 = useState(true),  _tp2a = _slicedToArray(_tp2, 2), loading = _tp2a[0], setLoading = _tp2a[1];
