@@ -5,7 +5,8 @@ const source = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8")
 
 describe("P0 Pack 1 frontend contract", () => {
   test("uses only the new driver status RPC", () => {
-    expect(source).toContain('supabase.rpc("driver_update_order_status"');
+    expect(source).toContain('_supabase.rpc("driver_update_order_status"');
+    expect(source).not.toContain('return supabase.rpc("driver_update_order_status"');
     expect(source).not.toContain("supabase.rpc('update_driver_status'");
   });
 
@@ -23,7 +24,7 @@ describe("P0 Pack 1 frontend contract", () => {
   });
 
   test("customer messaging is downstream of changed true", () => {
-    const rpcStart = source.indexOf('supabase.rpc("driver_update_order_status"');
+    const rpcStart = source.indexOf('_supabase.rpc("driver_update_order_status"');
     const noOpGate = source.indexOf("payload.changed !== true", rpcStart);
     const notify = source.indexOf("dispatchCommittedStatusNotifications(committed", rpcStart);
     expect(rpcStart).toBeGreaterThan(-1);

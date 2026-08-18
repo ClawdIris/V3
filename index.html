@@ -28274,7 +28274,7 @@ setOrders(function (prev) {
       }
       _db.init(session.tenantId);
       try {
-        return supabase.rpc("driver_update_order_status", {
+        return _supabase.rpc("driver_update_order_status", {
           p_order_id: id,
           p_new_status: newStatus,
           p_box_sub_id: boxSubId || null,
