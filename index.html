@@ -78,10 +78,42 @@
     // Mirrors public.has_capability() in Postgres; the DB remains the
     // authority, this copy only drives what the UI offers.
     var CK_CAPABILITY_FALLBACK = {
-      hq:     ["office", "manage_team", "view_financials"],
+      hq:     ["office", "manage_team", "view_all_tenant_financials"],
       office: ["office"],
       driver: ["origin_pickup", "origin_dropoff"]
     };
+    // Finance capability gates (2026-08-18): Payments/Margin are permission-
+    // based, never automatic from role. Server whitelist extended in the
+    // companion finance_caps migration.
+    var CK_FINANCE_VIEW_CAPS = ["view_all_tenant_financials", "view_office_payments", "collect_payments"];
+    // Revision R2: session-aware, ROLE-FIRST finance gates. A driver session
+    // is denied before capabilities are consulted, so stray finance caps in a
+    // driver's metadata can never open Payments/Margin. Session object wins;
+    // the login globals (__CK_ROLE/__CK_CAPS) are only a fallback for call
+    // sites with no session in scope.
+    function ckFinRoleOf(session) {
+      try { return String((session && session.roleKey) || window.__CK_ROLE || "").toLowerCase(); }
+      catch (e) { return ""; }
+    }
+    function ckFinCapsOf(session) {
+      try { return (session && session.capabilities) || ckCapsGlobal(); }
+      catch (e) { return []; }
+    }
+    function ckFinView(session) {
+      if (ckFinRoleOf(session) === "driver") return false;
+      var caps = ckFinCapsOf(session);
+      return CK_FINANCE_VIEW_CAPS.some(function (c) { return caps.indexOf(c) >= 0; });
+    }
+    function ckMarginView(session) {
+      if (ckFinRoleOf(session) === "driver") return false;
+      var caps = ckFinCapsOf(session);
+      return caps.indexOf("view_all_tenant_financials") >= 0 || caps.indexOf("view_margin_summary") >= 0;
+    }
+    function ckFinanceNavOk(k, session) {
+      if (k === "payments") return ckFinView(session);
+      if (k === "margin_summary") return ckMarginView(session);
+      return true;
+    }
     function ckCapabilities(membership, roleKey) {
       try {
         var meta = membership && membership.metadata;
@@ -23862,6 +23894,19 @@ function ckDriverNav(session) {
    Appended for anyone holding manage_team (HQ) or the office capability.
    The Office build of the page is read-mostly and scoped to its own office
    server-side; this only decides whether the link is offered. */
+// Revision R2: finance nav filtering must run PER SESSION, never at script
+// load. The static ROLES literal is evaluated before login, when __CK_ROLE
+// and __CK_CAPS are still empty, so a load-time filter strips Payments and
+// Margin from the config for every role, HQ included. This runs inside
+// LIVE_ROLES where the real session exists.
+function ckWithFinanceNav(baseNav, session) {
+  return (baseNav || []).map(function (g) {
+    var g2 = {};
+    for (var p in g) { if (Object.prototype.hasOwnProperty.call(g, p)) g2[p] = g[p]; }
+    g2.items = (g.items || []).filter(function (x) { return ckFinanceNavOk(x.k, session); });
+    return g2;
+  });
+}
 function ckWithTeamNav(baseNav, session) {
   var caps = (session && session.capabilities) || ckCapsGlobal();
   var manage = caps.indexOf("manage_team") >= 0;
@@ -26404,7 +26449,10 @@ var CK_ALL_CAPABILITIES = [
   { k: "destination_delivery", l: "Destination delivery", ls: "Entrega destino",     op: true },
   { k: "office",               l: "Office tools",         ls: "Herramientas oficina", op: false },
   { k: "manage_team",          l: "Manage team",          ls: "Gestionar equipo",    op: false },
-  { k: "view_financials",      l: "View financials",      ls: "Ver finanzas",        op: false }
+  { k: "view_office_payments",       l: "Finance: View office payments",       ls: "Finanzas: Ver pagos de oficina",       op: false },
+  { k: "collect_payments",           l: "Finance: Collect payments",           ls: "Finanzas: Cobrar pagos",               op: false },
+  { k: "view_margin_summary",        l: "Finance: View margin summary",        ls: "Finanzas: Ver resumen de margen",      op: false },
+  { k: "view_all_tenant_financials", l: "Finance: All tenant financials (HQ)", ls: "Finanzas: Todo el inquilino (HQ)",     op: false }
 ];
 
 function TeamPage(_refTP) {
@@ -26475,11 +26523,13 @@ function TeamPage(_refTP) {
   var save = function save(m) {
     if (busy) return;
     setBusy(true);
-    var patch = { route_label: draft.route_label, active: draft.active };
+    var patch = { active: draft.active };
+    if (effRole(m) === "driver" || draft.route_label) patch.route_label = draft.route_label;
     if (!draft.inherited) patch.capabilities = draft.capabilities;
     if (canManage) { patch.app_role = draft.app_role; patch.office_id = draft.office_id || null; }
     // Never send a self-edit the server will reject anyway.
-    if (m.user_id === session.userId) { delete patch.active; delete patch.capabilities; delete patch.app_role; }
+    if (m.user_id === session.userId) { delete patch.active; delete patch.capabilities; delete patch.app_role; delete patch.office_id; }
+    if (Object.keys(patch).length === 0) { setBusy(false); notify(t("No changes to save", "Sin cambios para guardar")); return; }
     _supabase.rpc("update_team_member", { p_member_id: m.member_id, p_patch: patch }).then(function (res) {
       setBusy(false);
       if (res.error) { notify("\u26A0\uFE0F " + (res.error.message || "Update rejected")); return; }
@@ -26644,7 +26694,7 @@ function TeamPage(_refTP) {
         /*#__PURE__*/React.createElement("span", { style: { fontWeight: 400, color: "var(--text3)" } },
           " \u2014 " + t("leave all unticked to inherit from the role", "d\u00E9jalas sin marcar para heredar del rol"))),
       /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10 } },
-        CK_ALL_CAPABILITIES.map(function (c) {
+        CK_ALL_CAPABILITIES.filter(function (c) { return canManage || c.op; }).map(function (c) {
           var allowed = canManage || c.op;
           return /*#__PURE__*/React.createElement("label", {
             key: c.k,
@@ -26724,7 +26774,7 @@ function TeamPage(_refTP) {
               /*#__PURE__*/React.createElement("div", { style: { fontSize: 11.5, fontWeight: 600, color: "#999", marginBottom: 7 } },
                 t("Capabilities", "Capacidades")),
               /*#__PURE__*/React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 14 } },
-                CK_ALL_CAPABILITIES.map(function (c) {
+                CK_ALL_CAPABILITIES.filter(function (c) { return canManage || c.op; }).map(function (c) {
                   var allowed = canManage || c.op;
                   return /*#__PURE__*/React.createElement("label", {
                     key: c.k,
@@ -26759,7 +26809,7 @@ function TeamPage(_refTP) {
                   /*#__PURE__*/React.createElement("label", { style: { fontSize: 11.5, color: "#999", display: "block", marginBottom: 4 } },
                     t("Office", "Oficina")),
                   /*#__PURE__*/React.createElement("select", {
-                    style: fieldStyle, value: draft.office_id || "",
+                    style: fieldStyle, value: draft.office_id || "", disabled: isSelf,
                     onChange: function (e) { var v = e.target.value; setDraft(function (d) { return _objectSpread(_objectSpread({}, d), {}, { office_id: v }); }); } },
                     [/*#__PURE__*/React.createElement("option", { key: "_none", value: "" }, t("\u2014 none \u2014", "\u2014 ninguna \u2014"))].concat(
                       offices.map(function (o) {
@@ -27790,7 +27840,7 @@ function AppShell(_ref130) {
   };
   var LIVE_ROLES = {
     hq: _objectSpread(_objectSpread({}, ROLES.hq), {}, {
-      nav: ckWithTeamNav(ROLES.hq.nav, session),
+      nav: ckWithFinanceNav(ckWithTeamNav(ROLES.hq.nav, session), session),
       titles: _objectSpread(_objectSpread({}, ROLES.hq.titles), {}, {
         team: T("Team & Access", "Equipo y Accesos")
       }),
@@ -27802,7 +27852,7 @@ function AppShell(_ref130) {
       }
     }),
     office: _objectSpread(_objectSpread({}, ROLES.office), {}, {
-      nav: ckWithTeamNav(ROLES.office.nav, session),
+      nav: ckWithFinanceNav(ckWithTeamNav(ROLES.office.nav, session), session),
       titles: _objectSpread(_objectSpread({}, ROLES.office.titles), {}, {
         team: T("Team & Access", "Equipo y Accesos")
       }),
@@ -31479,6 +31529,7 @@ setOrders(function (prev) {
       tenant: tenant,
       notify: notify
     });
+    if (page === "payments" && !ckFinView(session)) return /*#__PURE__*/React.createElement("div", { className: "card", style: { margin: 20 } }, "Not authorized \u00b7 No autorizado");
     if (page === "payments") return /*#__PURE__*/React.createElement(PaymentsPage, {
       orders: orders
     });
@@ -31775,6 +31826,7 @@ setOrders(function (prev) {
     // Phase 6 — Slice 4: Box Sale Tracking (HQ + Office; no driver margin)
     if (page === "box_sale") return /*#__PURE__*/React.createElement(BoxSaleTrackingPage, { session: session, notify: notify, roleKey: roleKey });
     // Phase 6 — Slice 4: Margin Summary (HQ tenant-wide; Office scoped; Driver blocked)
+    if (page === "margin_summary" && !ckMarginView(session)) return /*#__PURE__*/React.createElement("div", { className: "card", style: { margin: 20 } }, "Not authorized \u00b7 No autorizado");
     if (page === "margin_summary") return /*#__PURE__*/React.createElement(MarginSummaryPage, { roleKey: roleKey, officeFilter: (function(){ if (roleKey !== 'office') return null; var _off = (tenant && tenant.__dbOffices) || []; var _firstOff = _off.find(function(o){ return o.slug === 'casabe-xpress-ny'; }) || _off[0]; return _firstOff ? _firstOff.id : null; })() });
     // Phase 6 — Slice 5 Stage 5: Message Templates CRUD (HQ + Office create/edit/archive; Driver read-only)
 	    if (page === "msg_templates") return /*#__PURE__*/React.createElement(MessageTemplatesCRUDPage, { roleKey: roleKey });
