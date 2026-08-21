@@ -23609,6 +23609,11 @@ var ROLES = {
         ls: "Cola de Mensajes",
         i: "📬"
       }, {
+        k: "msg_inbox",
+        l: "Messages",
+        ls: "Mensajes",
+        i: "💬"
+      }, {
         k: "campaigns",
         l: "Campaigns",
         ls: "Campañas",
@@ -23687,7 +23692,7 @@ var ROLES = {
       tape_direct: "Tape Direct",
       box_sale: "Box Sale Tracking",
       margin_summary: "Margin Summary",
-      msg_templates: "Message Templates", msg_queue: "Message Queue", msg_provider: "Provider Config", msg_queue: "Message Queue"
+      msg_templates: "Message Templates", msg_queue: "Message Queue", msg_provider: "Provider Config", msg_inbox: "Messages"
     }
   },
   office: {
@@ -23771,6 +23776,11 @@ var ROLES = {
         ls: "Plantillas de Mensaje",
         i: "📨"
       }, {
+        k: "msg_inbox",
+        l: "Messages",
+        ls: "Mensajes",
+        i: "💬"
+      }, {
         k: "campaigns",
         l: "Campaigns",
         ls: "Campañas",
@@ -23790,7 +23800,8 @@ var ROLES = {
       tape_direct: "Tape Direct",
       box_sale: "Box Sale Tracking",
       margin_summary: "Margin Summary",
-      msg_templates: "Message Templates"
+      msg_templates: "Message Templates",
+      msg_inbox: "Messages"
     }
   },
   driver: {
@@ -28505,7 +28516,7 @@ setOrders(function (prev) {
     setRoleKey(r);
     // Validate page for new role and reset if invalid
     var newPage = r === "hq" ? "overview" : r === "office" ? "ow_dash" : "driver_route";
-    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view", "tape_direct", "box_sale", "margin_summary", "msg_templates", "msg_provider", "msg_queue"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices", "tape_direct", "box_sale", "margin_summary", "msg_templates", "msg_queue"] : ["driver_route", "driver_proof"];
+    var validPages = r === "hq" ? ["overview", "analytics", "customers", "onboarding", "hq_ops", "shipments", "receipts_invoices", "map_view", "tape_direct", "box_sale", "margin_summary", "msg_templates", "msg_provider", "msg_queue", "msg_inbox"] : r === "office" ? ["ow_dash", "ow_route", "ow_team", "ow_import", "receipts_invoices", "tape_direct", "box_sale", "margin_summary", "msg_templates", "msg_queue", "msg_inbox"] : ["driver_route", "driver_proof"];
     var shouldResetPage = !validPages.includes(page);
     setPage(shouldResetPage ? newPage : page);
   };
@@ -30798,6 +30809,176 @@ setOrders(function (prev) {
   };
   /* END Phase 6 Slice 5 Stage 1: MessageTemplatesPage */
 
+
+
+  /* ══════════════════════════════════════════════════════════════
+     Twilio Phase 1: MessagingInboxPage
+     Durable HQ/Office SMS inbox. Authority lives in RLS/RPCs; this UI only
+     calls scoped server functions and exposes no Twilio credentials.
+  ══════════════════════════════════════════════════════════════ */
+  var MessagingInboxPage = function MessagingInboxPage(_ref_inbox) {
+    var roleKey = _ref_inbox.roleKey, supabase = _ref_inbox.supabase;
+    var t = useT();
+    var _threads = useState([]), threads = _threads[0], setThreads = _threads[1];
+    var _selected = useState(null), selected = _selected[0], setSelected = _selected[1];
+    var _messages = useState([]), messages = _messages[0], setMessages = _messages[1];
+    var _q = useState(""), q = _q[0], setQ = _q[1];
+    var _filter = useState("open"), filter = _filter[0], setFilter = _filter[1];
+    var _body = useState(""), body = _body[0], setBody = _body[1];
+    var _template = useState(""), templateKey = _template[0], setTemplateKey = _template[1];
+    var _category = useState("transactional"), category = _category[0], setCategory = _category[1];
+    var _busy = useState(false), busy = _busy[0], setBusy = _busy[1];
+    var _error = useState(null), error = _error[0], setError = _error[1];
+
+    var templates = (typeof _localTemplates !== "undefined" ? _localTemplates : []).filter(function(tpl) {
+      return tpl.is_active !== false && (tpl.channel === "sms" || tpl.channel === "both");
+    });
+
+    function loadThreads() {
+      if (!supabase) return;
+      var f = { q: q, status: filter === "all" ? "" : filter, unmatched: filter === "unmatched", limit: 50 };
+      supabase.rpc("inbox_list_threads", { p_filter: f }).then(function(res) {
+        if (!res.error) setThreads(res.data || []);
+      });
+    }
+    function loadMessages(threadId) {
+      if (!supabase || !threadId) return;
+      supabase.rpc("inbox_list_messages", { p_thread_id: threadId }).then(function(res) {
+        if (!res.error) setMessages(res.data || []);
+      });
+    }
+    useEffect(function() { loadThreads(); }, [q, filter]);
+    useEffect(function() {
+      if (!selected) return;
+      loadMessages(selected.id);
+      if (!supabase) return;
+      var channel = supabase.channel("twilio-inbox-" + selected.id)
+        .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: "thread_id=eq." + selected.id }, function() { loadMessages(selected.id); loadThreads(); })
+        .on("postgres_changes", { event: "*", schema: "public", table: "message_threads", filter: "id=eq." + selected.id }, function() { loadThreads(); })
+        .subscribe();
+      return function() { supabase.removeChannel(channel); };
+    }, [selected && selected.id]);
+
+    if (roleKey === "driver") {
+      return React.createElement("div", { className: "card", style: { margin: 20, padding: 24 } }, "Not authorized");
+    }
+
+    function applyTemplate(key) {
+      setTemplateKey(key);
+      var tpl = templates.find(function(t) { return t.id === key; });
+      if (tpl) setBody(_tmplSubstitute(tpl.body_en || tpl.body_es || "", TEMPLATE_SAMPLE_DATA).slice(0, 320));
+    }
+    function send() {
+      if (!selected || !supabase || busy) return;
+      setBusy(true); setError(null);
+      supabase.functions.invoke("sms-send", { body: { thread_id: selected.id, body: body, template_key: templateKey || null, category: category } })
+        .then(function(res) {
+          setBusy(false);
+          if (res.error || (res.data && res.data.ok === false)) {
+            setError((res.data && (res.data.message || res.data.error)) || "Send failed");
+            return;
+          }
+          setBody(""); setTemplateKey(""); loadMessages(selected.id); loadThreads();
+        })
+        .catch(function(e) { setBusy(false); setError(String(e)); });
+    }
+    var optedOutCopy = "This customer has opted out of text messages. Ask them to opt in again before sending.";
+    var selectedBlocked = selected && selected.metadata && selected.metadata.sms_reason === "consent_revoked";
+
+    return React.createElement("div", { className: "fu", id: "twilio-inbox-panel" },
+      React.createElement("div", { className: "row g10 mb18", style: { flexWrap: "wrap" } },
+        React.createElement("div", null,
+          React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 18, color: "var(--amber)" } }, t("Messages", "Mensajes")),
+          React.createElement("div", { className: "mut xs", style: { marginTop: 2 } },
+            roleKey === "hq" ? t("Tenant-wide SMS inbox and triage.", "Bandeja SMS de todo el tenant y triaje.") : t("Office-scoped SMS inbox.", "Bandeja SMS limitada a la oficina."))
+        ),
+        React.createElement("div", { className: "mla row g6" },
+          ["open","unmatched","closed","all"].map(function(f) {
+            return React.createElement("button", { key: f, className: "btn btn-sm " + (filter === f ? "btn-primary" : "btn-ghost"), onClick: function() { setFilter(f); } }, f);
+          })
+        )
+      ),
+      error && React.createElement("div", { className: error === optedOutCopy ? "alert alert-r" : "alert alert-a", id: "inbox-send-error" }, error),
+      React.createElement("div", { style: { display: "grid", gridTemplateColumns: "300px minmax(0,1fr) 280px", gap: 12 }, id: "inbox-layout" },
+        React.createElement("div", { className: "card", style: { minHeight: 520 } },
+          React.createElement("div", { className: "card-hd" },
+            React.createElement("div", { className: "card-title" }, t("Threads", "Conversaciones")),
+            React.createElement("span", { className: "badge ba" }, threads.length)
+          ),
+          React.createElement("div", { className: "card-bd", style: { padding: 10 } },
+            React.createElement("input", { className: "fi", value: q, placeholder: t("Search customer, phone, order", "Buscar cliente, teléfono, orden"), onChange: function(e) { setQ(e.target.value); }, style: { marginBottom: 10 } }),
+            threads.length === 0 && React.createElement("div", { className: "mut xs", style: { padding: 14 } }, t("No threads found.", "No se encontraron conversaciones.")),
+            threads.map(function(th) {
+              var on = selected && selected.id === th.id;
+              return React.createElement("div", { key: th.id, onClick: function() { setSelected(th); }, style: { padding: "10px 8px", borderLeft: on ? "3px solid var(--amber)" : "3px solid transparent", background: on ? "var(--amberdim)" : "transparent", cursor: "pointer", borderBottom: "1px solid var(--border)" } },
+                React.createElement("div", { className: "row g6" },
+                  React.createElement("div", { className: "tb", style: { fontSize: 12 } }, th.customer_display_name || th.customer_phone_e164),
+                  th.unread_count > 0 && React.createElement("span", { className: "badge br", style: { marginLeft: "auto" } }, th.unread_count)
+                ),
+                React.createElement("div", { className: "mut xs", style: { marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, th.last_message_preview || "—"),
+                React.createElement("div", { className: "row g6", style: { marginTop: 5 } },
+                  React.createElement("span", { className: "badge " + (th.office_id ? "bt" : "ba") }, th.office_id ? "office" : "triage"),
+                  React.createElement("span", { className: "badge bgr" }, th.status)
+                )
+              );
+            })
+          )
+        ),
+        React.createElement("div", { className: "card", style: { minHeight: 520, display: "flex", flexDirection: "column" } },
+          React.createElement("div", { className: "card-hd" },
+            React.createElement("div", { className: "card-title" }, selected ? (selected.customer_display_name || selected.customer_phone_e164) : t("Select a thread", "Seleccione una conversación")),
+            selected && React.createElement("button", { className: "btn btn-ghost btn-xs", onClick: function() { supabase.rpc("inbox_mark_read", { p_thread_id: selected.id, p_read: true }).then(loadThreads); } }, t("Mark read", "Marcar leído"))
+          ),
+          React.createElement("div", { style: { flex: 1, overflowY: "auto", padding: 14 } },
+            !selected && React.createElement("div", { className: "mut", style: { textAlign: "center", paddingTop: 80 } }, t("Choose a conversation from the left.", "Elige una conversación a la izquierda.")),
+            selected && messages.map(function(m) {
+              var outbound = m.direction === "outbound";
+              return React.createElement("div", { key: m.id, style: { display: "flex", justifyContent: outbound ? "flex-end" : "flex-start", marginBottom: 10 } },
+                React.createElement("div", { style: { maxWidth: "76%", background: outbound ? "var(--amberdim)" : "var(--bg3)", border: "1px solid var(--border)", borderRadius: 8, padding: "9px 11px" } },
+                  React.createElement("div", { style: { whiteSpace: "pre-wrap", lineHeight: 1.45 } }, m.body || m.rendered_body),
+                  React.createElement("div", { className: "mut xs", style: { marginTop: 5 } }, outbound ? (m.provider_status || m.status) : "received")
+                )
+              );
+            })
+          ),
+          selected && React.createElement("div", { style: { borderTop: "1px solid var(--border)", padding: 12 } },
+            selectedBlocked && React.createElement("div", { className: "alert alert-r", style: { marginBottom: 8 } }, optedOutCopy),
+            React.createElement("div", { className: "row g6", style: { marginBottom: 8 } },
+              React.createElement("select", { className: "fi", value: templateKey, onChange: function(e) { applyTemplate(e.target.value); } },
+                React.createElement("option", { value: "" }, t("Template", "Plantilla")),
+                templates.map(function(tpl) { return React.createElement("option", { key: tpl.id, value: tpl.id }, tpl.name); })
+              ),
+              React.createElement("select", { className: "fi", value: category, onChange: function(e) { setCategory(e.target.value); }, style: { maxWidth: 150 } },
+                React.createElement("option", { value: "transactional" }, "transactional"),
+                React.createElement("option", { value: "marketing" }, "marketing")
+              )
+            ),
+            React.createElement("textarea", { className: "fi", rows: 3, maxLength: 320, value: body, disabled: selectedBlocked, placeholder: t("Short custom reply", "Respuesta corta personalizada"), onChange: function(e) { setBody(e.target.value); } }),
+            React.createElement("div", { className: "row g6", style: { marginTop: 8 } },
+              React.createElement("div", { className: "mut xs" }, body.length + "/320"),
+              React.createElement("button", { className: "btn btn-primary btn-sm mla", disabled: busy || selectedBlocked || !body.trim(), onClick: send }, busy ? t("Sending...", "Enviando...") : t("Send", "Enviar"))
+            )
+          )
+        ),
+        React.createElement("div", { className: "card", style: { minHeight: 520 } },
+          React.createElement("div", { className: "card-hd" }, React.createElement("div", { className: "card-title" }, t("Context", "Contexto"))),
+          React.createElement("div", { className: "card-bd" },
+            !selected && React.createElement("div", { className: "mut xs" }, t("Thread context appears here.", "El contexto aparece aquí.")),
+            selected && React.createElement(React.Fragment, null,
+              React.createElement("div", { className: "fl" }, t("Customer phone", "Teléfono del cliente")),
+              React.createElement("div", { className: "mono mb12" }, selected.customer_phone_e164),
+              React.createElement("div", { className: "fl" }, t("Order", "Orden")),
+              React.createElement("div", { className: "mono mb12" }, selected.order_id || t("Unmatched triage", "Triaje sin vincular")),
+              React.createElement("div", { className: "fl" }, t("Office", "Oficina")),
+              React.createElement("div", { className: "mono mb12" }, selected.office_id || t("HQ triage only", "Solo triaje HQ")),
+              React.createElement("div", { className: "alert alert-b", style: { fontSize: 11 } }, t("Consent and office scope are enforced by server RPCs before every send.", "El consentimiento y alcance de oficina se validan en RPCs del servidor antes de cada envío."))
+            )
+          )
+        )
+      )
+    );
+  };
+
   /* ══════════════════════════════════════════════════════════════
      Phase 6 — Slice 5 Stage 5: MessageTemplatesCRUDPage
      Full CRUD: create, read, update, archive/reactivate.
@@ -31832,6 +32013,7 @@ setOrders(function (prev) {
 	    if (page === "msg_templates") return /*#__PURE__*/React.createElement(MessageTemplatesCRUDPage, { roleKey: roleKey });
 	    if (page === "msg_provider") return /*#__PURE__*/React.createElement(ProviderConfigPage, { roleKey: roleKey, supabase: _supabase });
 	    if (page === "msg_queue") return /*#__PURE__*/React.createElement(MessageQueuePage, { roleKey: roleKey, currentUser: session, supabase: _supabase });
+	    if (page === "msg_inbox") return /*#__PURE__*/React.createElement(MessagingInboxPage, { roleKey: roleKey, currentUser: session, supabase: _supabase });
 	    if (page === "drivers") return /*#__PURE__*/React.createElement("div", {
 	      className: "fu"
 	    }, /*#__PURE__*/React.createElement(LiveFleetCard, {
