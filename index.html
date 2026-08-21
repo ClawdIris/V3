@@ -2441,6 +2441,37 @@ var CalendarPicker = function CalendarPicker(props) {
    Calls Edge Function for WhatsApp / SMS send.
 ════════════════════════════════════════════ */
 var PAID_INVOICE_EDGE_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/send-paid-invoice";
+// X-3 v20: the ONLY path to send-paid-invoice. Attaches the current session JWT.
+// The Edge Function derives destination phone and message body server-side from the
+// order row; any phone/messageBody still passed here is ignored by the server.
+// Rejects (never calls out) when there is no authenticated session.
+var CK_MESSAGING_ERROR_TEXT = {
+  unauthorized: "Your session has expired. Please sign in again.",
+  denied: "You are not allowed to send messages for this order.",
+  consent_missing: "The customer has not opted in to messages for this order.",
+  consent_revoked: "The customer has opted out of messages for this order.",
+  no_destination_phone: "No valid sender phone is on the order.",
+  status_not_notifiable: "This order status has no customer message."
+};
+function ckMessagingErrorText(status, data) {
+  var code = data && data.error;
+  return (code && CK_MESSAGING_ERROR_TEXT[code]) || ("Message request failed (HTTP " + status + ")");
+}
+function ckSendMessaging(payload) {
+  return _supabase.auth.getSession().then(function (s) {
+    var token = s && s.data && s.data.session && s.data.session.access_token;
+    if (!token) return Promise.reject(new Error("unauthorized"));
+    return fetch(PAID_INVOICE_EDGE_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + token
+      },
+      body: JSON.stringify(payload)
+    });
+  });
+}
 var LOG_BOX_STATUS_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/log-box-status";
 var QB_CONNECT_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/quickbooks-connect";
 var CK_QB_ENABLED = false; // QuickBooks removed from beta scope (2026-08-17 gate decision). Endpoint is a 503 stub. Do not flip without the Workstream D2/D3 rebuild and owner approval.
@@ -2663,27 +2694,17 @@ var BulkScanModal = function BulkScanModal(props) {
           "Hi " + senderNameStr + ", your " + coName + " driver collected $" +
           cashOpts.amount.toFixed(2) + " cash for order " + updatedOrder.id +
           ". Payment confirmed. Thank you!";
-        fetch(PAID_INVOICE_EDGE_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        // X-3 v20: destination + body are derived server-side from the order row.
+        ckSendMessaging({
             orderId:        updatedOrder.id,
-            tenantId:       (tenant && tenant.id) || "casabe-xpress",
             channels:       ["whatsapp"],
-            phone:          waPhone,
-            messageBody:    receiptMsg,
-            triggeredBy:    userName || userId || "driver",
-            source:         "driver_bulk_scan_cash",
-            targetRole:     "sender",
-            targetPhone:    waPhone,
-            senderName:     senderNameStr
-          })
+            source:         "driver_bulk_scan_cash"
         })
         .then(function(res){
           if (!res.ok) {
-            return res.text().then(function(t){
-              console.error("[bulk-scan] receipt send HTTP " + res.status + ":", t);
-              setFeedback({ type: "error", msg: "Receipt send failed (HTTP " + res.status + ") — status was applied" });
+            return res.json().catch(function(){ return null; }).then(function(j){
+              console.error("[bulk-scan] receipt send HTTP " + res.status + ":", j);
+              setFeedback({ type: "error", msg: "Receipt not sent: " + ckMessagingErrorText(res.status, j) + " — status was applied" });
               setTimeout(function(){ setFeedback(null); }, 4500);
             });
           }
@@ -3068,34 +3089,21 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
     // whatsapp was in channels, so SMS-only sends went out with empty phone
     // and the Edge Function rejected the request.
     var needsPhone = channels.includes("whatsapp") || channels.includes("sms");
-    fetch(PAID_INVOICE_EDGE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    // X-3 v20: destination + body are derived server-side from the order row.
+    // invoiceHtml/messageBody/phone are no longer sent (server ignores them anyway).
+    ckSendMessaging({
         orderId:        order.id,
-        tenantId:       (tenant && tenant.id) || "casabe-xpress",
         channels:       channels,
-        // Legacy field — kept so currently-deployed Edge Function keeps working
-        phone:          needsPhone ? waPhone : "",
-        // New fields for the upcoming Edge Function rewrite
-        customerName:   toName,
-        customerPhone:  needsPhone ? waPhone : "",
-        customerEmail:  channels.includes("email") ? email : "",
-        invoiceNumber:  order.id,
-        amount:         amount,
-        shipmentId:     shipmentId,
-        invoiceDate:    invoiceDate,
-        templateName:   "paid_invoice",
-        templateLang:   "en_US",
-        invoiceHtml:    buildInvoiceHtml(),
-        messageBody:    msgPreview,
-        targetRole:     "sender",
-        source:         "paid_modal",
-        triggeredBy:    (tenant && tenant.currentUser) || "staff"
-      })
+        source:         "paid_modal"
     })
-    .then(function(r){ return r.json(); })
-    .then(function(data) {
+    .then(function(r){ return r.json().then(function(data){ return { status: r.status, ok: r.ok, data: data }; }); })
+    .then(function(res) {
+      if (!res.ok) {
+        setSendResult({ _error: ckMessagingErrorText(res.status, res.data) });
+        setSendState("error");
+        return;
+      }
+      var data = res.data;
       setSendResult(data.results || data || {});
       setSendState("done");
       setTimeout(function(){ onConfirm(); }, 2800);
@@ -17236,23 +17244,12 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
 
   function checkStatus() {
     setLoading(true); setErr(null);
-    fetch(PAID_INVOICE_EDGE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        orderId: "TEST-STATUS-CHECK",
-        tenantId: tenantId,
-        channels: ["whatsapp", "sms"],
-        phone: testPhone.trim() || "+10000000000",
-        messageBody: (typeof tenant !== "undefined" && tenant && tenant.name ? tenant.name : "Casabe Connect") + " integration test. Please ignore.",
-        triggeredBy: session.displayName || "admin",
-        source: "admin_status_check",
-        testMode: true
-      })
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(data) {
-      var r = data.results || {};
+    // X-3 v20: no-send configuration probe (HQ only). Nothing is sent to anyone.
+    ckSendMessaging({ source: "status_probe" })
+    .then(function(r){ return r.json().then(function(data){ return { status: r.status, ok: r.ok, data: data }; }); })
+    .then(function(res) {
+      if (!res.ok) { setErr(ckMessagingErrorText(res.status, res.data)); setLoading(false); return; }
+      var r = res.data.results || {};
       setWaStatus(r.whatsapp || null);
       setSmsStatus(r.sms || null);
       setLoading(false);
@@ -17293,26 +17290,20 @@ var IntegrationStatusPage = function IntegrationStatusPage(props) {
         return;
       }
 
-      fetch(PAID_INVOICE_EDGE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // X-3 v20: the server re-renders the message from the order row; the stored
+      // send_log.message_body is never replayed. retryKind selects the template.
+      ckSendMessaging({
           orderId:        row.order_id,
           boxId:          row.box_id || row.order_id,
           trackingNumber: row.tracking_number || row.order_id,
-          tenantId:       row.tenant_id || tenantId,
-          targetRole:     "sender",
-          targetPhone:    resolvedPhone,
-          phone:          resolvedPhone,
-          senderName:     resolved.senderName,
           channels:       row.channels || ["whatsapp"],
-          messageBody:    row.message_body || ("Resent: Your invoice for order " + row.order_id + " is confirmed paid."),
-          triggeredBy:    session.displayName || "admin",
+          retryKind:      row.source || "paid_modal",
           source:         "admin_retry"
-        })
       })
-      .then(function(r){ return r.json(); })
-      .then(function(data) {
+      .then(function(r){ return r.json().then(function(data){ return { status: r.status, ok: r.ok, data: data }; }); })
+      .then(function(res) {
+        if (!res.ok) { window.alert("Retry not sent: " + ckMessagingErrorText(res.status, res.data)); }
+        var data = res.ok ? res.data : {};
         var ok = Object.values(data.results || {}).some(function(r){ return r && r.ok; });
         setRetryResults(function(p){ var n=Object.assign({},p); n[row.id]=ok?"ok":"fail"; return n; });
         setRetryingId(null);
@@ -28273,22 +28264,16 @@ setOrders(function (prev) {
       if (!target.phone || target.phone.trim().length < 7) return;
       var trackingNum = box.subId || notifyOrder.id;
       var msgBody = renderMessageTemplate(newStatus, tenant, notifyOrder, box) || ("Hi " + target.name + ", your package " + trackingNum + " status: " + statusLbl + ".\nTrack: " + trackBase + "?number=" + encodeURIComponent(trackingNum) + "\n\u2014 " + getCompanyName(tenant));
-      fetch(PAID_INVOICE_EDGE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // X-3 v20: server reads the committed status from the order row and renders
+      // the template itself; msgBody/phone computed above are no longer sent.
+      ckSendMessaging({
           orderId: notifyOrder.id,
           boxId: box.subId || notifyOrder.id,
           trackingNumber: trackingNum,
-          tenantId: tenantId2,
-          targetRole: "sender",
-          targetPhone: target.phone.trim(),
-          phone: target.phone.trim(),
           channels: ["whatsapp"],
-          messageBody: msgBody,
-          source: "status_change",
-          triggeredBy: roleKey || "system"
-        })
+          source: "status_change"
+      }).then(function(r) {
+        if (!r.ok) return r.json().catch(function(){ return null; }).then(function(j){ console.warn("[status notify] not sent:", r.status, j && j.error); });
       }).catch(function(e) { console.error("[status notify]", e); });
     });
   }, [roleKey, session, tenant]);
