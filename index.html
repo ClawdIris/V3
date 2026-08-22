@@ -2441,6 +2441,8 @@ var CalendarPicker = function CalendarPicker(props) {
    Calls Edge Function for WhatsApp / SMS send.
 ════════════════════════════════════════════ */
 var PAID_INVOICE_EDGE_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/send-paid-invoice";
+// Bug 1 hotfix r2: stamp the loaded bundle so a stale cached tab is detectable in QA.
+try { window.CK_BUILD_ID = "paidfix-r2"; console.info("[Casabe Konnect] build", "paidfix-r2"); } catch (_e) {}
 // X-3 v20: the ONLY path to send-paid-invoice. Attaches the current session JWT.
 // The Edge Function derives destination phone and message body server-side from the
 // order row; any phone/messageBody still passed here is ignored by the server.
@@ -2948,6 +2950,16 @@ var BulkScanModal = function BulkScanModal(props) {
   );
 };
 
+// Bug 1 hotfix r2: ONE total for the send-modal preview and the invoice block.
+// payment.amount when set; otherwise the box subtotal. Mirrors the invoice block's
+// own _grossTotal logic so the two can never disagree.
+var CK_BUILD_ID = "paidfix-r2";
+function ckInvoiceGrandTotal(order) {
+  var amt = parseFloat((order && order.payment && order.payment.amount) || 0) || 0;
+  if (amt > 0) return amt;
+  var boxes = (order && order.boxes) || [];
+  return boxes.reduce(function(s, b){ return s + (parseFloat((b && b.price) || 0) || 0); }, 0);
+}
 var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
   var order    = props.order;
   var onCancel = props.onCancel;    // close without sending (Paid is already saved)
@@ -2992,18 +3004,22 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
   // Bug 1 hotfix: mirror the Grand Total logic used by the invoice block
   // (payment.amount, else box subtotal) so the preview never says $0.00
   // while the invoice shows a nonzero total.
-  var _pvAmount = parseFloat((order.payment && order.payment.amount) || 0);
-  if (!_pvAmount && order.boxes && order.boxes.length) {
-    _pvAmount = order.boxes.reduce(function(s, b){ return s + (parseFloat(b.price || 0) || 0); }, 0);
-  }
+  var _pvAmount = ckInvoiceGrandTotal(order);
   var msgPreview = "Hi " + toName + ", your " + coName + " invoice for order " + order.id + " is confirmed paid.\n\n"
     + "Amount: $" + _pvAmount.toFixed(2) + "\n"
     + "Thank you for your business!";
-  // Escape closes in every state except mid-send.
+  // Escape closes in every state except mid-send. r2: registered on document in
+  // the CAPTURE phase so no inner handler (inputs, other overlays) can swallow it,
+  // accepts both key spellings, and stops further propagation once handled.
   React.useEffect(function () {
-    function _onKey(e) { if (e.key === "Escape" && sendState !== "sending") onCancel(); }
-    window.addEventListener("keydown", _onKey);
-    return function () { window.removeEventListener("keydown", _onKey); };
+    function _onKey(e) {
+      if ((e.key === "Escape" || e.key === "Esc" || e.keyCode === 27) && sendState !== "sending") {
+        e.stopPropagation();
+        onCancel();
+      }
+    }
+    document.addEventListener("keydown", _onKey, true);
+    return function () { document.removeEventListener("keydown", _onKey, true); };
   }, [sendState, onCancel]);
 
   // Build invoice HTML — per-box blocks per spec, no <table> in body
@@ -3199,7 +3215,7 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
                  recipientCountry: order.consigneeCountry||order.destination||"" }];
           var _subtotal = _dBoxes.reduce(function(s,b){ return s+(parseFloat(b.price||0)||0); }, 0);
           if (!_subtotal) _subtotal = parseFloat((order.payment&&order.payment.amount)||0);
-          var _grossTotal = parseFloat((order.payment&&order.payment.amount)||_subtotal);
+          var _grossTotal = ckInvoiceGrandTotal(order);
           var _paid = parseFloat((order.payment&&order.payment.paid)||0);
           var _balance = Math.max(0, _grossTotal - _paid);
           var _insRate = (tenant&&tenant.insuranceRate)||5;
@@ -3344,6 +3360,7 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
           onClick: onCancel,
           disabled: sendState === "sending"
         }, sendState === "done" ? "Close" : "Skip \u2014 Don't send"),
+        /*#__PURE__*/React.createElement("span", { className: "mut xs", style: { alignSelf: "center", opacity: 0.6 } }, "build " + CK_BUILD_ID),
         /*#__PURE__*/React.createElement("button", {
           type: "button", className: "btn btn-primary btn-sm mla",
           // v9.11: SMS phone guard. Previously the button was enabled when
