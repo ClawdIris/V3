@@ -3053,7 +3053,9 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
 
     var boxBlocks = documentBoxes.map(function(box, i) {
       var trackingNumber = box.subId || (order.id + "-" + (i + 1));
-      var boxType = box.boxType || order.boxType || "";
+      // box-labels ticket: render the BOX_CONFIG label via the shared resolver, never the storage key
+      var boxType = resolveBoxTypeLabel(box, order);
+      if (boxType === "Unknown") boxType = "";
       var destination = box.destinationCountry || order.destination || "";
       var contents = box.description || order.description || "General merchandise";
       var declaredValue = parseFloat(box.declaredValue || order.declaredValue || 0);
@@ -3223,7 +3225,9 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
           return /*#__PURE__*/React.createElement(React.Fragment, null,
             _dBoxes.map(function(box, i) {
               var trackingNumber = box.subId || (order.id + "-" + (i+1));
-              var boxType = box.boxType || order.boxType || "";
+              // box-labels ticket: render the BOX_CONFIG label via the shared resolver, never the storage key
+              var boxType = resolveBoxTypeLabel(box, order);
+              if (boxType === "Unknown") boxType = "";
               var destination = box.destinationCountry || order.destination || "";
               var contents = box.description || order.description || "General merchandise";
               var declaredValue = parseFloat(box.declaredValue || order.declaredValue || 0);
