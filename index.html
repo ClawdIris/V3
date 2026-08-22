@@ -2441,6 +2441,8 @@ var CalendarPicker = function CalendarPicker(props) {
    Calls Edge Function for WhatsApp / SMS send.
 ════════════════════════════════════════════ */
 var PAID_INVOICE_EDGE_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/send-paid-invoice";
+// Bug 1 hotfix r2: stamp the loaded bundle so a stale cached tab is detectable in QA.
+try { window.CK_BUILD_ID = "paidfix-r2"; console.info("[Casabe Konnect] build", "paidfix-r2"); } catch (_e) {}
 // X-3 v20: the ONLY path to send-paid-invoice. Attaches the current session JWT.
 // The Edge Function derives destination phone and message body server-side from the
 // order row; any phone/messageBody still passed here is ignored by the server.
@@ -2948,10 +2950,20 @@ var BulkScanModal = function BulkScanModal(props) {
   );
 };
 
+// Bug 1 hotfix r2: ONE total for the send-modal preview and the invoice block.
+// payment.amount when set; otherwise the box subtotal. Mirrors the invoice block's
+// own _grossTotal logic so the two can never disagree.
+var CK_BUILD_ID = "paidfix-r2";
+function ckInvoiceGrandTotal(order) {
+  var amt = parseFloat((order && order.payment && order.payment.amount) || 0) || 0;
+  if (amt > 0) return amt;
+  var boxes = (order && order.boxes) || [];
+  return boxes.reduce(function(s, b){ return s + (parseFloat((b && b.price) || 0) || 0); }, 0);
+}
 var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
   var order    = props.order;
-  var onCancel = props.onCancel;    // revert Paid — do not save
-  var onConfirm = props.onConfirm;  // save + send done
+  var onCancel = props.onCancel;    // close without sending (Paid is already saved)
+  var onConfirm = props.onConfirm;  // close after send completed (Paid is already saved)
   var tenant   = props.tenant || {};
   var pricing  = props.pricing || {};
 
@@ -2989,9 +3001,26 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
       sendResult = _stRes2[0], setSendResult = _stRes2[1];
 
   // Rendered message preview
+  // Bug 1 hotfix: mirror the Grand Total logic used by the invoice block
+  // (payment.amount, else box subtotal) so the preview never says $0.00
+  // while the invoice shows a nonzero total.
+  var _pvAmount = ckInvoiceGrandTotal(order);
   var msgPreview = "Hi " + toName + ", your " + coName + " invoice for order " + order.id + " is confirmed paid.\n\n"
-    + "Amount: $" + parseFloat((order.payment && order.payment.amount) || 0).toFixed(2) + "\n"
+    + "Amount: $" + _pvAmount.toFixed(2) + "\n"
     + "Thank you for your business!";
+  // Escape closes in every state except mid-send. r2: registered on document in
+  // the CAPTURE phase so no inner handler (inputs, other overlays) can swallow it,
+  // accepts both key spellings, and stops further propagation once handled.
+  React.useEffect(function () {
+    function _onKey(e) {
+      if ((e.key === "Escape" || e.key === "Esc" || e.keyCode === 27) && sendState !== "sending") {
+        e.stopPropagation();
+        onCancel();
+      }
+    }
+    document.addEventListener("keydown", _onKey, true);
+    return function () { document.removeEventListener("keydown", _onKey, true); };
+  }, [sendState, onCancel]);
 
   // Build invoice HTML — per-box blocks per spec, no <table> in body
   function buildInvoiceHtml() {
@@ -3122,15 +3151,25 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
     color: chActive(ch) ? "var(--green)" : "var(--text3)"
   }; };
 
-  return /*#__PURE__*/React.createElement("div", { className: "overlay", style: { zIndex: 10001 } },
-    /*#__PURE__*/React.createElement("div", { className: "modal modal-lg fu", style: { maxWidth: 680, maxHeight: "90vh", overflowY: "auto" } },
+  return /*#__PURE__*/React.createElement("div", {
+      className: "overlay", style: { zIndex: 10001 },
+      onClick: function (e) { if (e.target === e.currentTarget && sendState !== "sending") onCancel(); }
+    },
+    /*#__PURE__*/React.createElement("div", { className: "modal modal-lg fu", style: { maxWidth: 680, maxHeight: "90vh", overflowY: "auto", position: "relative" } },
 
       // ── Header ──────────────────────────────────────────────────────────
+      /*#__PURE__*/React.createElement("button", {
+        type: "button", "aria-label": "Close",
+        className: "btn btn-ghost btn-sm",
+        style: { position: "absolute", top: 10, right: 10, fontSize: 16, lineHeight: 1, padding: "2px 8px" },
+        disabled: sendState === "sending",
+        onClick: onCancel
+      }, "\u00D7"),
       /*#__PURE__*/React.createElement("div", { className: "modal-title", style: { marginBottom: 4 } },
-        "\uD83D\uDCB3 Order Paid \u2014 Review & Send Invoice"
+        "\uD83D\uDCB3 Order Paid \u2014 Send Invoice?"
       ),
       /*#__PURE__*/React.createElement("div", { className: "mut xs", style: { marginBottom: 16 } },
-        "Review the invoice and message below, select a channel, then confirm to save and send."
+        "Paid status is saved. Optionally send the invoice now, or skip."
       ),
 
       // ── Missing channel data warnings ─────────────────────────────────
@@ -3138,7 +3177,7 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
         className: "alert alert-a mb12", style: { fontSize: 12.5 }
       },
         "\u26A0\uFE0F ", /*#__PURE__*/React.createElement("strong", null, "No phone or email on this order."),
-        " Add a sender phone or email before sending. Cancel, update the order, then mark as Paid."
+        " Add a sender phone or email to the order to send later. Paid status is already saved."
       ),
       phoneOk && !emailOk && /*#__PURE__*/React.createElement("div", {
         className: "mut xs mb12"
@@ -3176,7 +3215,7 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
                  recipientCountry: order.consigneeCountry||order.destination||"" }];
           var _subtotal = _dBoxes.reduce(function(s,b){ return s+(parseFloat(b.price||0)||0); }, 0);
           if (!_subtotal) _subtotal = parseFloat((order.payment&&order.payment.amount)||0);
-          var _grossTotal = parseFloat((order.payment&&order.payment.amount)||_subtotal);
+          var _grossTotal = ckInvoiceGrandTotal(order);
           var _paid = parseFloat((order.payment&&order.payment.paid)||0);
           var _balance = Math.max(0, _grossTotal - _paid);
           var _insRate = (tenant&&tenant.insuranceRate)||5;
@@ -3311,16 +3350,17 @@ var PaidInvoiceSendModal = function PaidInvoiceSendModal(props) {
       ),
       sendState === "error" && /*#__PURE__*/React.createElement("div", { className: "alert alert-a mb12", style: { fontSize: 12 } },
         "\u26A0 Send failed: ", (sendResult && sendResult._error) || "Unknown error",
-        " \u2014 Order not saved. Fix and retry."
+        " \u2014 Paid status is saved. Fix and retry, or skip."
       ),
 
-      // ── Actions — no Skip Send per locked spec ────────────────────────
+      // ── Actions — Skip is always available; Paid is already saved ─────
       /*#__PURE__*/React.createElement("div", { className: "row g10", style: { marginTop: 8 } },
         /*#__PURE__*/React.createElement("button", {
           type: "button", className: "btn btn-ghost btn-sm",
           onClick: onCancel,
-          disabled: sendState === "sending" || sendState === "done"
-        }, "Cancel \u2014 Revert to Pending"),
+          disabled: sendState === "sending"
+        }, sendState === "done" ? "Close" : "Skip \u2014 Don't send"),
+        /*#__PURE__*/React.createElement("span", { className: "mut xs", style: { alignSelf: "center", opacity: 0.6 } }, "build " + CK_BUILD_ID),
         /*#__PURE__*/React.createElement("button", {
           type: "button", className: "btn btn-primary btn-sm mla",
           // v9.11: SMS phone guard. Previously the button was enabled when
@@ -3710,10 +3750,12 @@ var OrderForm = function OrderForm(_ref4) {
       consent_recorded_by: (f.sms_opted_in || f.whatsapp_opted_in) ? null : (f.consent_recorded_by || null)
     });
     var _prevPay = initial && initial.payment ? initial.payment.status : "pending";
-    if (order.payment.status === "paid" && _prevPay !== "paid") {
-      setPendingPaidOrder(order); setPaidSendPending(true);
-    } else { onSave(order); }
-    console.info("[OrderForm] save ok:", order.id);
+    // Bug 1 hotfix: Paid is persisted FIRST. The invoice send is an optional
+    // follow-up offered by the parent after the row is committed; a send
+    // failure can never roll back or block the save.
+    var _paidNow = order.payment.status === "paid" && _prevPay !== "paid";
+    onSave(order, { openPaidSend: _paidNow });
+    console.info("[OrderForm] save ok:", order.id, _paidNow ? "(paid — send offered after save)" : "");
     } catch (_se) {
       console.error("[OrderForm.save] exception:", _se);
       setSaveErr(t("Save failed: ", "Error al guardar: ") + ((_se && _se.message) || String(_se)));
@@ -3776,19 +3818,8 @@ var OrderForm = function OrderForm(_ref4) {
   var _commPreviewOffice = _commPreviewSrc || getOfficeById(tenant, f.officeId || f.office);
   var _commPreviewVal = _commPreviewOffice ? calculateOfficeCommission(_commPreviewOffice, getBoxSubtotal(f, tenant), f.boxes || []) : null;
   return /*#__PURE__*/React.createElement(React.Fragment, null,
-    paidSendPending && pendingPaidOrder && /*#__PURE__*/React.createElement(PaidInvoiceSendModal, {
-      order: pendingPaidOrder,
-      tenant: tenant,
-      pricing: pricing,
-      onCancel: function() {
-        setPay("status", (initial && initial.payment && initial.payment.status) || "pending");
-        setPaidSendPending(false); setPendingPaidOrder(null);
-      },
-      onConfirm: function() {
-        if (pendingPaidOrder) onSave(pendingPaidOrder);
-        setPaidSendPending(false); setPendingPaidOrder(null);
-      }
-    }),
+    // Bug 1 hotfix: PaidInvoiceSendModal now mounts at App level AFTER the
+    // save commits (see saveOrder / paidSendOrder). Nothing renders here.
     /*#__PURE__*/React.createElement("div", {
     className: "overlay",
     onClick: function onClick(e) {
@@ -24867,6 +24898,10 @@ var _db = {
     if (table === "orders") {
       row.office_id  = data.office_id  || null;
       row.partner_id = data.partner_id || null;
+      // Bug 1 hotfix: R6 consent lives in top-level columns (what the
+      // messaging gate reads). Mirror the form values there, not only in data.
+      row.sms_opted_in      = data.sms_opted_in === true;
+      row.whatsapp_opted_in = data.whatsapp_opted_in === true;
     }
     return _supabase
       .from(table)
@@ -27690,6 +27725,10 @@ function AppShell(_ref130) {
     _useState136 = _slicedToArray(_useState135, 2),
     editOrder = _useState136[0],
     setEditOrder = _useState136[1];
+  // Bug 1 hotfix: order whose Paid status was just committed; drives the
+  // optional post-save invoice send modal. null = no modal.
+  var _stPaidSend = useState(null), _stPaidSend2 = _slicedToArray(_stPaidSend, 2),
+    paidSendOrder = _stPaidSend2[0], setPaidSendOrder = _stPaidSend2[1];
   var _useState137 = useState(null),
     _useState138 = _slicedToArray(_useState137, 2),
     selectedOrder = _useState138[0],
@@ -28017,7 +28056,7 @@ function AppShell(_ref130) {
       return setNotification(null);
     }, 3500);
   }, []);
-  var saveOrder = useCallback(function (order) {
+  var saveOrder = useCallback(function (order, _saveOpts) {
     var isNew = !orders.find(function (o) {
       return o.id === order.id;
     });
@@ -28121,6 +28160,8 @@ setOrders(function (prev) {
     return _persist.then(function () {
       setShowNewOrder(false);
       setEditOrder(null);
+      // Bug 1 hotfix: the row is committed at this point. Offer the send.
+      if (_saveOpts && _saveOpts.openPaidSend) setPaidSendOrder(order);
       if (isNew) {
         setNewOrderConfirm(order);
       } else {
@@ -32459,6 +32500,12 @@ setOrders(function (prev) {
     onClose: function onClose() {
       return setLabelOrder(null);
     }
+  }), paidSendOrder && /*#__PURE__*/React.createElement(PaidInvoiceSendModal, {
+    order: paidSendOrder,
+    tenant: tenant,
+    pricing: pricing,
+    onCancel: function () { setPaidSendOrder(null); },
+    onConfirm: function () { setPaidSendOrder(null); }
   }), newOrderConfirm && /*#__PURE__*/React.createElement(TrackingConfirmModal, {
     order: newOrderConfirm,
     onClose: function onClose() {
