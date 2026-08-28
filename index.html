@@ -2477,6 +2477,7 @@ function ckSendMessaging(payload) {
 var LOG_BOX_STATUS_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/log-box-status";
 var QB_CONNECT_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/quickbooks-connect";
 var CK_QB_ENABLED = false; // QuickBooks removed from beta scope (2026-08-17 gate decision). Endpoint is a 503 stub. Do not flip without the Workstream D2/D3 rebuild and owner approval.
+var CK_MESSAGES_ENABLED = false; // Office Messaging Inbox (2026-08-28 ticket v3). Backend RPCs exist in STAGING ONLY; flip in production only at Twilio Phase 1 cutover with owner approval.
 var STRIPE_CHECKOUT_URL = "https://exayifxbqduhsxmmsnxr.supabase.co/functions/v1/stripe-checkout";
 // SUPABASE_ANON_KEY is set at init time (line 28) — use that single source.
 // The JWT below is kept as a comment for reference only; REST calls use the same publishable key.
@@ -23625,6 +23626,11 @@ var ROLES = {
         ls: "Plantillas de Mensaje",
         i: "📨"
       }, {
+        k: "messages",
+        l: "Messages",
+        ls: "Mensajes",
+        i: "💬"
+      }, {
         k: "msg_provider",
         l: "Provider Config",
         ls: "Config. del Proveedor",
@@ -23713,7 +23719,7 @@ var ROLES = {
       tape_direct: "Tape Direct",
       box_sale: "Box Sale Tracking",
       margin_summary: "Margin Summary",
-      msg_templates: "Message Templates", msg_queue: "Message Queue", msg_provider: "Provider Config", msg_queue: "Message Queue"
+      msg_templates: "Message Templates", messages: "Messages", msg_queue: "Message Queue", msg_provider: "Provider Config", msg_queue: "Message Queue"
     }
   },
   office: {
@@ -23797,6 +23803,11 @@ var ROLES = {
         ls: "Plantillas de Mensaje",
         i: "📨"
       }, {
+        k: "messages",
+        l: "Messages",
+        ls: "Mensajes",
+        i: "💬"
+      }, {
         k: "campaigns",
         l: "Campaigns",
         ls: "Campañas",
@@ -23811,6 +23822,7 @@ var ROLES = {
       routes: "Route Builder",
       bulk: "Bulk Status Update",
       payments: "Payments",
+      messages: "Messages",
       campaigns: "Campaigns",
       receipts_invoices: "Receipts & Invoices",
       tape_direct: "Tape Direct",
@@ -27166,6 +27178,118 @@ function ckReasonChips(preset, onPick) {
   }));
 }
 
+function MessagesPage(_refMP) {
+  var session = _refMP.session;
+  var t = useT();
+  // Office Messaging Inbox (ticket v3, 2026-08-28). SMS-only. RLS scopes
+  // reads (hq tenant-wide, office office-scoped); send authorization is
+  // SERVER-owned via send_thread_message — the consent hint below is
+  // display-only and never gates the request (D-A ruling).
+  var _mpT = React.useState([]), threads = _mpT[0], setThreads = _mpT[1];
+  var _mpA = React.useState(null), active = _mpA[0], setActive = _mpA[1];
+  var _mpM = React.useState([]), msgs = _mpM[0], setMsgs = _mpM[1];
+  var _mpB = React.useState(""), draft = _mpB[0], setDraft = _mpB[1];
+  var _mpS = React.useState(false), sending = _mpS[0], setSending = _mpS[1];
+  var _mpE = React.useState(""), errMsg = _mpE[0], setErrMsg = _mpE[1];
+  var _mpL = React.useState(true), loading = _mpL[0], setLoading = _mpL[1];
+  var _mpC = React.useState(null), consentHint = _mpC[0], setConsentHint = _mpC[1];
+  function loadThreads() {
+    setLoading(true);
+    _supabase.rpc("list_threads", { p_limit: 50 }).then(function (res) {
+      setLoading(false);
+      if (res.error) { setErrMsg(t("Could not load messages.", "No se pudieron cargar los mensajes.")); return; }
+      setThreads(res.data || []);
+    });
+  }
+  function loadThread(th) {
+    setActive(th); setMsgs([]); setErrMsg(""); setConsentHint(null);
+    _supabase.rpc("get_thread_messages", { p_thread_id: String(th.id) }).then(function (res) {
+      if (res.error) { setErrMsg(t("Could not load this conversation.", "No se pudo cargar esta conversaci\u00f3n.")); return; }
+      setMsgs(res.data || []);
+    });
+    // Display-only consent hint (advisory; server recheck is authoritative)
+    if (th.customer_phone_e164) {
+      _supabase.from("tracking_alert_consents").select("status").eq("phone_e164", th.customer_phone_e164).order("created_at", { ascending: false }).limit(1).then(function (res) {
+        if (res.error || !res.data || !res.data.length) { setConsentHint("unknown"); return; }
+        setConsentHint(res.data[0].status === "active" ? "active" : "revoked");
+      });
+    }
+  }
+  function sendReply() {
+    if (sending || !draft.trim() || !active) return;
+    setSending(true); setErrMsg("");
+    _supabase.rpc("send_thread_message", { p_thread_id: String(active.id), p_body: draft.trim() }).then(function (res) {
+      setSending(false);
+      var failed = res.error || (res.data && res.data.success === false);
+      if (failed) {
+        var raw = (res.error && (res.error.message || "")) + " " + JSON.stringify(res.data || "");
+        var msg = raw.indexOf("consent") >= 0 || raw.indexOf("opt") >= 0
+          ? t("Customer has opted out of messages.", "El cliente cancel\u00f3 los mensajes.")
+          : t("Message could not be sent.", "No se pudo enviar el mensaje.");
+        setErrMsg(msg); return;
+      }
+      setDraft(""); loadThread(active);
+    });
+  }
+  function setThreadStatus(fn) {
+    if (!active) return;
+    _supabase.rpc(fn, { p_thread_id: String(active.id) }).then(function (res) {
+      if (res.error) { setErrMsg(t("Could not update the conversation.", "No se pudo actualizar la conversaci\u00f3n.")); return; }
+      loadThreads(); setActive(null);
+    });
+  }
+  React.useEffect(function () { loadThreads(); }, []);
+  function fmtTime(x) { return x ? new Date(x).toLocaleString() : ""; }
+  function statusPill(m) {
+    if (m.direction !== "out") return null;
+    var lbl = m.status || "queued", cls = "var(--text3)";
+    if (m.status === "delivered") cls = "var(--green)";
+    else if (m.status === "failed" || m.status === "undelivered") cls = "var(--red)";
+    return React.createElement("span", { style: { fontSize: 11, color: cls, marginLeft: 8 } },
+      lbl, (m.status === "failed" || m.status === "undelivered") && m.error_message
+        ? " \u2014 " + m.error_message : "");
+  }
+  if (active) {
+    return React.createElement("div", { className: "card" },
+      React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 12 } },
+        React.createElement("button", { className: "btn", onClick: function () { setActive(null); setErrMsg(""); loadThreads(); } }, "\u2190 ", t("Back", "Volver")),
+        React.createElement("strong", null, active.customer_phone_e164 || t("Customer", "Cliente")),
+        React.createElement("span", { style: { fontSize: 12, color: "var(--text3)" } }, active.status),
+        consentHint && React.createElement("span", { style: { fontSize: 11, padding: "2px 8px", borderRadius: 10, background: consentHint === "revoked" ? "rgba(220,38,38,.12)" : "rgba(107,114,128,.12)", color: consentHint === "revoked" ? "var(--red)" : "var(--text3)" } },
+          consentHint === "active" ? t("Opted in", "Suscrito") : consentHint === "revoked" ? t("Opted out", "Dado de baja") : t("Consent unknown", "Consentimiento desconocido")),
+        React.createElement("span", { style: { flex: 1 } }),
+        active.status === "open"
+          ? React.createElement("button", { className: "btn", onClick: function () { setThreadStatus("close_thread"); } }, t("Close", "Cerrar"))
+          : React.createElement("button", { className: "btn", onClick: function () { setThreadStatus("reopen_thread"); } }, t("Reopen", "Reabrir"))),
+      msgs.length === 0 && !errMsg && React.createElement("div", { style: { color: "var(--text3)", padding: 20, textAlign: "center" } }, t("No messages in this conversation.", "No hay mensajes en esta conversaci\u00f3n.")),
+      React.createElement("div", { style: { maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, padding: "4px 0" } },
+        msgs.map(function (m) {
+          return React.createElement("div", { key: m.id, style: { alignSelf: m.direction === "out" ? "flex-end" : "flex-start", maxWidth: "78%", background: m.direction === "out" ? "rgba(59,130,246,.12)" : "rgba(107,114,128,.10)", borderRadius: 10, padding: "8px 12px" } },
+            React.createElement("div", { style: { fontSize: 14, whiteSpace: "pre-wrap" } }, m.body),
+            React.createElement("div", { style: { fontSize: 11, color: "var(--text3)", marginTop: 4 } },
+              m.direction === "out" ? t("Sent", "Enviado") : t("Received", "Recibido"), " \u00B7 ", fmtTime(m.created_at), statusPill(m)));
+        })),
+      errMsg && React.createElement("div", { style: { color: "var(--red)", fontSize: 13, margin: "8px 0" } }, errMsg),
+      React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10 } },
+        React.createElement("input", { className: "inp", style: { flex: 1 }, value: draft, placeholder: t("Type a reply (SMS)...", "Escribe una respuesta (SMS)..."), onChange: function (e) { setDraft(e.target.value); }, onKeyDown: function (e) { if (e.key === "Enter") sendReply(); } }),
+        React.createElement("button", { className: "btn primary", disabled: sending || !draft.trim(), onClick: sendReply }, sending ? t("Sending...", "Enviando...") : t("Send", "Enviar"))));
+  }
+  return React.createElement("div", { className: "card" },
+    React.createElement("div", { style: { display: "flex", alignItems: "center", marginBottom: 12 } },
+      React.createElement("strong", null, t("Customer Messages", "Mensajes de Clientes")),
+      React.createElement("span", { style: { flex: 1 } }),
+      React.createElement("button", { className: "btn", onClick: loadThreads }, t("Refresh", "Actualizar"))),
+    errMsg && React.createElement("div", { style: { color: "var(--red)", fontSize: 13, marginBottom: 8 } }, errMsg),
+    loading && React.createElement("div", { style: { color: "var(--text3)", padding: 20, textAlign: "center" } }, t("Loading...", "Cargando...")),
+    !loading && threads.length === 0 && !errMsg && React.createElement("div", { style: { color: "var(--text3)", padding: 28, textAlign: "center" } }, t("No customer messages yet.", "A\u00fan no hay mensajes de clientes.")),
+    threads.map(function (th) {
+      return React.createElement("div", { key: th.id, onClick: function () { loadThread(th); }, style: { display: "flex", alignItems: "center", gap: 12, padding: "10px 8px", borderBottom: "1px solid var(--line)", cursor: "pointer" } },
+        React.createElement("div", { style: { fontWeight: 600 } }, th.customer_phone_e164 || t("Customer", "Cliente")),
+        React.createElement("span", { style: { fontSize: 11, padding: "2px 8px", borderRadius: 10, background: th.status === "open" ? "rgba(16,185,129,.12)" : "rgba(107,114,128,.12)", color: th.status === "open" ? "var(--green)" : "var(--text3)" } }, th.status),
+        React.createElement("span", { style: { flex: 1 } }),
+        React.createElement("span", { style: { fontSize: 12, color: "var(--text3)" } }, fmtTime(th.last_message_at)));
+    }));
+}
 function DriverScanPage(_refDS) {
   var orders         = _refDS.orders || [];
   var driverUserId   = _refDS.driverUserId || "";
@@ -27872,9 +27996,17 @@ function AppShell(_ref130) {
       return w[0];
     }).join("").toUpperCase().slice(0, 2) : "??";
   };
+  function ckMessagesNav(nav) {
+    if (CK_MESSAGES_ENABLED) return nav;
+    return (nav || []).map(function (g) {
+      return _objectSpread(_objectSpread({}, g), {}, {
+        items: (g.items || []).filter(function (x) { return x.k !== "messages"; })
+      });
+    });
+  }
   var LIVE_ROLES = {
     hq: _objectSpread(_objectSpread({}, ROLES.hq), {}, {
-      nav: ckWithFinanceNav(ckWithTeamNav(ROLES.hq.nav, session), session),
+      nav: ckMessagesNav(ckWithFinanceNav(ckWithTeamNav(ROLES.hq.nav, session), session)),
       titles: _objectSpread(_objectSpread({}, ROLES.hq.titles), {}, {
         team: T("Team & Access", "Equipo y Accesos")
       }),
@@ -27886,7 +28018,7 @@ function AppShell(_ref130) {
       }
     }),
     office: _objectSpread(_objectSpread({}, ROLES.office), {}, {
-      nav: ckWithFinanceNav(ckWithTeamNav(ROLES.office.nav, session), session),
+      nav: ckMessagesNav(ckWithFinanceNav(ckWithTeamNav(ROLES.office.nav, session), session)),
       titles: _objectSpread(_objectSpread({}, ROLES.office.titles), {}, {
         team: T("Team & Access", "Equipo y Accesos")
       }),
@@ -31630,6 +31762,14 @@ setOrders(function (prev) {
     if (page === "integration") return /*#__PURE__*/React.createElement(IntegrationStatusPage, {
       session: session
     });
+    if (page === "messages") {
+      if (!CK_MESSAGES_ENABLED || (roleKey !== "hq" && roleKey !== "office")) {
+        return /*#__PURE__*/React.createElement("div", {
+          style: { textAlign: "center", padding: 40, color: "var(--text3)" }
+        }, "Messages are not available / Mensajes no disponibles.");
+      }
+      return /*#__PURE__*/React.createElement(MessagesPage, { session: session });
+    }
     if (page === "quickbooks") return CK_QB_ENABLED ? /*#__PURE__*/React.createElement(QuickBooksPage, {
       session: session
     }) : /*#__PURE__*/React.createElement(IntegrationStatusPage, {
