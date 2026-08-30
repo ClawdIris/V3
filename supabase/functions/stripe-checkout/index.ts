@@ -143,11 +143,19 @@ Deno.serve(async (req: Request) => {
     httpClient: Stripe.createFetchHttpClient(),
   });
 
-  // v8: production custom domain. Customers land on the public tracking page for
-  // their order (no login, shows status). Never the function URL.
-  const appBase = 'https://casabekonnect.app/';
-  const successUrl = appBase + '?number=' + encodeURIComponent(order_id) + '&payment=success';
-  const cancelUrl  = appBase + '?number=' + encodeURIComponent(order_id) + '&payment=cancelled';
+  // Return base is env-driven (Ticket B D-B2 / Ticket D B4). CHECKOUT_RETURN_BASE_URL
+  // points at the public receipt/return origin; falls back to this project's own
+  // function origin derived from SUPABASE_URL (never a hardcoded production domain).
+  const envBase = (Deno.env.get('CHECKOUT_RETURN_BASE_URL') || '').trim();
+  const appBase = envBase
+    || ((Deno.env.get('SUPABASE_URL') || '').replace(/\/+$/, '') + '/functions/v1/payment-receipt');
+  // Join params with a single separator regardless of whether appBase already
+  // carries a query string; append Stripe's session id token so the receipt
+  // handler can confirm settlement (Ticket D requires session_id).
+  const sep = appBase.indexOf('?') >= 0 ? '&' : '?';
+  const q = 'number=' + encodeURIComponent(order_id);
+  const successUrl = appBase + sep + q + '&payment=success&session_id={CHECKOUT_SESSION_ID}';
+  const cancelUrl  = appBase + sep + q + '&payment=cancelled';
 
   try {
     const session = await stripe.checkout.sessions.create({
