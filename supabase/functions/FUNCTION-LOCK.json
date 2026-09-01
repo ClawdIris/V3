@@ -1,6 +1,6 @@
 {
   "_purpose": "Canonical deployed-source lock. Every edge function deploy MUST pass scripts/verify-function-lock.sh first. Update this file ONLY in the same reviewed commit that changes the function source, with the new sha256 in the commit message.",
   "_ratified": "2026-08-30 owner ruling, TICKET-DEPLOY-RECONCILE (F-DEPLOY-DRIFT-20260830)",
-  "stripe-checkout/index.ts": "2d0fc59339116446dd31bfa3597e6d1dcebaf1e008454ea2077d9ca8399e8bde",
+  "stripe-checkout/index.ts": "9e3daf02aca9535239ddc3147deefc1ee9585942e856e894129df48c64d5aa1f",
   "sms-send/index.ts": "badd9ad363bb681f5398ccf794bac8691087eb910338696993b92b5839a0f7c7"
 }

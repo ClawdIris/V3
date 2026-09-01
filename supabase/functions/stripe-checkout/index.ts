@@ -119,6 +119,23 @@ Deno.serve(async (req: Request) => {
   }
 
   const orderData = orderRow.data as Record<string, unknown>;
+
+  // F-C1 mint-time guard: never mint a second Checkout Session against an
+  // order our DB already records as paid. 409 with the settled session id
+  // (payment surface is authenticated HQ/Office; no public oracle concern).
+  const existingPayment = orderData?.payment as Record<string, unknown> | undefined;
+  if (String(existingPayment?.status || '').toLowerCase() === 'paid') {
+    console.warn(`[stripe-checkout] F-C1 mint refused: order ${order_id} already paid (session ${String(existingPayment?.stripe_session_id || orderData?.stripe_session_id || 'unknown')})`);
+    return new Response(
+      JSON.stringify({
+        error: 'order_already_paid',
+        message: 'This order already has a completed payment on file. No new payment link was created.',
+        settled_session_id: String(existingPayment?.stripe_session_id || orderData?.stripe_session_id || ''),
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 409 }
+    );
+  }
+
   let derivedAmountCents: number | null = null;
 
   const paymentBlock = orderData?.payment as Record<string, unknown> | undefined;
