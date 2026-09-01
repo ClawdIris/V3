@@ -5,7 +5,7 @@
 set -euo pipefail
 LOCK="supabase/functions/FUNCTION-LOCK.json"
 fail=0
-for fn in stripe-checkout sms-send; do
+for fn in stripe-checkout sms-send payment-receipt; do
   want=$(python3 -c "import json;print(json.load(open('$LOCK'))['$fn/index.ts'])")
   have=$(shasum -a 256 "supabase/functions/$fn/index.ts" 2>/dev/null | cut -d' ' -f1 || sha256sum "supabase/functions/$fn/index.ts" | cut -d' ' -f1)
   if [ "$want" != "$have" ]; then
