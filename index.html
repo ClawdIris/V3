@@ -499,15 +499,16 @@ var normalizeSource = function normalizeSource(row, kind) {
 };
 var resolveOrderSource = function resolveOrderSource(order, dbOffices, dbPartners, tenant) {
   if (!order) return null;
-  // 1. Relational columns first — written by Migration 07b backfill or
-  //    by future order creation flows that target office_id/partner_id.
-  if (order.office_id && dbOffices && dbOffices.length) {
-    var off = dbOffices.find(function(o){ return o.id === order.office_id; });
-    if (off) return normalizeSource(off, "office");
-  }
+  // 1. Relational source columns first. PACK 0: partner_id is intake/source
+  //    attribution and owns commission when present; office_id is the Casabe
+  //    operating owner for visibility/routing.
   if (order.partner_id && dbPartners && dbPartners.length) {
     var par = dbPartners.find(function(p){ return p.id === order.partner_id; });
     if (par) return normalizeSource(par, "partner");
+  }
+  if (order.office_id && dbOffices && dbOffices.length) {
+    var off = dbOffices.find(function(o){ return o.id === order.office_id; });
+    if (off) return normalizeSource(off, "office");
   }
   // 2. Legacy fallback — the existing fallback chain, used for orders
   //    that have data.office text but no relational FK yet (e.g. the
@@ -3570,6 +3571,13 @@ var OrderForm = function OrderForm(_ref4) {
       setSaveErr(t("Cannot save \u2014 missing: ", "No se puede guardar \u2014 falta: ") + _missing.join(", ") + t(". If these fields look filled on screen, the text never registered in the form \u2014 retype them.", ". Si estos campos se ven llenos en pantalla, el texto no se registr\u00f3 en el formulario \u2014 escr\u00edbelos de nuevo."));
       return;
     }
+    if (f.partner_id && !f.office_id) {
+      setSaveErr(t(
+        "Cannot save \u2014 partner orders must have a Casabe operating office. Re-select the partner so its default office is stamped, or choose an office before saving.",
+        "No se puede guardar \u2014 los pedidos de socios deben tener una oficina operativa de Casabe. Vuelve a seleccionar el socio para aplicar su oficina predeterminada, o elige una oficina antes de guardar."
+      ));
+      return;
+    }
     // Other-1: Hard-block UUID-less driver assignments.
     // The driver dropdown filters UUID-less drivers from display (belt), but
     // stale state or race conditions could allow a UUID-less driver to be saved.
@@ -3651,8 +3659,8 @@ var OrderForm = function OrderForm(_ref4) {
     var amt = parseFloat(f.payment.amount) || 0;
     var paidAmt = parseFloat(f.payment.paid) || 0;
     // Phase B: resolve commission source using the Phase A resolver.
-    // Prefers f.office_id (DB UUID) → f.partner_id (DB UUID) → legacy
-    // fallback by name (covers historical orders / Miami HQ / edge cases).
+    // PACK 0: if partner_id is present, partner remains the commission/source
+    // owner. office_id is the operating office, not the commission owner.
     var _phaseB_dbOffices  = (tenant && tenant.__dbOffices)  || [];
     var _phaseB_dbPartners = (tenant && tenant.__dbPartners) || [];
     var _phaseB_resolved   = (typeof resolveOrderSource === "function")
@@ -3723,11 +3731,11 @@ var OrderForm = function OrderForm(_ref4) {
       // Phase B: LEGACY JSONB MIRROR — kept for current UI compat.
       // Phase C will deprecate these writes.
       // CRITICAL: data.officeId must NOT receive a partner UUID. When the
-      // order is partner-routed (partner_id set), legacy officeId stays
-      // empty string. _offCfg may be a partner config when resolveOrderSource
-      // returns one — its .id would be the partner UUID, which legacy
-      // display code interprets as an office identifier and gets wrong.
-      officeId: f.partner_id ? "" : (_offCfg ? _offCfg.id : (f.officeId || null)),
+      // PACK 0: a partner order now keeps its operating office. Do not blank
+      // officeId just because partner_id is set.
+      officeId: (_offCfg && _offCfg.kind === "office")
+        ? _offCfg.id
+        : (f.officeId || f.office_id || null),
       // data.office: legacy display name. For office orders, mirror office
       // name. For partner orders, mirror partner name (temporary compat).
       // Don't trust f.office — it may carry stale defaults like
@@ -3963,8 +3971,8 @@ var OrderForm = function OrderForm(_ref4) {
   /* ──────────────────────────────────────────────────────────────────────
      Phase B — Office dropdown (owned operating locations)
      Sourced from public.offices via tenant.__dbOffices.
-     Value = UUID. Mutual-exclusive with Partner: picking an office
-     clears partner_id. Legacy data.office stays mirrored for back-compat.
+     Value = UUID. PACK 0: partner and office are no longer mutually
+     exclusive. Partner is intake/source; office is operating owner.
      ────────────────────────────────────────────────────────────────────── */
   /*#__PURE__*/React.createElement("div", {
     className: "fg"
@@ -3977,9 +3985,9 @@ var OrderForm = function OrderForm(_ref4) {
       var uuid = e.target.value;
       var offs = (tenant && tenant.__dbOffices) || [];
       var off = uuid ? offs.find(function(o){ return o.id === uuid; }) : null;
-      // Set the relational truth
+      // Set the relational truth. PACK 0: choosing an office no longer erases
+      // partner/source attribution.
       set("office_id",  uuid || null);
-      set("partner_id", null);                    // mutual exclusion
       // Mirror legacy fields for backward compat (read by display sites
       // and the legacy resolver fallback). Phase C will retire these.
       set("office",     off ? off.name : "");
@@ -4006,15 +4014,32 @@ var OrderForm = function OrderForm(_ref4) {
       var uuid = e.target.value;
       var pars = (tenant && tenant.__dbPartners) || [];
       var par = uuid ? pars.find(function(p){ return p.id === uuid; }) : null;
-      // Relational truth
+      // Relational truth. PACK 0: partner orders carry BOTH partner_id and
+      // office_id. Missing default office fails loudly rather than creating an
+      // office-invisible row.
       set("partner_id", uuid || null);
-      set("office_id",  null);                    // mutual exclusion
-      // Legacy mirror — keep data.office / officeNameSnapshot populated
-      // so existing display sites (16 plain-text reads, invoice/label
-      // templates, order list cells) keep rendering a name. Truth-wise,
-      // this order is partner-routed (partner_id set, office_id null).
-      set("office",     par ? par.name : "");
-      set("officeId",   "");                      // legacy office id stays empty for partner orders
+      if (uuid) {
+        var defOff = par && par.default_office_id;
+        if (!defOff) {
+          set("partner_id", null);
+          alert(t(
+            "This partner has no default office configured, so the order cannot be routed to a Casabe office. Ask HQ to set the partner's default office before creating orders for it.",
+            "Este socio no tiene oficina predeterminada configurada, por lo que el pedido no puede enrutarse a una oficina de Casabe. Pida a HQ que configure la oficina predeterminada del socio antes de crear pedidos."
+          ));
+          return;
+        }
+        if (!f.office_id) {
+          var dbOffices = (tenant && tenant.__dbOffices) || [];
+          var defOffice = dbOffices.find(function(o){ return o.id === defOff; });
+          set("office_id", defOff);
+          set("officeId",  defOff);
+          if (defOffice) set("office", defOffice.name);
+        }
+      }
+      if (!uuid) {
+        set("office", "");
+        set("officeId", "");
+      }
     }
   }, /*#__PURE__*/React.createElement("option", { value: "" }, "— None —"),
   (function(){
