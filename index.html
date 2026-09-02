@@ -27219,16 +27219,38 @@ function MessagesPage(_refMP) {
     if (sending || !draft.trim() || !active) return;
     setSending(true); setErrMsg("");
     _supabase.rpc("send_thread_message", { p_thread_id: String(active.id), p_body: draft.trim() }).then(function (res) {
-      setSending(false);
       var failed = res.error || (res.data && res.data.success === false);
       if (failed) {
+        setSending(false);
         var raw = (res.error && (res.error.message || "")) + " " + JSON.stringify(res.data || "");
         var msg = raw.indexOf("consent") >= 0 || raw.indexOf("opt") >= 0
           ? t("Customer has opted out of messages.", "El cliente cancel\u00f3 los mensajes.")
           : t("Message could not be sent.", "No se pudo enviar el mensaje.");
         setErrMsg(msg); return;
       }
-      setDraft(""); loadThread(active);
+      var messageId = res.data && res.data.message_id;
+      if (!messageId) {
+        setSending(false);
+        setErrMsg(t("Message was queued, but delivery could not start.", "El mensaje se puso en cola, pero no se pudo iniciar la entrega."));
+        loadThread(active);
+        return;
+      }
+      _supabase.functions.invoke("sms-send", { body: { message_id: messageId } }).then(function (sendRes) {
+        setSending(false);
+        if (sendRes.error || (sendRes.data && !sendRes.data.ok)) {
+          setErrMsg(t("Message was queued, but delivery could not start.", "El mensaje se puso en cola, pero no se pudo iniciar la entrega."));
+        } else {
+          setDraft("");
+        }
+        loadThread(active); loadThreads();
+      }).catch(function () {
+        setSending(false);
+        setErrMsg(t("Message was queued, but delivery could not start.", "El mensaje se puso en cola, pero no se pudo iniciar la entrega."));
+        loadThread(active);
+      });
+    }).catch(function () {
+      setSending(false);
+      setErrMsg(t("Message could not be sent.", "No se pudo enviar el mensaje."));
     });
   }
   function setThreadStatus(fn) {
