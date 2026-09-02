@@ -4,5 +4,7 @@
   "stripe-checkout/index.ts": "9e3daf02aca9535239ddc3147deefc1ee9585942e856e894129df48c64d5aa1f",
   "payment-receipt/index.ts": "7e77865f32b25925bacba6194169c7fbb34bcbb2a7673823b04351c2656f7665",
   "stripe-webhook/index.ts": "a2ac21f5eb23ac48af78f8b6a1feafa0df7335ea4d134438f902b62c64847cd8",
-  "sms-send/index.ts": "badd9ad363bb681f5398ccf794bac8691087eb910338696993b92b5839a0f7c7"
+  "sms-send/index.ts": "badd9ad363bb681f5398ccf794bac8691087eb910338696993b92b5839a0f7c7",
+  "sms-inbound/index.ts": "90283dde049d5bae43e90daae05ff518aa6d8b5eea93abdba9feeb38e9d0f6bd",
+  "sms-delivery-status/index.ts": "97cd443d84df80cd9c6d0c4d03d6224443425de98bea2c10ded9bd57eb18c029"
 }
