@@ -1,0 +1,40 @@
+{
+  "_purpose": "Canonical deployed-SQL lock. Records the identity of SQL functions that carry money or consent semantics, so drift between a database and the reviewed artifacts in supabase/sql-artifacts/ is detectable. Read-only counterpart to supabase/functions/FUNCTION-LOCK.json. Update ONLY in the same reviewed commit that changes the corresponding artifact, with the new hash in the commit message.",
+  "_convention": "raw_sha256 = encode(sha256(convert_to(pg_get_functiondef(oid),'UTF8')),'hex') with NO post-processing. This is the ONLY enforced value. Historical hashes recorded under _notes are informational and MUST NOT be used as pins.",
+  "_ratified": "2026-09-02 owner ruling, R-2 follow-up (SQL-LOCK ticket)",
+  "_scope": "Initial coverage is the two artifacts landed in R-2. Extend deliberately; every entry added must have a matching artifact file.",
+  "_runbook": "supabase/sql-artifacts/README-SQL-LOCK.txt — usage, safety, how to add an entry, and the negative-test method. Kept as .txt because the repo .gitignore has a repo-wide *.md rule.",
+  "_verifier": "scripts/verify-sql-lock.sh — READ-ONLY. Exit 0 = all match, exit 1 = BLOCKED.",
+  "functions": [
+    {
+      "key": "get_public_payment_receipt(text)",
+      "schema": "public",
+      "proname": "get_public_payment_receipt",
+      "argtypes": "text",
+      "identity_arguments": "p_session_id text",
+      "returns": "jsonb",
+      "volatility": "s",
+      "security_definer": true,
+      "proconfig": "search_path=\"\"",
+      "execute_grantees": "anon,authenticated,postgres,service_role",
+      "raw_sha256": "db84153a1529124fe982d2568bcf06400e9f710bfca1140788f54cee6658621c",
+      "artifact": "supabase/sql-artifacts/get_public_payment_receipt.sql",
+      "_notes": "Ticket D public receipt handler. Byte-identical on staging zpqkhbhhgxaiallqvigr and production exayifxbqduhsxmmsnxr as of 2026-09-02."
+    },
+    {
+      "key": "merge_stripe_payment_completed(text,text,text,text,text,numeric)",
+      "schema": "public",
+      "proname": "merge_stripe_payment_completed",
+      "argtypes": "text,text,text,text,text,numeric",
+      "identity_arguments": "p_order_id text, p_tenant_id text, p_session_id text, p_payment_status text, p_payment_method text, p_amount_paid numeric",
+      "returns": "void",
+      "volatility": "v",
+      "security_definer": true,
+      "proconfig": "search_path=\"\"",
+      "execute_grantees": "postgres,service_role",
+      "raw_sha256": "cbbaacc8eeb7fd0583d5d1c91badcb81a9abc1bfed328ef44ffe9a523bfcc33c",
+      "artifact": "supabase/sql-artifacts/fc1_merge_guard_r3.sql",
+      "_notes": "F-C1 settlement guard (r3). Byte-identical on both projects as of 2026-09-02. HISTORICAL ONLY, never pins: rtrim(pg_get_functiondef,E'\\n') = 4d8ee67ea2e956804ff11c510a59ddfe0e5f4a241f0a1c2cd332ebe2b0ce7ab6 (used by the F-C1 evidence chain); inner $function$ body = e16623f3. Three correct values for one unchanged function — the convention above is what a checker must use."
+    }
+  ]
+}
