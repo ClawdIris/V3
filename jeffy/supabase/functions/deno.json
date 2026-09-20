@@ -1,0 +1,16 @@
+{
+  "lock": false,
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "lib": ["deno.window", "esnext"]
+  },
+  "imports": {
+    "@anthropic-ai/sdk": "npm:@anthropic-ai/sdk@0.127.0",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2",
+    "zod": "npm:zod@3.23.8"
+  },
+  "tasks": {
+    "check": "deno check --all _shared/*.ts */index.ts"
+  }
+}
