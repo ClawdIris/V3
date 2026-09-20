@@ -1,4 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+import type { Database } from '@/types/database.generated';
 import { AppState, type AppStateStatus } from 'react-native';
 
 import { env } from './env';
@@ -11,7 +13,10 @@ import { secureSessionStorage } from './secure-session';
  * device backup does not hand over a valid refresh token, and so the biometric
  * lock has something worth guarding.
  */
-export const supabase: SupabaseClient = createClient(env.supabaseUrl, env.supabaseAnonKey, {
+export const supabase: SupabaseClient<Database> = createClient<Database>(
+  env.supabaseUrl,
+  env.supabaseAnonKey,
+  {
   auth: {
     storage: secureSessionStorage,
     autoRefreshToken: true,
@@ -23,7 +28,8 @@ export const supabase: SupabaseClient = createClient(env.supabaseUrl, env.supaba
   global: {
     headers: { 'x-client-info': 'jeffy-ios' },
   },
-});
+  },
+);
 
 /**
  * Supabase refreshes tokens on a timer, which iOS suspends in the background.
