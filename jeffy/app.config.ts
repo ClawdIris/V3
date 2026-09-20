@@ -96,7 +96,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     [
       'expo-build-properties',
-      { ios: { deploymentTarget: '16.0' } },
+      { ios: { deploymentTarget: '16.4' } }, // SDK 57 minimum
     ],
   ],
 
