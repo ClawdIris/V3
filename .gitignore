@@ -42,3 +42,8 @@ website/
 .netlify/
 FETCH_HEAD
 *.md
+
+# Jeffy docs must be tracked (root ignores *.md)
+!jeffy/**/*.md
+!jeffy/*.md
+!jeffy/package-lock.json
