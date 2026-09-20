@@ -1,0 +1,55 @@
+# Keeps the Jeffy Supabase project awake.
+#
+# Free-tier Supabase projects are paused after about a week without activity,
+# and un-pausing is a manual step in the dashboard. For a two-person app that
+# can plausibly go quiet for a week, that is a surprise nobody wants. One API
+# request every few days counts as activity.
+#
+# Needs two repository secrets (Settings -> Secrets and variables -> Actions):
+#   JEFFY_SUPABASE_URL       https://<ref>.supabase.co
+#   JEFFY_SUPABASE_ANON_KEY  the publishable anon key (safe: RLS gates everything)
+
+name: jeffy-keepalive
+
+on:
+  schedule:
+    # Every three days at 09:17 UTC. Well inside the ~7 day pause window, and
+    # an odd minute so it does not pile onto the top-of-hour rush.
+    - cron: '17 9 */3 * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping the database through PostgREST
+        env:
+          URL: ${{ secrets.JEFFY_SUPABASE_URL }}
+          KEY: ${{ secrets.JEFFY_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
+            echo "JEFFY_SUPABASE_URL / JEFFY_SUPABASE_ANON_KEY are not set" >&2
+            exit 1
+          fi
+          # A real query, so the database itself sees activity. anon has no
+          # policy on this table, so RLS returns an empty array -- which is
+          # exactly what we want: a 200 with no data.
+          code=$(curl -sS -o /tmp/body -w '%{http_code}' \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            "$URL/rest/v1/product_lookup_cache?select=barcode&limit=1")
+          echo "PostgREST -> $code: $(cat /tmp/body)"
+          [ "$code" = "200" ]
+
+      - name: Ping auth
+        env:
+          URL: ${{ secrets.JEFFY_SUPABASE_URL }}
+          KEY: ${{ secrets.JEFFY_SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -H "apikey: $KEY" "$URL/auth/v1/health")
+          echo "Auth -> $code"
+          [ "$code" = "200" ]

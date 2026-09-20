@@ -73,6 +73,16 @@ supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
 
 ### 3. Apply the schema
 
+One command, from your machine, after `npx supabase login`:
+
+```bash
+./scripts/setup-supabase.sh <project-ref>
+```
+
+It links the project, pushes every migration, deploys every Edge Function,
+regenerates the types, and prints the dashboard steps that cannot be scripted.
+By hand, it is:
+
 ```bash
 supabase link --project-ref <your-project-ref>
 supabase db push          # applies supabase/migrations in order
@@ -104,6 +114,17 @@ psql "$DATABASE_URL" -v owner_id=<your-user-uuid> -f supabase/seed/seed.sql
 exercise filtering, suggestions and stats. Photos are not seeded (Storage
 objects can't be created from SQL), so tiles show placeholders until you add
 some through the app.
+
+### 4b. Keep the free project awake
+
+Free-tier Supabase pauses a project after about a week with no traffic, and
+un-pausing is a manual dashboard step. `.github/workflows/jeffy-keepalive.yml`
+makes one real request every three days. Give it two repository secrets:
+
+| Secret | Value |
+|---|---|
+| `JEFFY_SUPABASE_URL` | `https://<ref>.supabase.co` |
+| `JEFFY_SUPABASE_ANON_KEY` | the anon key |
 
 ### 5. Run it
 
