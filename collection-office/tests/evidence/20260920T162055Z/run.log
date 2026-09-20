@@ -1,0 +1,129 @@
+DISPOSABLE LOCAL CLUSTER — collection-office C1/C2 local proofs — 20260920T162055Z
+PGDATA=/private/tmp/claude-501/-Users-joshua-casabe-collection-dev/7b8363b9-f44a-466c-89d3-7e2a7049621e/scratchpad/ccpg-20260920T162055Z  socket=/tmp/ccsock.jWLRkx  port=54329  (no TCP)
+initdb ok: postgres (PostgreSQL) 16.14 (Homebrew)
+waiting for server to start.... done
+server started
+listen_addresses:   (empty = no TCP)
+
+── base schema + fixtures ──
+── apply C1 candidate ──
+psql:/Users/joshua/casabe-collection-dev/collection-office/01_collection_grants.CANDIDATE.sql:97: NOTICE:  trigger "collection_grant_audit_no_row_change" for relation "public.collection_grant_audit" does not exist, skipping
+psql:/Users/joshua/casabe-collection-dev/collection-office/01_collection_grants.CANDIDATE.sql:101: NOTICE:  trigger "collection_grant_audit_no_truncate" for relation "public.collection_grant_audit" does not exist, skipping
+── apply C2 candidate ──
+sha256 of applied files:
+873043d0b6f8443ef39a95ce208a200e98bcb9016cd1249288434296b66f47ea  /Users/joshua/casabe-collection-dev/collection-office/01_collection_grants.CANDIDATE.sql
+63fc38f21da7ea077c06b5edca64e0a51e67d793fd72f4c3307cbcf55a7d5d22  /Users/joshua/casabe-collection-dev/collection-office/02_collection_contacts.CANDIDATE.sql
+baaa31cd2528fed9339ce78ceb3e520ec7a75271a392f9d6e6f2d6f761444a02  /Users/joshua/casabe-collection-dev/collection-office/tests/00_base.sql
+5a9a6bb2945392180b92612d0704d85cdc8a5cfd3f7e0ef74bfd3fdf0b2d84f0  /Users/joshua/casabe-collection-dev/collection-office/tests/10_hostile.sql
+fe1a2b33b573986de9c13ed3623cdf22c40eb798ed4a913358bd162fab56fee4  /Users/joshua/casabe-collection-dev/collection-office/tests/20_concurrency.sh
+
+── hostile suite (SET LOCAL ROLE authenticated / anon) ──
+  PASS  G1 HQ grants read -> success+changed
+  PASS  G2 regrant -> success, changed:false
+  PASS  G3 self-grant refused (specific code)
+  PASS  G9 invalid action
+  PASS  G6 foreign-tenant office -> generic denied
+  PASS  G7 unknown office -> SAME generic code
+  PASS  G7b inactive office -> denied
+  PASS  G8 disabled member target -> denied
+  PASS  G8b non-member target -> denied (same code)
+  PASS  G4 non-HQ member cannot grant
+  PASS  G4b non-HQ member cannot revoke
+  PASS  G5 HQ of another tenant -> denied
+  PASS  G5b foreign HQ cannot grant on its own office under t1
+  PASS  G5c pollution guard: foreign actor wrote NO audit rows in t1
+  PASS  G6b refusal audit never stores unvalidated foreign/unknown ids
+  PASS  G6c ...but the refusals themselves ARE audited (specific reason server-side)
+  PASS  G12a read grantee can read A
+  PASS  G12b read does NOT imply manage
+  PASS  G13 grant on A does not leak to B
+  PASS  G20c bypass closed: need=admin is false
+  PASS  G16a contact grant confers NO metrics
+  PASS  G16b metrics store untouched by contact grant
+  PASS  G20a owner office has read on A
+  PASS  G20b owner office has manage on A (intake preserved)
+  PASS  G20d owner has NOTHING on office B
+  PASS  G20e owner: need=metrics via contact helper is false
+  PASS  G20f owner assignment confers no metrics
+  PASS  G12c HQ grants manage on B
+  PASS  G12d manage implies read
+  PASS  G11a before revoke: ST allowed on A
+  PASS  G10a revoke -> changed:true
+  PASS  G10b revoke again -> success, changed:false (no_op)
+  PASS  G4c revoke validates office scope
+  PASS  G11b after revoke: same session, no re-login, ST NOT allowed
+  PASS  G10c the no-op revoke is audited as no_op, not as a revocation
+  PASS  G17a re-grant after revoke -> changed:true
+  PASS  G17b revoked row PRESERVED + one active row (history intact)
+  PASS  G19a DUP (inactive hq row + active office row) is a valid target
+  PASS  G19b DUP reads A through the grant
+  PASS  G19c DUP is NOT hq (inactive hq row ignored)
+  PASS  G18 disabled member holding a grant -> allowed false, per call
+  PASS  G21a no sub -> not_authenticated
+  PASS  G21b no sub -> allowed false
+  PASS  G15a anon cannot EXECUTE grant
+  PASS  G14a authenticated cannot INSERT grants directly
+  PASS  G14b authenticated cannot SELECT grants directly
+  PASS  G14c authenticated cannot write audit directly
+  PASS  G15b authenticated cannot EXECUTE ck_is_tenant_hq
+  PASS  G15c authenticated cannot EXECUTE ck_is_office_owner
+  PASS  G14d audit UPDATE blocked (append-only trigger)
+  PASS  G14e audit DELETE blocked
+  PASS  G22a owner lists ACTIVE grants for own office
+  PASS  G22b owner cannot list office B
+  PASS  C1 owner imports 2 rows
+  PASS  C2 same key + same rows -> replayed, changed:false
+  PASS  C3 same key + DIFFERENT rows -> replay_conflict
+  PASS  C2/C3 contact count unchanged by replay and conflict
+  PASS  C4 read grantee cannot import
+  PASS  C4b read grantee CAN list
+  PASS  C11 foreign HQ cannot list
+  PASS  C15 foreign office under t1 -> denied
+  PASS  C5 501 rows -> rows_invalid
+  PASS  C6a mixed batch -> rows_invalid with every error listed
+  PASS  C6c replaying a failed batch returns the stored failure
+  PASS  C7a partial row on X1 -> updated 1
+  PASS  C8 shared phone -> inserted AND reported, never merged
+  PASS  C9 paging: limit 1 offset 1 returns ONE row and total 3
+  PASS  C10 search
+  PASS  C10b search metacharacter is escaped (no rows match a literal %)
+  PASS  C6b atomic: the mixed batch inserted NOTHING (3 rows total = 2 + Second Ana)
+  PASS  C7b partial row preserved the existing name
+  PASS  C7c partial row updated the supplied phone
+  PASS  C13a inactive match -> skipped + reported
+  PASS  C13b inactive contact untouched
+  PASS  C14 authenticated cannot write batches directly
+  PASS  C12 zero-ops: orders + tape_direct_records byte-identical
+
+── second connection: committed audit inspection ──
+   audit granted/- = 4
+   audit no_op/- = 2
+   audit refused/invalid_action = 1
+   audit refused/member_not_in_tenant = 2
+   audit refused/not_hq = 3
+   audit refused/office_not_in_tenant = 4
+   audit refused/self_grant_forbidden = 1
+   audit revoked/- = 1
+  PASS  S1 second connection sees committed refusal audit rows
+  PASS  S2 second connection: no audit row carries a foreign/unknown office or member id
+
+── concurrency: two real sessions ──
+  PASS  CC1 concurrent regrant: session A changed:true, session B (blocked, then) changed:false
+  PASS  CC1b exactly ONE active manage grant row exists
+  PASS  CC2 concurrent same-key import: A imported, B blocked on the claim then replayed
+  PASS  CC2b the two rows exist exactly once
+  PASS  CC3 concurrent same-key DIFFERENT payload: B gets replay_conflict
+  PASS  CC3b only Payload A landed
+
+── rollback scripts apply cleanly (then re-verified absent) ──
+rollbacks: OK
+functions remaining: 0
+
+════════════════ TALLY ════════════════
+checks=84 pass=84 fail=0
+── stopping the disposable cluster (only this one) ──
+waiting for server to shut down.... done
+server stopped
+pg_ctl: no server running
+cluster stopped (status: not running)
+PGDATA left at: /private/tmp/claude-501/-Users-joshua-casabe-collection-dev/7b8363b9-f44a-466c-89d3-7e2a7049621e/scratchpad/ccpg-20260920T162055Z (disposable, session temp)

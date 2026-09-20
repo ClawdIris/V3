@@ -1,0 +1,23 @@
+The files belonging to this database system will be owned by user "joshua".
+This user must also own the server process.
+
+The database cluster will be initialized with locale "C".
+The default text search configuration will be set to "english".
+
+Data page checksums are disabled.
+
+creating directory /private/tmp/claude-501/-Users-joshua-casabe-collection-dev/7b8363b9-f44a-466c-89d3-7e2a7049621e/scratchpad/ccpg-20260920T162055Z ... ok
+creating subdirectories ... ok
+selecting dynamic shared memory implementation ... posix
+selecting default max_connections ... 100
+selecting default shared_buffers ... 128MB
+selecting default time zone ... America/New_York
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /opt/homebrew/bin/pg_ctl -D /private/tmp/claude-501/-Users-joshua-casabe-collection-dev/7b8363b9-f44a-466c-89d3-7e2a7049621e/scratchpad/ccpg-20260920T162055Z -l logfile start
+

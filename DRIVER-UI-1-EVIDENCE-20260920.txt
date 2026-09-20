@@ -1,0 +1,146 @@
+DRIVER-UI-1 + ROUTE-HQ-1 EXECUTED EVIDENCE — LOCAL WORKTREE ONLY  (rev 4)
+worktree : /Users/joshua/casabe-collection-dev
+branch   : codex/collection-office-local  base 7367d98
+node     : v22.22.3   date 2026-09-20T16:21:36Z
+
+LOCAL ONLY. No target calls, no network, no Supabase, no auth, no WhatsApp/SMS,
+no browser, no credentials, no deploy. In-memory spies for window.open,
+_supabase.from().upsert().select() and _supabase.rpc. Proves control flow,
+the host result contract and UI effects — NOT real persistence, RLS or reload.
+
+SOURCE HASHES (sha256)
+e40512c6ff397c217bf3cdc9a89a509fdfe6c90b8b1e669426f575bc64425ed4  route-optimizer.js
+da29b9f8490ad0c8e436b768585ed530f12d789d06831770d8592190d8be9f71  index.html
+d40015a77b0506a1204f805d7fe3bc4e10b7e13e27a7f3a069041845d59c7250  tests/driver-ui-1-driver-ui.test.mjs
+415ceaae041bcd43181f8f183bc80f2a749be3d481353ad50ac98bd04b3e7f81  tests/driver-ui-1-host-contract.test.mjs
+acfbe0b8e27e2cdea7bafa6dc6cd7d8416546f263fc1e2068eb10e9004a44045  tests/route-hq-1-completion.test.mjs
+506ea96ca89ae3e47d52d66abcdebcad900b49c583a6f606f223a1490181e6eb  tests/helpers/driver-ui-1-harness.mjs
+392dabce789669646c15b58218c47fbd959c6a7161b54b8ccdd885bb0f07f452  driver-pay-1/01_driver_record_collection.PROPOSAL.sql
+
+BASELINE HASHES (unmodified inputs)
+7f232651b8f2fb66adc09e0c4283a6e4537e6ef1d7404b4fe503de4246c04ef7  route-optimizer.js@HEAD
+3ab859abde05ce5026c7a8dfa0791b5a6c3e3bc5036eda3999629a9d27a8b881  index.html@HEAD
+
+==============================================================
+RUN 1 — corrected source, all three suites
+==============================================================
+ok 1 - Already paid uses the authorized status RPC path, never the orders writer
+ok 2 - Already paid: a pending write leaves the stop pending — no receipt, no notify, button disabled
+ok 3 - Already paid: a rejected write surfaces failure, opens no receipt and leaks no unhandled rejection
+ok 4 - Already paid: a resolved failure result is a failure, not a success
+ok 5 - Already paid: undefined (the host backward-status gate) is a failure, not a success
+ok 6 - Already paid: the RPC no-op (changed:false) sends no receipt and no success
+ok 7 - Already paid: a second tap while in flight issues exactly ONE write and ONE receipt
+ok 8 - Already paid on an UNPAID order: status change succeeds, paid receipt is WITHHELD
+ok 9 - Already paid on a partially paid order: paid receipt is WITHHELD for the remainder
+ok 10 - Already paid: no confirmed row at all fails CLOSED (no receipt, no claim)
+ok 11 - Already paid: a numeric prefix as the confirmed amount fails CLOSED
+ok 12 - Already paid: Infinity (string) as the confirmed amount fails CLOSED
+ok 13 - Already paid: Infinity (number) as the confirmed amount fails CLOSED
+ok 14 - Already paid: NaN as the confirmed amount fails CLOSED
+ok 15 - Already paid: a negative total as the confirmed amount fails CLOSED
+ok 16 - Already paid: a negative string as the confirmed amount fails CLOSED
+ok 17 - Already paid: exponent notation as the confirmed amount fails CLOSED
+ok 18 - Already paid: three decimals as the confirmed amount fails CLOSED
+ok 19 - Already paid: leading whitespace as the confirmed amount fails CLOSED
+ok 20 - Already paid: a thousands separator as the confirmed amount fails CLOSED
+ok 21 - Already paid: a currency symbol as the confirmed amount fails CLOSED
+ok 22 - Already paid: an empty string as the confirmed amount fails CLOSED
+ok 23 - Already paid: null as the confirmed amount fails CLOSED
+ok 24 - Already paid: a boolean as the confirmed amount fails CLOSED
+ok 25 - Already paid: an object as the confirmed amount fails CLOSED
+ok 26 - Already paid: an array as the confirmed amount fails CLOSED
+ok 27 - Already paid: a malformed `paid` is not silently read as zero
+ok 28 - Already paid: canonical decimal STRINGS are accepted (the documented form)
+ok 29 - Confirm collect: the receipt figures come from the CONFIRMED row, not the payload
+ok 30 - Confirm collect: a server-ADJUSTED amount withholds the receipt instead of quoting the payload
+ok 31 - Confirm collect: a PARTIAL balance is quoted from the confirmed row, not local arithmetic
+ok 32 - Confirm collect: a partial whose confirmed balance is unreadable says so
+ok 33 - Confirm collect: a persisted write with NO confirmed row sends no receipt
+ok 34 - Confirm collect: a server row that settles MORE than asked still withholds (mismatch)
+ok 35 - Already paid: a confirmed settlement that this action did not cause is a MISMATCH
+ok 36 - Already paid: a genuinely prepaid order (settled, unchanged by this action) DOES get the receipt
+ok 37 - a blocked popup is never reported as a sent receipt
+ok 38 - a blocked receipt is parked behind an explicit driver tap, and that tap sends it
+ok 39 - a receipt still blocked on the retry stays parked and says so
+ok 40 - the blocked-receipt action survives the completed stop leaving the route list
+ok 41 - Confirm collect: a blocked popup does not claim the receipt was sent
+ok 42 - Confirm collect keeps the payment payload on the pre-existing onSave path, intact
+ok 43 - Confirm collect: persisted success opens exactly one receipt and clears the form
+ok 44 - Confirm collect: a denied write records NO receipt and keeps the amount for a retry
+ok 45 - Confirm collect: a writer that resolves undefined is NOT persistence proof
+ok 46 - Confirm collect: success:true without persisted:true is NOT persistence proof
+ok 47 - Confirm collect: a rejected write surfaces failure and leaks no unhandled rejection
+ok 48 - Confirm collect: a partial payment persists the balance and sends NO receipt
+ok 49 - Confirm collect: a double submit writes the payment exactly once
+ok 50 - Box delivered uses the status RPC, never a receipt
+ok 51 - Box delivered: failure keeps the stop open and says so
+ok 52 - Box delivered: the no-op result reports 'already recorded', not success
+ok 53 - Box delivered: a second tap while in flight issues exactly ONE write
+ok 54 - no status-RPC call from any driver flow ever carries a payment payload
+ok 55 - the whole suite leaked no unhandled rejections
+ok 56 - saveOrder resolves explicit persistence proof after the confirmed row comes back
+ok 57 - saveOrder refuses to call an unconfirmable write persisted
+ok 58 - saveOrder carries the SERVER's row, not the object it was handed
+ok 59 - _db.upsertOrderReturning returns the server representation when the upsert yields one
+ok 60 - _db.upsertOrderReturning: zero-row write + EXISTING unchanged row => NOT confirmed, no read-back
+ok 61 - _db.upsertOrderReturning resolves NULL on any zero-row write
+ok 62 - saveOrder: a suppressed write over an existing row does NOT complete anything
+ok 63 - _db.upsertOrderReturning captures the tenant at entry: a tenant switch mid-flight cannot alter the check
+ok 64 - _db.upsertOrderReturning: after a tenant switch, a row from the NEW tenant is rejected for the old call
+ok 65 - _db.upsertOrderReturning refuses to run without a tenant
+ok 66 - _db.upsertOrderReturning REJECTS a row for another id or tenant
+ok 67 - _db.upsertOrderReturning REJECTS an ambiguous multi-row response
+ok 68 - _db.upsertOrderReturning propagates a denied write
+ok 69 - saveOrder carries the collected payment payload through to the row it writes
+ok 70 - saveOrder RESOLVES on a failed write and reports success:false (the trap)
+ok 71 - saveOrder FAILS CLOSED without a tenant session — no write, no optimistic state, no success UI
+ok 72 - saveOrder with a session DOES run the normal success UI (the fail-closed guard is narrow)
+ok 73 - saveOrder rolls back and shows no success UI when the write is denied
+ok 74 - changeStatus driver path calls driver_update_order_status with no payment field
+ok 75 - changeStatus driver path: RPC error resolves success:false, never throws
+ok 76 - changeStatus driver path: payload success:false is a failure
+ok 77 - changeStatus driver path: changed:false is the RPC's idempotent no-op
+ok 78 - changeStatus returns UNDEFINED from the backward-status gate (why success must be checked)
+ok 79 - changeStatus driver path without a tenant session resolves success:false
+ok 80 - HQ pickup: a persisted write logs the stop, the shift tally and the receipt
+ok 81 - HQ pickup: a REJECTED write logs nothing — no receipt, no shift cash, stop stays open
+ok 82 - HQ pickup: a writer that RESOLVES undefined is not persistence proof
+ok 83 - HQ pickup: success:true without persisted:true is not persistence proof
+ok 84 - HQ pickup: a pending write stays pending — nothing is logged or shown
+ok 85 - HQ pickup: a double submit writes once and credits the shift once
+ok 86 - HQ pickup: the money reaching the writer is untouched by the fix
+ok 87 - HQ pickup: a blocked receipt popup is not reported as sent and is parked for a tap
+ok 88 - HQ pickup: a receipt still blocked on retry stays parked and offers the action again
+ok 89 - HQ pickup: the incomplete-form guard still refuses before any write
+ok 90 - HQ pickup: the receipt quotes the CONFIRMED row, not the local collected/owed state
+ok 91 - HQ pickup: a server-ADJUSTED amount withholds the receipt
+ok 92 - HQ pickup: a persisted write with NO confirmed row sends no receipt
+ok 93 - HQ pickup: a malformed confirmed amount withholds the receipt instead of reading as $0
+ok 94 - HQ pickup: 'Already paid' still requires the confirmed row to agree
+ok 95 - HQ drop-off: a persisted write logs the stop
+ok 96 - HQ drop-off: a rejected write logs nothing and says so
+ok 97 - HQ drop-off: a double submit writes once
+# tests 97
+# pass 97
+# fail 0
+
+RUN 2 — driver suite vs UNPATCHED baseline sibling
+# tests 55
+# pass 7
+# fail 48
+RUN 3 — driver suite vs CHAT CANDIDATE (NOT ACCEPTED)
+# tests 55
+# pass 7
+# fail 48
+RUN 4 — host-contract suite vs UNPATCHED index.html@HEAD
+# tests 24
+# pass 7
+# fail 17
+RUN 5 — ROUTE-HQ-1 suite vs UNPATCHED baseline sibling
+# tests 18
+# pass 5
+# fail 13
+
+NOT EXECUTED: driver-pay-1/*.sql (proposal, target gate, ends in ROLLBACK);
+repo jest/playwright suites (node_modules empty); real persistence/RLS/reload (T-D1/2/4/5 staged).

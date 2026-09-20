@@ -24899,6 +24899,89 @@ var _db = {
       });
   },
 
+  // DRIVER-UI-1 rev 3: an upsert whose response is DISCARDED proves nothing, and
+  // the row the client SENT is not evidence that anything was stored. This
+  // variant asks the server for its own representation of the written row,
+  // scoped by id and tenant, and falls back to a scoped read-back when the
+  // upsert returns no representation (a 0-row result, e.g. a write the server
+  // did not apply). It resolves the server's row, or null when none can be
+  // confirmed; the caller must reject that. RLS is unchanged — this reads back
+  // only what the caller is already permitted to select.
+  // DRIVER-UI-1 rev 4: an upsert whose response is DISCARDED proves nothing, and
+  // the row the client SENT is not evidence that anything was stored. This
+  // variant asks the server for its own representation of the written row
+  // (.select on the same statement) and resolves that row, or null.
+  //
+  // FAIL CLOSED ON AN EMPTY REPRESENTATION. When .select is requested and the
+  // server returns zero rows, the write was not applied to a row this caller
+  // can see (RLS filtered it, or nothing was written). Reading the row back
+  // afterwards would only prove that a row EXISTS — an untouched, pre-existing
+  // row reads back perfectly well — so a read-back is not, and must never be
+  // treated as, confirmation of THIS write. The only thing that could confirm
+  // identity across a separate read is an explicit write/version identity on
+  // the row (a version column or a server write token returned and compared);
+  // the orders table carries none today, so no read-back fallback exists here.
+  // Adding one is a schema decision for the target gate, not something to fake.
+  //
+  // The tenant is captured ONCE at entry and used for the row, the request and
+  // the identity check, so a tenant switch (_db.init) while the request is in
+  // flight cannot make the check accept a row from the other tenant, nor
+  // reject the row this call legitimately wrote.
+  //
+  // RLS is unchanged — this reads back only what the caller may already select,
+  // and it is a separate method so no other table's write gains a .select().
+  upsertOrderReturning: function(id, data, tenantId) {
+    var tid = (tenantId != null) ? tenantId : _db._tenantId;
+    if (tid == null || tid === "") {
+      var noT = new Error("db:upsert:orders:no_tenant");
+      noT.__notConfirmed = true;
+      return Promise.reject(noT);
+    }
+    data = normalizeOrderForUi(data);
+    var row = {
+      id: id, tenant_id: tid, data: data,
+      office_id: data.office_id || null, partner_id: data.partner_id || null
+    };
+    var cols = "id, tenant_id, data, office_id, partner_id, route_id, route_sequence";
+    var shape = function(r) {
+      // Reject anything that is not unambiguously the row we asked for, judged
+      // against the tenant captured at entry — never the current _db._tenantId.
+      if (!r || r.id !== id || String(r.tenant_id) !== String(tid)) {
+        var err = new Error("db:upsert:orders:row_mismatch");
+        err.__notConfirmed = true;
+        throw err;
+      }
+      return normalizeOrderForUi(Object.assign({}, r.data, {
+        id:             r.id,
+        office_id:      r.office_id  || null,
+        partner_id:     r.partner_id || null,
+        route_id:       r.route_id   || null,
+        route_sequence: (r.route_sequence == null ? null : r.route_sequence)
+      }));
+    };
+    return _supabase
+      .from("orders")
+      .upsert([row], { onConflict: "id,tenant_id" })
+      .select(cols)
+      .then(function(res) {
+        if (res.error) {
+          console.error("[db] upsert error orders", id, res.error.message);
+          throw res.error;
+        }
+        var rows = res.data || [];
+        if (rows.length === 1) return shape(rows[0]);
+        if (rows.length > 1) {
+          var amb = new Error("db:upsert:orders:ambiguous");
+          amb.__notConfirmed = true;
+          throw amb;
+        }
+        // Zero rows with .select requested: the write did not land on a row we
+        // can see. Existence of the row is NOT confirmation. Fail closed.
+        console.error("[db] upsert orders", id, "returned no representation — not confirmed");
+        return null;
+      });
+  },
+
   // Delete a row by id.
   remove: function(table, id) {
     return _supabase
@@ -28038,6 +28121,22 @@ function AppShell(_ref130) {
     }, 3500);
   }, []);
   var saveOrder = useCallback(function (order) {
+    // DRIVER-UI-1 (2): FAIL CLOSED. Without a tenant session there is no writer,
+    // so nothing may happen: no optimistic orders/shipments mutation, no form
+    // close, no "Order created/updated" confirmation. The previous shape ran the
+    // whole success path against a resolved no-op promise, which told the user
+    // the order was saved while no row was ever written. Callers that gate on
+    // persistence (the driver completion path) get an explicit refusal instead.
+    if (!(session && session.tenantId)) {
+      console.error("[order save] refused: no tenant session");
+      notify("\u26A0 Order did NOT save \u2014 no active session. Please sign in again.");
+      return Promise.resolve({
+        success: false,
+        changed: false,
+        persisted: false,
+        reason: "no_session"
+      });
+    }
     var isNew = !orders.find(function (o) {
       return o.id === order.id;
     });
@@ -28133,11 +28232,32 @@ setOrders(function (prev) {
     // Persist to Supabase, then confirm success ONLY after the write lands.
     // A failed write must not show "Order Created" or leave a phantom order that
     // disappears on refresh — revert the optimistic change and keep the form open.
-    var _persist = Promise.resolve();
-    if (session && session.tenantId) {
-      _db.init(session.tenantId);
-      _persist = _db.upsert("orders", order.id, order);
-    }
+    //
+    // DRIVER-UI-1: this writer RESOLVES on failure (it catches, rolls back and
+    // notifies), so `await saveOrder(...)` used to carry no success signal at
+    // all — both outcomes resolved undefined. It now resolves an explicit
+    // { success, changed, persisted, confirmedRow, reason } so a caller that
+    // gates a receipt or a completion on persistence can do so. persisted:true
+    // means the SERVER returned (or a scoped read-back confirmed) the row, which
+    // is carried in confirmedRow; the object passed in is never treated as
+    // evidence. The session-less case is refused at the top of this function.
+    // Existing callers ignore the resolved value and are unaffected.
+    var _persisted = false;
+    var _confirmedRow = null;
+    _db.init(session.tenantId);
+    // The tenant is passed explicitly from the session captured by this closure,
+    // not read from the mutable _db._tenantId at request time.
+    var _persist = _db.upsertOrderReturning(order.id, order, session.tenantId).then(function (row) {
+      // A write nobody can read back is NOT a save. Callers that gate a receipt
+      // on persistence must never be handed the payload we sent as "proof".
+      if (!row) {
+        var e = new Error("order_not_confirmed");
+        e.__notConfirmed = true;
+        throw e;
+      }
+      _confirmedRow = row;
+      _persisted = true;
+    });
     return _persist.then(function () {
       setShowNewOrder(false);
       setEditOrder(null);
@@ -28149,6 +28269,15 @@ setOrders(function (prev) {
         });
         if (rule) notify("\u26A1 ".concat(rule.action));else notify("\u2713 Order ".concat(order.id, " updated"));
       }
+      return {
+        success: _persisted,
+        changed: _persisted,
+        persisted: _persisted,
+        // The SERVER's row for this write, scoped by id and tenant. This — not
+        // the object we sent — is the only admissible evidence of what is stored.
+        confirmedRow: _confirmedRow,
+        reason: _persisted ? null : "not_persisted"
+      };
     }).catch(function (e) {
       console.error("[order save]", e);
       // Roll back the optimistic local change so the UI matches the database.
@@ -28159,6 +28288,14 @@ setOrders(function (prev) {
       }
       // Keep the form open so the user can retry; do NOT show the success confirmation.
       notify("\u26A0 Order did NOT save \u2014 " + ((e && e.message) ? e.message : "sync failed") + ". Please retry.");
+      return {
+        success: false,
+        changed: false,
+        persisted: false,
+        confirmedRow: null,
+        reason: (e && e.__notConfirmed) ? "not_confirmed" : "write_failed",
+        error: e
+      };
     });
   }, [notify, orders, shipments]);
 

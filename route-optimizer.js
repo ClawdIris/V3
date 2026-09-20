@@ -30,6 +30,72 @@ function fmt$(n) { return "$" + Number(n || 0).toLocaleString("en-US"); }
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
 function debounce(fn, ms) { var t; return function () { var a = arguments, self = this; clearTimeout(t); t = setTimeout(function () { fn.apply(self, a); }, ms); }; }
 function balanceOf(o) { var p = o._raw && o._raw.payment || {}; return Math.max(0, (parseFloat(p.amount) || 0) - (parseFloat(p.paid) || 0)); }
+
+/* ═══ money proof helpers (DRIVER-UI-1 / ROUTE-HQ-1) ══════════════════════════
+   parseFloat is not acceptable for deciding whether a customer owes money: it
+   accepts a numeric PREFIX ("100oops" -> 100), "Infinity", exponent notation and
+   negative values, and `|| 0` turns every unreadable amount into a settled zero.
+   SUPPORTED FORMS, exhaustively: a finite JS number >= 0, or a canonical decimal
+   string matching /^\d+(\.\d{1,2})?$/ (no sign, no exponent, no whitespace, no
+   thousands separator, at most 2 decimals). Anything else is UNUSABLE, which is
+   not the same as zero, and every caller must fail closed on null. */
+function strictAmount(v) {
+  if (typeof v === "number") {
+    if (!isFinite(v) || v < 0) return null;
+    return Math.round(v * 100) / 100;
+  }
+  if (typeof v === "string" && /^\d+(\.\d{1,2})?$/.test(v)) {
+    var n = Number(v);
+    if (!isFinite(n)) return null;
+    return Math.round(n * 100) / 100;
+  }
+  return null;
+}
+/* Settlement read of a CONFIRMED row's own payment. Missing `paid` reads as 0;
+   a malformed `paid` or any unusable `amount` is unproven, never settled. */
+function paidProofOf(row) {
+  var p = row && row.payment;
+  if (!p || typeof p !== "object") return { proven: false, balance: null, paid: null };
+  var amount = strictAmount(p.amount);
+  var paid = (p.paid == null) ? 0 : strictAmount(p.paid);
+  if (amount == null || paid == null) return { proven: false, balance: null, paid: null };
+  var bal = Math.round((amount - paid) * 100) / 100;
+  return { proven: bal <= 0, balance: Math.max(0, bal), paid: paid };
+}
+/* Receipt figures, derived ONLY from the row the server confirmed.
+     confirmedRow        the server's row. null/absent => no receipt.
+     priorPayment        this order's payment BEFORE the action.
+     requestedCollected  what this action asked to record.
+     requireSettled      true for a "paid in full" receipt.
+   The confirmed increase in `paid` must equal what was requested. If a trigger,
+   a concurrent writer or the server itself adjusted it, the receipt is withheld
+   rather than printing a figure nobody confirmed. */
+function receiptFiguresFrom(confirmedRow, priorPayment, requestedCollected, requireSettled) {
+  if (!confirmedRow) return { ok: false, reason: "unconfirmed", balance: null };
+  var proof = paidProofOf(confirmedRow);
+  if (proof.paid == null) return { ok: false, reason: "unreadable_confirmed", balance: null };
+  if (requireSettled && !proof.proven) return { ok: false, reason: "unsettled", balance: proof.balance };
+  var priorPaid = (priorPayment && priorPayment.paid != null) ? strictAmount(priorPayment.paid) : 0;
+  if (priorPaid == null) return { ok: false, reason: "unreadable_prior", balance: proof.balance };
+  var want = strictAmount(requestedCollected == null ? 0 : requestedCollected);
+  if (want == null) return { ok: false, reason: "bad_request_amount", balance: proof.balance };
+  var delta = Math.round((proof.paid - priorPaid) * 100) / 100;
+  if (delta !== want) {
+    return { ok: false, reason: "amount_mismatch", balance: proof.balance, confirmedDelta: delta, requested: want };
+  }
+  return { ok: true, collected: delta, balance: proof.balance };
+}
+function withheldReasonText(r) {
+  r = { reason: r.withheldReason || r.reason, balance: r.balance };
+  if (r.reason === "unsettled") {
+    return r.balance == null
+      ? "the saved order does not show a settled balance"
+      : "the saved order still shows " + fmt$(r.balance) + " outstanding";
+  }
+  if (r.reason === "amount_mismatch") return "the confirmed order does not match the amount recorded here";
+  if (r.reason === "unconfirmed") return "the write was not confirmed by the server";
+  return "the saved order could not be read back";
+}
 function classifyLocType(lt, partial) {
   if ((lt === "ROOFTOP" || lt === "RANGE_INTERPOLATED") && !partial) return "ok";
   if (lt) return "warn";
@@ -1368,14 +1434,59 @@ RO.saRecalc = function () {
       (collected < due ? ' · <span style="color:var(--yellow)">owes ' + fmt$(due - collected) + "</span>" : (collected > due ? ' · <span style="color:var(--yellow)">over by ' + fmt$(collected - due) + "</span>" : ""));
 };
 
-/* complete = single authoritative write via onSave (payment + label + status + history) */
+/* ═══ ROUTE-HQ-1 — the same defect class as DRIVER-UI-1, on the HQ surface ═══
+   Original: `try { save(updated); return true; }` reported success on
+   INVOCATION. save() is asynchronous, so the try/catch could not see a
+   rejection, and every downstream effect ran regardless of the write:
+   the stop was struck off, the shift cash tally in RO.session.completed grew by
+   the collected amount, and a WhatsApp receipt opened. A refused write
+   therefore inflated the driver's cash reconciliation for money that was never
+   recorded against the order.
+
+   Corrected: completeWrite resolves { ok, ... } and is positive ONLY on the
+   host writer's explicit success === true && persisted === true. Session,
+   struck-off state, modal close and receipt are all downstream of that, and a
+   repeat submit for the same stop is refused while a write is outstanding.
+
+   Money semantics are UNCHANGED: collected / owed / method / receipt-channel
+   come from the same form fields and reach the same writer with the same
+   values. This is a completion-reporting fix, not a financial-policy change.
+   That writer's authorization for driver-collected payment remains unproven
+   (DRIVER-PAY-1); nothing here approves it. */
+var roCompleting = {};
 function completeWrite(o, patch, newStatus, historyNote) {
-  var save = RO.props && RO.props.onSave; if (!save || !o._raw) return false;
+  var save = RO.props && RO.props.onSave;
+  if (!save || !o || !o._raw) return Promise.resolve({ ok: false, reason: "no_writer" });
+  if (roCompleting[o.tn]) return Promise.resolve({ ok: false, reason: "in_flight", inFlight: true });
+  roCompleting[o.tn] = true;
   var raw = o._raw;
   var hist = (raw.history || []).concat([{ status: newStatus, ts: new Date().toISOString(), note: historyNote, by: "Route Optimizer" }]);
   var boxes = (raw.boxes || []).map(function (b) { return Object.assign({}, b, { orderStatus: newStatus, status: newStatus }); });
   var updated = Object.assign({}, raw, patch, { status: newStatus, history: hist, boxes: boxes });
-  try { save(updated); return true; } catch (e) { return false; }
+  return Promise.resolve().then(function () {
+    return save(updated);
+  }).then(function (res) {
+    /* The host writer resolves even when the write failed, so only its explicit
+       persisted result is proof. undefined is NOT proof, and the row we SENT is
+       not proof either — confirmedRow is the server's own row. */
+    if (!res || res.success !== true || res.persisted !== true) {
+      return { ok: false, reason: "not_persisted", result: res };
+    }
+    return { ok: true, confirmedRow: res.confirmedRow || null, result: res };
+  }).catch(function (e) {
+    console.error("[ROUTE-HQ-1] completion write failed", e);
+    return { ok: false, reason: "error", error: e };
+  }).then(function (r) {
+    roCompleting[o.tn] = false;
+    return r;
+  });
+}
+function completionFailureToast(o, r) {
+  if (r && r.inFlight) return;
+  toast("⚠ NOT saved — nothing was recorded",
+    o.name + " was not saved" +
+    ((r && r.error && r.error.message) ? " (" + r.error.message + ")" : "") +
+    ". The stop is still open and the shift tally is unchanged. Try again.");
 }
 RO.completePickup = function () {
   var o = orderByTn(saCtx.tn); if (!o) return;
@@ -1391,49 +1502,83 @@ RO.completePickup = function () {
   var receipt = $("#sa_receipt").classList.contains("on"), channel = saCtx.channel;
   var rphone = $("#sa_rphone").value.trim(), qty = +($("#sa_qty").value || 1), box = $("#sa_box").value, labelMode = saCtx.labelMode;
 
+  var priorPayment = Object.assign({}, o._raw.payment || {});
   var p = Object.assign({}, o._raw.payment || {});
   if (method !== "Already paid" && collected > 0) {
     p.paid = (parseFloat(p.paid) || 0) + collected;
     p.method = method.toLowerCase().replace(" ", "_");
     p.status = (parseFloat(p.paid) >= (parseFloat(p.amount) || 0)) ? "paid" : "deposit";
   }
-  completeWrite(o, {
+  var due = saCtx.due;
+  return completeWrite(o, {
     payment: p, nameOnBox: rname, labelMode: labelMode, boxType: box,
     stopCompletion: { collected: collected, method: method, owed: owed, receipt: receipt, channel: channel,
       qty: qty, recipientPhone: rphone, destinationNote: dest, completedAt: new Date().toISOString() }
-  }, "picked_up", "Pickup intake — collected " + fmt$(collected) + " (" + method + ")" + (owed ? " · owes " + fmt$(owed) : ""));
+  }, "picked_up", "Pickup intake — collected " + fmt$(collected) + " (" + method + ")" + (owed ? " · owes " + fmt$(owed) : ""))
+  .then(function (r) {
+    if (!r.ok) { completionFailureToast(o, r); return r; }
 
-  RO.session.completedTns[o.tn] = 1;
-  RO.session.completed.push({ tn: o.tn, name: o.name, service: "pickup", due: saCtx.due, collected: collected, method: method, owed: owed, receipt: receipt, driver: o.driver || state.driverId, placedBy: o.placedBy, placedByType: o.placedByType });
-  roSessSave();
-  o.done = true; state.removed.add(o.tn);
-  RO.closeStop(); renderAll();
+    RO.session.completedTns[o.tn] = 1;
+    RO.session.completed.push({ tn: o.tn, name: o.name, service: "pickup", due: due, collected: collected, method: method, owed: owed, receipt: receipt, driver: o.driver || state.driverId, placedBy: o.placedBy, placedByType: o.placedByType });
+    roSessSave();
+    o.done = true; state.removed.add(o.tn);
+    RO.closeStop(); renderAll();
 
-  var msg = o.name + " · collected " + fmt$(collected) + " (" + method + ")" + (owed ? " · owes " + fmt$(owed) : " · paid in full") + " · " + (qty > 1 ? qty + "× " : "") + "→ " + rname + " (" + dest + ")";
-  if (labelMode === "needslabel") msg += " · 🏷 label to print";
-  if (receipt) {
-    if (channel === "WhatsApp") { window.open(receiptWaUrl(o, collected, method, owed), "_blank"); msg += "\nWhatsApp receipt opened — press send."; }
-    else msg += "\n" + channel + " receipt queues in Message Queue (Twilio pending).";
-  }
-  toast("✅ Pickup logged", msg);
+    var msg = o.name + " · collected " + fmt$(collected) + " (" + method + ")" + (owed ? " · owes " + fmt$(owed) : " · paid in full") + " · " + (qty > 1 ? qty + "× " : "") + "→ " + rname + " (" + dest + ")";
+    if (labelMode === "needslabel") msg += " · 🏷 label to print";
+    var action = null;
+    if (receipt) {
+      if (channel === "WhatsApp") {
+        /* Same proof rules as the driver surface: every figure on the receipt
+           comes from the row the server confirmed, not from the local collected
+           / owed / "Already paid" state. A partial receipt is still legitimate
+           here (it states the remaining balance), so settlement is not required
+           — but the numbers must be the confirmed ones, and the confirmed
+           increase in `paid` must match what this stop recorded. */
+        var fig = receiptFiguresFrom(r.confirmedRow, priorPayment,
+          (method === "Already paid" ? 0 : collected), false);
+        if (!fig.ok) {
+          msg += "\nNO receipt sent — " + withheldReasonText(fig) + ".";
+        } else {
+          var rurl = receiptWaUrl(o, fig.collected, method, fig.balance);
+          var w = null;
+          try { w = window.open(rurl, "_blank"); } catch (e) { w = null; }
+          if (w) { msg += "\nWhatsApp receipt opened — press send."; }
+          else {
+            /* Saved, but the browser refused the window. Do not claim it opened. */
+            RO.pendingReceipt = { tn: o.tn, name: o.name, url: rurl };
+            msg += "\nWhatsApp was BLOCKED — the receipt has NOT been sent.";
+            action = '<div class="tact"><button class="btn primary" onclick="RO.sendPendingReceipt()">🧾 Send receipt</button></div>';
+          }
+        }
+      }
+      else msg += "\n" + channel + " receipt queues in Message Queue (Twilio pending).";
+    }
+    toast("✅ Pickup logged", msg, null, action);
+    return r;
+  });
 };
 RO.completeDrop = function () {
   var o = orderByTn(saCtx.tn); if (!o) return;
   var toQueue = $("#sa_queue").classList.contains("on");
   var notify = toQueue && $("#sa_notify").classList.contains("on");
   var qty = +($("#sa_qty").value || 1), box = $("#sa_box").value, note = $("#sa_note").value.trim();
-  completeWrite(o, {
+  return completeWrite(o, {
     boxType: box,
     stopCompletion: { qty: qty, note: note, boxesOut: toQueue, notify: notify, completedAt: new Date().toISOString() }
-  }, "box_dropped_off", "Drop box — " + qty + "× " + box + (note ? " · " + note : ""));
-  RO.session.completedTns[o.tn] = 1;
-  RO.session.completed.push({ tn: o.tn, name: o.name, service: "dropbox", due: 0, collected: 0, method: "", owed: 0, receipt: false, driver: o.driver || state.driverId, placedBy: o.placedBy, placedByType: o.placedByType });
-  roSessSave();
-  if (toQueue) RO.session.boxesOut.push({ tn: o.tn, name: o.name, phone: o.phone, addr: o.addr, box: box, driver: o.driver || state.driverId, date: "Today", notify: notify, placedBy: o.placedBy, placedByType: o.placedByType });
-  roSessSave();
-  o.done = true; state.removed.add(o.tn);
-  RO.closeStop(); renderAll(); if (toQueue) RO.switchTab("boxes");
-  toast("📦 Box dropped", o.name + " delivered" + (toQueue ? " · added to Boxes Out queue" : "") + (notify ? " · shipment campaign enabled" : "") + ".");
+  }, "box_dropped_off", "Drop box — " + qty + "× " + box + (note ? " · " + note : ""))
+  .then(function (r) {
+    if (!r.ok) { completionFailureToast(o, r); return r; }
+    RO.session.completedTns[o.tn] = 1;
+    RO.session.completed.push({ tn: o.tn, name: o.name, service: "dropbox", due: 0, collected: 0, method: "", owed: 0, receipt: false, driver: o.driver || state.driverId, placedBy: o.placedBy, placedByType: o.placedByType });
+    roSessSave();
+    if (toQueue) RO.session.boxesOut.push({ tn: o.tn, name: o.name, phone: o.phone, addr: o.addr, box: box, driver: o.driver || state.driverId, date: "Today", notify: notify, placedBy: o.placedBy, placedByType: o.placedByType });
+    roSessSave();
+    o.done = true; state.removed.add(o.tn);
+    RO.closeStop(); renderAll(); if (toQueue) RO.switchTab("boxes");
+    toast("📦 Box dropped", o.name + " delivered" + (toQueue ? " · added to Boxes Out queue" : "") + (notify ? " · shipment campaign enabled" : "") + ".");
+    return r;
+  });
 };
 
 /* ---------- shift + boxes out ---------- */
@@ -1529,14 +1674,32 @@ RO.switchTab = function (name) {
 RO.viewDriverRoute = function (id) {
   $("#driverSelect").value = id; state.driverId = id; rebuildRoute(); RO.switchTab("map"); renderAll();
 };
-function toast(title, body, url) {
+function toast(title, body, url, actionHtml) {
   var w = $("#roToasts"); if (!w) return;
   var el = document.createElement("div");
   el.className = "toast";
-  el.innerHTML = '<div class="th">' + title + '</div><div class="tb">' + esc(body).replace(/\n/g, "<br>") + "</div>" + (url ? '<div class="url">' + esc(url) + "</div>" : "");
+  el.innerHTML = '<div class="th">' + title + '</div><div class="tb">' + esc(body).replace(/\n/g, "<br>") + "</div>" +
+    (url ? '<div class="url">' + esc(url) + "</div>" : "") + (actionHtml || "");
   w.appendChild(el);
-  setTimeout(function () { el.remove(); }, 9000);
+  /* An action the user still has to take must not time out from under them. */
+  if (!actionHtml) setTimeout(function () { el.remove(); }, 9000);
 }
+/* ROUTE-HQ-1: a receipt window.open issued after an async write is routinely
+   popup-blocked and returns null. Park it and re-issue from a real user tap. */
+RO.pendingReceipt = null;
+RO.sendPendingReceipt = function () {
+  var pr = RO.pendingReceipt; if (!pr) return false;
+  var w = null;
+  try { w = window.open(pr.url, "_blank"); } catch (e) { w = null; }
+  if (!w) {
+    toast("⚠ WhatsApp still blocked", "Allow pop-ups for this site, then tap Send receipt again.", null,
+      '<div class="tact"><button class="btn primary" onclick="RO.sendPendingReceipt()">🧾 Send receipt</button></div>');
+    return false;
+  }
+  RO.pendingReceipt = null;
+  toast("🧾 Receipt opened", pr.name + " — press send in WhatsApp.");
+  return true;
+};
 
 RO.init = function () {
   var ds = $("#driverSelect");
@@ -1641,7 +1804,7 @@ window.RouteOptimizerPage = function (props) {
      drop box            → "Box delivered"   → stop complete
    All writes go through props.onSave / onStatusChange (Supabase). */
 window.DriverRouteLite = function (props) {
-  var useState = React.useState, useEffect = React.useEffect, useMemo = React.useMemo;
+  var useState = React.useState, useEffect = React.useEffect, useMemo = React.useMemo, useRef = React.useRef;
   var h = React.createElement;
   var orders = props.orders || [];
   var me = props.driverName || "";
@@ -1655,6 +1818,16 @@ window.DriverRouteLite = function (props) {
   var _amt = useState(""); var amt = _amt[0], setAmt = _amt[1];
   var _mth = useState("Cash"); var mth = _mth[0], setMth = _mth[1];
   var _ready = useState(false); var mapsReady = _ready[0], setReady = _ready[1];
+  /* DRIVER-UI-1: in-flight completions. The ref is the authoritative guard
+     (synchronous, immune to React batching); the state only drives the button
+     disable so a second tap cannot be queued from the UI either. */
+  var _busyStops = useState({}); var busyStops = _busyStops[0], setBusyStops = _busyStops[1];
+  var inFlight = useRef({});
+  /* DRIVER-UI-1: a receipt window.open issued AFTER an async write is routinely
+     popup-blocked and returns null. The write still stands, so the completion is
+     a success, but the receipt must not be reported as sent: it is parked here
+     and re-issued from an explicit driver tap (a real user gesture). */
+  var _pendingReceipt = useState(null); var pendingReceipt = _pendingReceipt[0], setPendingReceipt = _pendingReceipt[1];
 
   useEffect(function () {
     ensureStyles();
@@ -1712,21 +1885,218 @@ window.DriverRouteLite = function (props) {
       (pts.length > 1 ? "&waypoints=" + pts.slice(0, -1).map(encodeURIComponent).join("%7C") : "") + "&travelmode=driving";
     window.open(url, "_blank");
   }
-  /* single authoritative completion write */
-  function completeStop(o, newStatus, payPatch, note, receiptInfo) {
-    var save = props.onSave;
-    var raw = o._raw;
-    var hist = (raw.history || []).concat([{ status: newStatus, ts: new Date().toISOString(), note: note, by: me || "Driver" }]);
-    var boxes = (raw.boxes || []).map(function (b) { return Object.assign({}, b, { orderStatus: newStatus, status: newStatus }); });
-    var updated = Object.assign({}, raw, payPatch || {}, { status: newStatus, history: hist, boxes: boxes });
-    if (save) { try { save(updated); } catch (e) { console.error(e); } }
-    if (receiptInfo) {
-      window.open(receiptWaUrl(o, receiptInfo.collected, receiptInfo.method, receiptInfo.balance), "_blank");
-    }
+  /* ═══ DRIVER-UI-1 — completion write, corrected ═════════════════════════
+     DEFECT (original): save(updated) was fire-and-forget inside a try/catch
+     that cannot observe a rejected promise. The receipt opened and every
+     caller's success notify fired on INVOCATION, not on persistence. A denied
+     or failed write left the driver holding a "paid in full" receipt for money
+     the database never recorded.
+
+     WHY AWAITING ALONE IS NOT THE FIX: the real host writers resolve on
+     failure too.
+       props.onSave      -> index.html saveOrder. It catches its own upsert
+                            error, rolls back the optimistic row and RESOLVES.
+                            Before the paired host change it resolved undefined
+                            in BOTH outcomes, so `await save(...)` carried no
+                            signal at all and an { ok:false } check could never
+                            fire. It now resolves an explicit
+                            { success, changed, persisted, reason } and only
+                            success === true && persisted === true is proof.
+       props.onStatusChange -> index.html changeStatus. For roleKey "driver" it
+                            resolves the driver_update_order_status payload
+                            { success, changed, ... }, but it returns UNDEFINED
+                            from the backward-status gate and resolves
+                            { success:false, changed:false } on any RPC error.
+                            success === true && changed === true is the only
+                            positive result; changed === false is the RPC's
+                            own idempotent no-op and must never re-issue a
+                            receipt or re-credit a deposit.
+     Anything else - undefined, false, a resolved failure object, a rejection,
+     a promise that never settles - leaves the stop OPEN and silent.
+
+     WRITER SPLIT (caller inventory, all three call sites below):
+       alreadyPaid    status-only, no money  -> onStatusChange (driver RPC)
+       boxDelivered   status-only, no money  -> onStatusChange (driver RPC)
+       confirmCollect CARRIES COLLECTED CASH -> onSave, path UNCHANGED
+     driver_update_order_status takes (order_id, new_status, box_sub_id,
+     reason_code, reason_note) and has NO field for a collected amount or
+     method. Routing confirmCollect there would SILENTLY DROP the collection,
+     so the payment call keeps the pre-existing props.onSave path exactly as it
+     was. That path is PRESERVED, NOT endorsed: no authorized driver
+     payment-collection contract has been demonstrated for it, and the local SQL
+     sources create no driver UPDATE policy on orders, so a real driver payment
+     upsert is expected to be refused. That open contract is DRIVER-PAY-1 in the
+     accompanying report and file-only proposal. Nothing here declares the
+     upsert approved: no new writer, no new grant, no widened orders access, no
+     direct table write.
+
+     A PAID RECEIPT IS NOT IMPLIED BY A COMPLETED STOP. A successful status
+     change proves only that the status moved. A paid receipt is issued only
+     when the confirmed row's own payment numbers show a zero balance;
+     otherwise the stop is confirmed as a pickup and the receipt is withheld. */
+  function payloadHasPayment(payPatch) {
+    if (!payPatch) return false;
+    if (payPatch.payment) return true;
+    var sc = payPatch.stopCompletion;
+    if (sc && (sc.method != null || sc.owed != null ||
+               (sc.collected != null && Number(sc.collected) !== 0))) return true;
+    return false;
   }
+  /* Returns true only if a window actually opened. A blocked popup parks the
+     receipt for an explicit tap instead of being reported as sent. */
+  function openReceipt(o, info, key) {
+    var url = receiptWaUrl(o, info.collected, info.method, info.balance);
+    var w = null;
+    try { w = window.open(url, "_blank"); } catch (e) { w = null; }
+    if (w) return true;
+    setPendingReceipt({ key: key, tn: o.tn, name: o.name, url: url });
+    return false;
+  }
+  function sendPendingReceipt() {
+    if (!pendingReceipt) return false;
+    var w = null;
+    try { w = window.open(pendingReceipt.url, "_blank"); } catch (e) { w = null; }
+    if (!w) { notify("⚠️ WhatsApp is still blocked — allow pop-ups for this site, then tap again."); return false; }
+    var name = pendingReceipt.name;
+    setPendingReceipt(null);
+    notify("🧾 " + name + " — receipt opened in WhatsApp");
+    return true;
+  }
+  function markBusy(key, on) {
+    setBusyStops(function (prev) {
+      if (!!prev[key] === !!on) return prev;
+      var next = Object.assign({}, prev);
+      if (on) next[key] = true; else delete next[key];
+      return next;
+    });
+  }
+  /* Resolves { ok, reason, ... }. NEVER throws, never resolves ok:true without
+     a positive result from the host writer. */
+  function completeStop(o, newStatus, payPatch, note, receiptInfo, opts) {
+    opts = opts || {};
+    var raw = o && o._raw;
+    if (!raw) return Promise.resolve({ ok: false, reason: "no_order" });
+    var writer = opts.writer || (payloadHasPayment(payPatch) ? "save" : "status");
+    /* Hard guard: collected money must never travel the status RPC. */
+    if (writer === "status" && payloadHasPayment(payPatch)) {
+      console.error("[DRIVER-UI-1] refused: payment payload cannot go through the status RPC");
+      notify("⚠️ Not saved — the status update cannot record a payment. Nothing was changed.");
+      return Promise.resolve({ ok: false, reason: "payment_on_status_path" });
+    }
+    /* In-flight duplicate guard: a second tap on the same stop is refused
+       while the first write is outstanding, so no double receipt and no
+       double deposit credit. */
+    var key = raw.id || o.tn;
+    if (inFlight.current[key]) return Promise.resolve({ ok: false, reason: "in_flight", inFlight: true });
+    inFlight.current[key] = true;
+    markBusy(key, true);
+
+    var attempt;
+    if (writer === "status") {
+      var osc = props.onStatusChange;
+      if (typeof osc !== "function") {
+        inFlight.current[key] = false; markBusy(key, false);
+        return Promise.resolve({ ok: false, reason: "no_status_writer" });
+      }
+      attempt = Promise.resolve().then(function () {
+        /* changeStatus(id, newStatus, newDriver, reason, newDriverUserId,
+           boxSubId, reasonCode, reasonNote). newDriver stays undefined so the
+           assignment is untouched; boxSubId null keeps this an order-level
+           stop (every box moves together, as before). reasonCode/reasonNote
+           stay null because the RPC rejects a reason on picked_up and
+           box_dropped_off - the human note lives in the toast and in the
+           server-side history entry the RPC writes with the driver identity. */
+        return osc(raw.id, newStatus, undefined, undefined, undefined, null, null, null);
+      }).then(function (res) {
+        if (!res || res.success !== true) return { ok: false, reason: "rejected", result: res };
+        if (res.changed !== true) return { ok: false, reason: "no_op", noOp: true, result: res };
+        return { ok: true, changed: true, writer: "status", result: res };
+      });
+    } else {
+      var save = props.onSave;
+      if (typeof save !== "function") {
+        inFlight.current[key] = false; markBusy(key, false);
+        return Promise.resolve({ ok: false, reason: "no_save_writer" });
+      }
+      var hist = (raw.history || []).concat([{ status: newStatus, ts: new Date().toISOString(), note: note, by: me || "Driver" }]);
+      var boxes = (raw.boxes || []).map(function (b) { return Object.assign({}, b, { orderStatus: newStatus, status: newStatus }); });
+      var updated = Object.assign({}, raw, payPatch || {}, { status: newStatus, history: hist, boxes: boxes });
+      attempt = Promise.resolve().then(function () {
+        return save(updated);
+      }).then(function (res) {
+        /* saveOrder resolves even when the write failed, so only the explicit
+           persisted result counts. undefined is NOT persistence proof. */
+        if (!res || res.success !== true || res.persisted !== true) {
+          return { ok: false, reason: "not_persisted", result: res };
+        }
+        return { ok: true, changed: true, writer: "save", result: res };
+      });
+    }
+
+    return attempt.catch(function (e) {
+      console.error("[DRIVER-UI-1] completion failed", e);
+      return { ok: false, reason: "error", error: e };
+    }).then(function (r) {
+      inFlight.current[key] = false;
+      markBusy(key, false);
+      /* Receipt is downstream of a confirmed write, never of a tap — and every
+         figure on it comes from the row the SERVER confirmed. The object this
+         client sent is not evidence of anything and is never used here:
+           save path   -> result.confirmedRow, the row saveOrder read back
+           status path -> result.order_data, the row the RPC committed
+         Absent, unreadable, unsettled or mismatched => the receipt is withheld
+         and the completion is reported without a payment claim. */
+      if (r.ok) {
+        var confirmed = (writer === "save")
+          ? ((r.result && r.result.confirmedRow) || null)
+          : ((r.result && r.result.order_data) || null);
+        r.confirmedRow = confirmed;
+        /* Every figure this UI quotes about the saved order — the receipt AND a
+           partial balance — comes from here, never from local arithmetic. */
+        r.balance = paidProofOf(confirmed).balance;
+      }
+      if (r.ok && receiptInfo) {
+        var fig = receiptFiguresFrom(r.confirmedRow, raw.payment, receiptInfo.collected, true);
+        r.balance = fig.balance;
+        if (!fig.ok) {
+          r.receipt = false;
+          r.receiptWithheld = true;
+          r.withheldReason = fig.reason;
+        } else if (openReceipt(o, { collected: fig.collected, method: receiptInfo.method, balance: fig.balance }, key)) {
+          r.receipt = true;
+        } else {
+          r.receipt = false;
+          r.receiptBlocked = true;         /* saved, but the popup was blocked */
+        }
+      }
+      return r;
+    });
+  }
+  /* "Already paid" is offered even when the order still shows a balance, because
+     a customer really can have paid outside the app. What it CANNOT do is assert
+     that. The status RPC carries no payment, so the paid receipt is issued only
+     if the confirmed row's payment shows nothing outstanding; otherwise the stop
+     is confirmed as a pickup and the balance is reported instead. */
   function alreadyPaid(o) {
-    completeStop(o, "picked_up", null, "Picked up — already paid", { collected: 0, method: "prepaid", balance: 0 });
-    notify("✅ " + o.name + " — picked up · receipt opened in WhatsApp");
+    return completeStop(o, "picked_up", null, "Picked up — already paid",
+      { collected: 0, method: "prepaid", balance: 0 },
+      { writer: "status" })
+      .then(function (r) {
+        if (r.ok) {
+          if (r.receipt) notify("✅ " + o.name + " — picked up · receipt opened in WhatsApp");
+          else if (r.receiptWithheld) {
+            notify("✅ " + o.name + " — picked up, but " + withheldReasonText(r) +
+              " — NO paid receipt was sent.");
+          } else if (r.receiptBlocked) {
+            notify("✅ " + o.name + " — picked up · saved. WhatsApp was blocked — tap “Send receipt” to open it.");
+          }
+          return r;
+        }
+        if (r.inFlight) return r;                       /* duplicate tap: stay silent */
+        if (r.noOp) { notify("ℹ️ " + o.name + " — already picked up · nothing changed, no receipt sent"); return r; }
+        notify("❌ " + o.name + " — NOT saved. The stop is still open; try again.");
+        return r;
+      });
   }
   function confirmCollect(o) {
     var collected = Math.max(0, parseFloat(amt) || 0);
@@ -1737,20 +2107,55 @@ window.DriverRouteLite = function (props) {
     p.method = mth.toLowerCase();
     p.status = newBal <= 0 ? "paid" : (parseFloat(p.paid) > 0 ? "deposit" : (p.status || "unpaid"));
     var note = "Picked up — collected " + fmt$(collected) + " (" + mth + ")" + (newBal > 0 ? " · balance " + fmt$(newBal) : " · paid in full");
-    completeStop(o, "picked_up", {
+    var full = newBal <= 0;
+    /* Payment collection stays on the pre-existing props.onSave path, unchanged
+       and not endorsed (DRIVER-PAY-1). The form is cleared and the receipt opens
+       only after a persisted result, so a denied write leaves the collected
+       amount on screen for a retry instead of vanishing behind a false success. */
+    return completeStop(o, "picked_up", {
       payment: p,
       stopCompletion: { collected: collected, method: mth, owed: newBal, completedAt: new Date().toISOString(), completedByDriver: me }
-    }, note, newBal <= 0 ? { collected: collected, method: mth, balance: 0 } : null);
-    setPayFor(null); setAmt("");
-    notify(newBal <= 0
-      ? "✅ " + o.name + " — paid in full · receipt opened in WhatsApp"
-      : "🟡 " + o.name + " — " + fmt$(collected) + " collected · balance " + fmt$(newBal) + " saved to the order");
+    }, note, full ? { collected: collected, method: mth, balance: 0 } : null,
+       { writer: "save" })
+      .then(function (r) {
+        if (!r.ok) {
+          if (!r.inFlight) {
+            notify("❌ " + o.name + " — " + fmt$(collected) + " was NOT recorded. The stop stays open. Do not give a receipt; try again.");
+          }
+          return r;
+        }
+        setPayFor(null); setAmt("");
+        if (!full) {
+          /* the remaining balance is quoted from the CONFIRMED row, not from the
+             local subtraction that produced newBal */
+          notify("🟡 " + o.name + " — " + fmt$(collected) + " collected · " +
+            (r.balance == null
+              ? "the remaining balance could not be confirmed on the saved order"
+              : "balance " + fmt$(r.balance) + " on the saved order"));
+        } else if (r.receipt) {
+          notify("✅ " + o.name + " — paid in full · receipt opened in WhatsApp");
+        } else if (r.receiptBlocked) {
+          notify("✅ " + o.name + " — " + fmt$(collected) + " recorded · paid in full. WhatsApp was blocked — tap “Send receipt” to open it.");
+        } else {
+          notify("✅ " + o.name + " — " + fmt$(collected) + " recorded, but " +
+            withheldReasonText(r) + " — NO paid receipt was sent.");
+        }
+        return r;
+      });
   }
   function boxDelivered(o) {
-    completeStop(o, "box_dropped_off", { stopCompletion: { completedAt: new Date().toISOString(), completedByDriver: me } }, "Empty box delivered");
-    notify("📦 " + o.name + " — box delivered");
+    /* Status-only. The RPC writes the history entry, the timestamp and the
+       driver identity server-side, which is what the old local stopCompletion
+       patch recorded (it has no reader anywhere in the codebase). */
+    return completeStop(o, "box_dropped_off", null, "Empty box delivered", null, { writer: "status" })
+      .then(function (r) {
+        if (r.ok) { notify("📦 " + o.name + " — box delivered"); return r; }
+        if (r.inFlight) return r;
+        if (r.noOp) { notify("ℹ️ " + o.name + " — box already recorded as delivered"); return r; }
+        notify("❌ " + o.name + " — box delivery NOT saved. The stop is still open; try again.");
+        return r;
+      });
   }
-
   /* ---- render ---- */
   function chip(txt, fg, bg) {
     return h("span", { style: { fontSize: 10.5, fontWeight: 800, color: fg, background: bg, borderRadius: 7, padding: "3px 9px" } }, txt);
@@ -1760,6 +2165,9 @@ window.DriverRouteLite = function (props) {
     var isPick = o.service === "pickup";
     var dest = o.lat != null ? o.lat + "," + o.lng : o.addr;
     var paying = payFor === o.tn;
+    /* DRIVER-UI-1: a stop with an outstanding completion write disables its own
+       actions, so the UI cannot even queue the second tap the ref already refuses. */
+    var saving = !!busyStops[(o._raw && o._raw.id) || o.tn];
     return h("div", { key: o.tn, className: "dl-stop" },
       h("div", { className: "dl-head" },
         h("div", { style: { width: 26, height: 26, borderRadius: "50%", flexShrink: 0, background: isPick ? "#f5972a" : "#3b9bff", color: "#1a1206", fontWeight: 800, fontSize: 12, display: "grid", placeItems: "center", marginTop: 2 } }, i + 1),
@@ -1789,7 +2197,7 @@ window.DriverRouteLite = function (props) {
                   return h("button", { key: m, className: "dl-btn", onClick: function () { setMth(m); },
                     style: mth === m ? { background: "var(--green-soft)", color: "#5be3ab", borderColor: "rgba(39,194,129,.45)" } : {} }, m);
                 }),
-                h("button", { className: "dl-btn collect", disabled: amt === "", onClick: function () { confirmCollect(o); } }, "✓ Confirm"),
+                h("button", { className: "dl-btn collect", disabled: amt === "" || saving, onClick: function () { confirmCollect(o); } }, saving ? "Saving…" : "✓ Confirm"),
                 h("button", { className: "dl-btn", onClick: function () { setPayFor(null); setAmt(""); } }, "Cancel"),
                 (parseFloat(amt) || 0) < bal && amt !== ""
                   ? h("span", { style: { color: "var(--yellow)", fontWeight: 800, fontSize: 12 } }, "Balance left: " + fmt$(bal - (parseFloat(amt) || 0)))
@@ -1799,14 +2207,14 @@ window.DriverRouteLite = function (props) {
                 h("span", { className: "dl-due " + (bal <= 0 ? "zero" : "owe") }, bal <= 0 ? "Paid ✓ $0 due" : "Due: " + fmt$(bal)),
                 h("div", { style: { flex: 1 } }),
                 bal <= 0
-                  ? h("button", { className: "dl-btn paid", onClick: function () { alreadyPaid(o); } }, "✓ Already paid — send receipt")
-                  : [h("button", { key: "ap", className: "dl-btn paid", onClick: function () { alreadyPaid(o); }, title: "Customer already paid outside the app" }, "✓ Already paid"),
+                  ? h("button", { className: "dl-btn paid", disabled: saving, onClick: function () { alreadyPaid(o); } }, saving ? "Saving…" : "✓ Already paid — send receipt")
+                  : [h("button", { key: "ap", className: "dl-btn paid", disabled: saving, onClick: function () { alreadyPaid(o); }, title: "Customer already paid outside the app" }, saving ? "Saving…" : "✓ Already paid"),
                      h("button", { key: "cl", className: "dl-btn collect", onClick: function () { setPayFor(o.tn); setAmt(String(bal)); setMth("Cash"); } }, "💵 Collect " + fmt$(bal))]
               ))
           : h("div", { className: "dl-payrow" },
               h("span", { style: { color: "var(--text-dim)", fontSize: 12.5 } }, "Deliver empty box — no payment at this stop"),
               h("div", { style: { flex: 1 } }),
-              h("button", { className: "dl-btn deliver", onClick: function () { boxDelivered(o); } }, "📦 Box delivered")
+              h("button", { className: "dl-btn deliver", disabled: saving, onClick: function () { boxDelivered(o); } }, saving ? "Saving…" : "📦 Box delivered")
             )
       )
     );
@@ -1826,6 +2234,18 @@ window.DriverRouteLite = function (props) {
     ),
     h("div", { style: { background: "var(--green-soft)", border: "1px solid rgba(39,194,129,.28)", borderRadius: 12, padding: "10px 14px", fontSize: 12, color: "#a9e8cd", marginBottom: 14 } },
       "📡 ", h("b", { style: { color: "#cfffe9" } }, "Live"), " — stops come from dispatch in real time. Tap a stop's payment action; the order, payment and receipt all update automatically."),
+    /* DRIVER-UI-1: a receipt the browser refused to open. Rendered at page level,
+       not inside the stop card, because a completed stop leaves the list as soon
+       as its new status arrives — the driver must still be able to send it. */
+    pendingReceipt
+      ? h("div", { className: "dl-receipt-pending", style: { background: "var(--amber-soft)", border: "1px solid rgba(245,183,51,.45)", borderRadius: 12, padding: "10px 14px", marginBottom: 14, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+          h("span", { style: { fontSize: 12.5, color: "#ffd98a", flex: 1, minWidth: 180 } },
+            "🧾 Saved, but the browser blocked WhatsApp for " + pendingReceipt.name +
+            " (" + pendingReceipt.tn + "). The receipt has NOT been sent."),
+          h("button", { className: "dl-btn paid", onClick: function () { sendPendingReceipt(); } }, "🧾 Send receipt"),
+          h("button", { className: "dl-btn", onClick: function () { setPendingReceipt(null); } }, "Dismiss")
+        )
+      : null,
     stops.length ? stopCards :
       h("div", { className: "empty" }, "No stops assigned right now. New pickups and box drop-offs appear here the moment dispatch assigns them.")
   );

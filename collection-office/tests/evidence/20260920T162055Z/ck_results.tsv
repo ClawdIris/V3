@@ -1,0 +1,84 @@
+1	PASS	G1 HQ grants read -> success+changed	{"action": "read", "changed": true, "success": true}
+2	PASS	G2 regrant -> success, changed:false	{"action": "read", "changed": false, "success": true}
+3	PASS	G3 self-grant refused (specific code)	{"reason": "self_grant_forbidden", "changed": false, "success": false}
+4	PASS	G9 invalid action	{"reason": "invalid_action", "changed": false, "success": false}
+5	PASS	G6 foreign-tenant office -> generic denied	{"reason": "denied", "changed": false, "success": false}
+6	PASS	G7 unknown office -> SAME generic code	{"reason": "denied", "changed": false, "success": false}
+7	PASS	G7b inactive office -> denied	{"reason": "denied", "changed": false, "success": false}
+8	PASS	G8 disabled member target -> denied	{"reason": "denied", "changed": false, "success": false}
+9	PASS	G8b non-member target -> denied (same code)	{"reason": "denied", "changed": false, "success": false}
+10	PASS	G4 non-HQ member cannot grant	{"reason": "denied", "changed": false, "success": false}
+11	PASS	G4b non-HQ member cannot revoke	{"reason": "denied", "changed": false, "success": false}
+12	PASS	G5 HQ of another tenant -> denied	{"reason": "denied", "changed": false, "success": false}
+13	PASS	G5b foreign HQ cannot grant on its own office under t1	{"reason": "denied", "changed": false, "success": false}
+14	PASS	G5c pollution guard: foreign actor wrote NO audit rows in t1	rows=0
+15	PASS	G6b refusal audit never stores unvalidated foreign/unknown ids	rows=0
+16	PASS	G6c ...but the refusals themselves ARE audited (specific reason server-side)	rows=5
+17	PASS	G12a read grantee can read A	
+18	PASS	G12b read does NOT imply manage	
+19	PASS	G13 grant on A does not leak to B	
+20	PASS	G20c bypass closed: need=admin is false	
+21	PASS	G16a contact grant confers NO metrics	
+22	PASS	G16b metrics store untouched by contact grant	rows=0
+23	PASS	G20a owner office has read on A	
+24	PASS	G20b owner office has manage on A (intake preserved)	
+25	PASS	G20d owner has NOTHING on office B	
+26	PASS	G20e owner: need=metrics via contact helper is false	
+27	PASS	G20f owner assignment confers no metrics	
+28	PASS	G12c HQ grants manage on B	{"action": "manage", "changed": true, "success": true}
+29	PASS	G12d manage implies read	
+30	PASS	G11a before revoke: ST allowed on A	
+31	PASS	G10a revoke -> changed:true	{"action": "read", "changed": true, "success": true}
+32	PASS	G10b revoke again -> success, changed:false (no_op)	{"action": "read", "changed": false, "success": true}
+33	PASS	G4c revoke validates office scope	{"reason": "denied", "changed": false, "success": false}
+34	PASS	G11b after revoke: same session, no re-login, ST NOT allowed	
+35	PASS	G10c the no-op revoke is audited as no_op, not as a revocation	rows=1
+36	PASS	G17a re-grant after revoke -> changed:true	{"action": "read", "changed": true, "success": true}
+37	PASS	G17b revoked row PRESERVED + one active row (history intact)	rows=2 revoked=1
+38	PASS	G19a DUP (inactive hq row + active office row) is a valid target	{"action": "read", "changed": true, "success": true}
+39	PASS	G19b DUP reads A through the grant	
+40	PASS	G19c DUP is NOT hq (inactive hq row ignored)	{"reason": "denied", "changed": false, "success": false}
+41	PASS	G18 disabled member holding a grant -> allowed false, per call	
+42	PASS	G21a no sub -> not_authenticated	{"reason": "not_authenticated", "changed": false, "success": false}
+43	PASS	G21b no sub -> allowed false	
+44	PASS	G15a anon cannot EXECUTE grant	
+45	PASS	G14a authenticated cannot INSERT grants directly	
+46	PASS	G14b authenticated cannot SELECT grants directly	
+47	PASS	G14c authenticated cannot write audit directly	
+48	PASS	G15b authenticated cannot EXECUTE ck_is_tenant_hq	
+49	PASS	G15c authenticated cannot EXECUTE ck_is_office_owner	
+50	PASS	G14d audit UPDATE blocked (append-only trigger)	
+51	PASS	G14e audit DELETE blocked	
+52	PASS	G22a owner lists ACTIVE grants for own office	{"rows": [{"action": "read", "granted_at": "2026-09-20T12:20:56.537045-04:00", "granted_by": "00000000-0000-4000-a000-00000000aaa1", "member_user_id": "00000000-0000-4000-a000-00000000bbb1"}, {"action": "read", "granted_at": "2026-09-20T12:20:56.537432-04:00", "granted_by": "00000000-0000-4000-a000-00000000aaa1", "member_user_id": "00000000-0000-4000-a000-00000000fff1"}], "success": true}
+53	PASS	G22b owner cannot list office B	{"reason": "denied", "success": false}
+54	PASS	C1 owner imports 2 rows	{"changed": true, "skipped": [], "success": true, "updated": 0, "inserted": 2, "replayed": false, "ambiguous": []}
+55	PASS	C2 same key + same rows -> replayed, changed:false	{"changed": false, "skipped": [], "success": true, "updated": 0, "inserted": 2, "replayed": true, "ambiguous": []}
+56	PASS	C3 same key + DIFFERENT rows -> replay_conflict	{"reason": "replay_conflict", "changed": false, "success": false}
+57	PASS	C2/C3 contact count unchanged by replay and conflict	rows=2
+58	PASS	C4 read grantee cannot import	{"reason": "denied", "changed": false, "success": false}
+59	PASS	C4b read grantee CAN list	{"rows": [{"id": "9c942e58-adf4-4db5-b7ad-441b67e1131c", "name": "Ana Diaz", "email": "ana@x.com", "phone": "+1 (555) 123-0000", "external_ref": "X1"}, {"id": "6c48f283-3d63-4232-b487-7707a582702b", "name": "No Ref Person", "email": null, "phone": "555-999-0001", "external_ref": null}], "limit": 50, "total": 2, "offset": 0, "success": true}
+60	PASS	C11 foreign HQ cannot list	{"reason": "denied", "success": false}
+61	PASS	C15 foreign office under t1 -> denied	{"reason": "denied", "changed": false, "success": false}
+62	PASS	C5 501 rows -> rows_invalid	{"errors": [{"code": "count_out_of_range", "count": 501, "field": "rows", "index": -1}], "reason": "rows_invalid", "changed": false, "success": false}
+63	PASS	C6a mixed batch -> rows_invalid with every error listed	{"errors": [{"code": "invalid", "field": "name", "index": 1}, {"code": "invalid", "field": "email", "index": 2}], "reason": "rows_invalid", "changed": false, "success": false}
+64	PASS	C6c replaying a failed batch returns the stored failure	{"errors": [{"code": "invalid", "field": "name", "index": 1}, {"code": "invalid", "field": "email", "index": 2}], "reason": "rows_invalid", "changed": false, "success": false, "replayed": true}
+65	PASS	C7a partial row on X1 -> updated 1	{"changed": true, "skipped": [], "success": true, "updated": 1, "inserted": 0, "replayed": false, "ambiguous": []}
+66	PASS	C8 shared phone -> inserted AND reported, never merged	{"changed": true, "skipped": [], "success": true, "updated": 0, "inserted": 1, "replayed": false, "ambiguous": [{"note": "phone already present for this office; inserted as a NEW contact, not merged", "index": 0, "phone": "+1 (555) 123-0000", "existing_matches": 1}]}
+67	PASS	C9 paging: limit 1 offset 1 returns ONE row and total 3	{"rows": [{"id": "6c48f283-3d63-4232-b487-7707a582702b", "name": "No Ref Person", "email": null, "phone": "555-999-0001", "external_ref": null}], "limit": 1, "total": 3, "offset": 1, "success": true}
+68	PASS	C10 search	{"rows": [{"id": "6c48f283-3d63-4232-b487-7707a582702b", "name": "No Ref Person", "email": null, "phone": "555-999-0001", "external_ref": null}], "limit": 50, "total": 1, "offset": 0, "success": true}
+69	PASS	C10b search metacharacter is escaped (no rows match a literal %)	{"rows": [], "limit": 50, "total": 0, "offset": 0, "success": true}
+70	PASS	C6b atomic: the mixed batch inserted NOTHING (3 rows total = 2 + Second Ana)	rows=3
+71	PASS	C7b partial row preserved the existing name	Ana Diaz
+72	PASS	C7c partial row updated the supplied phone	+15551230000
+73	PASS	C13a inactive match -> skipped + reported	{"changed": false, "skipped": [{"code": "inactive_match", "index": 0, "external_ref": "X1"}], "success": true, "updated": 0, "inserted": 0, "replayed": false, "ambiguous": []}
+74	PASS	C13b inactive contact untouched	Ana Diaz
+75	PASS	C14 authenticated cannot write batches directly	
+76	PASS	C12 zero-ops: orders + tape_direct_records byte-identical	
+77	PASS	S1 second connection sees committed refusal audit rows	n=11
+78	PASS	S2 second connection: no audit row carries a foreign/unknown office or member id	
+79	PASS	CC1 concurrent regrant: session A changed:true, session B (blocked, then) changed:false	a=1 b=1
+80	PASS	CC1b exactly ONE active manage grant row exists	
+81	PASS	CC2 concurrent same-key import: A imported, B blocked on the claim then replayed	a=1 b=1
+82	PASS	CC2b the two rows exist exactly once	
+83	PASS	CC3 concurrent same-key DIFFERENT payload: B gets replay_conflict	b=1
+84	PASS	CC3b only Payload A landed	
