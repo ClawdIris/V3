@@ -43,12 +43,17 @@ export function inviteDeepLink(code: string): string {
   return `jeffy://join/${normaliseInviteCode(code)}`;
 }
 
-export function inviteShareMessage(code: string, ownerName: string | null): string {
+export function inviteShareMessage(
+  code: string,
+  ownerName: string | null,
+  link: string | null = null,
+): string {
   const who = ownerName ?? 'Someone';
+  const open = link === null ? 'Open the app, sign up, then enter the code.' : `Open ${link}, sign up, and the code is filled in for you.`;
   return (
     `${who} wants you to style their closet on Jeffy.\n\n` +
     `Your code: ${formatInviteCode(code)}\n\n` +
-    `Open the app, sign up, then enter the code.`
+    open
   );
 }
 

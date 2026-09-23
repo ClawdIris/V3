@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, Share, StyleSheet, Switch, View } from 'react-native';
+import { Platform, Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
@@ -14,6 +14,7 @@ import {
   useSetStylistStatus,
   useStylists,
 } from '@/features/stylist/use-invites';
+import { joinLink } from '@/lib/links';
 import { LOCK_TIMEOUT_CHOICES } from '@/lib/lock-settings';
 import { useAppLock } from '@/providers/app-lock-provider';
 import { useAuth } from '@/providers/auth-provider';
@@ -49,8 +50,20 @@ export default function SettingsScreen(): React.JSX.Element {
     }
   };
 
+  const [copied, setCopied] = useState(false);
+
   const shareCode = async (code: string): Promise<void> => {
-    await Share.share({ message: inviteShareMessage(code, profile?.display_name ?? null) });
+    const message = inviteShareMessage(code, profile?.display_name ?? null, joinLink(code));
+    try {
+      await Share.share({ message });
+    } catch {
+      // Desktop browsers have no share sheet. The clipboard is the next best
+      // thing, and saying so beats a silent no-op.
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(message);
+        setCopied(true);
+      }
+    }
   };
 
   return (
@@ -208,7 +221,7 @@ export default function SettingsScreen(): React.JSX.Element {
               <Text variant="display" style={{ letterSpacing: 2 }}>
                 {formatInviteCode(freshCode)}
               </Text>
-              <Button title="Share" onPress={() => void shareCode(freshCode)} />
+              <Button title={copied ? 'Copied to clipboard' : 'Share'} onPress={() => void shareCode(freshCode)} />
             </View>
           ) : null}
 

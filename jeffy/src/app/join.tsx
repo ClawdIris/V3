@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -22,7 +22,10 @@ export default function JoinScreen(): React.JSX.Element {
   const { refreshMemberships, setActiveCloset } = useAuth();
   const { spacing } = useTheme();
 
-  const [code, setCode] = useState('');
+  // A shared web link arrives as /join?code=XXXX; a native deep link as
+  // jeffy://join/XXXX. Either way the field starts filled in.
+  const params = useLocalSearchParams<{ code?: string }>();
+  const [code, setCode] = useState(typeof params.code === 'string' ? params.code : '');
   const [message, setMessage] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
 

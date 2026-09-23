@@ -1,4 +1,3 @@
-import * as AppleAuthentication from 'expo-apple-authentication';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View, useColorScheme } from 'react-native';
@@ -8,6 +7,7 @@ import { Field } from '@/components/ui/field';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { describeAuthError } from '@/features/auth/errors';
+import { AppleAuthenticationModule, appleSignInKind } from '@/lib/apple-auth';
 import { useAuth } from '@/providers/auth-provider';
 import { useTheme } from '@/theme/use-theme';
 
@@ -88,13 +88,20 @@ export default function SignInScreen(): React.JSX.Element {
 
       <View style={{ height: spacing.md }} />
 
-      {isAppleAvailable ? (
-        <AppleAuthentication.AppleAuthenticationButton
-          buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+      {isAppleAvailable && appleSignInKind === 'web' ? (
+        <Button
+          title="Continue with Apple"
+          variant="secondary"
+          onPress={() => void withApple()}
+          disabled={busy}
+        />
+      ) : isAppleAvailable && AppleAuthenticationModule !== null ? (
+        <AppleAuthenticationModule.AppleAuthenticationButton
+          buttonType={AppleAuthenticationModule.AppleAuthenticationButtonType.SIGN_IN}
           buttonStyle={
             scheme === 'dark'
-              ? AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
-              : AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+              ? AppleAuthenticationModule.AppleAuthenticationButtonStyle.WHITE
+              : AppleAuthenticationModule.AppleAuthenticationButtonStyle.BLACK
           }
           cornerRadius={10}
           style={styles.apple}

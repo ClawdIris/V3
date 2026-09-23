@@ -30,8 +30,22 @@ export function describeAuthError(cause: unknown): string | null {
     }
   }
 
+  if (isNetworkFailure(cause)) {
+    return 'Cannot reach the server. Check your connection and try again.';
+  }
+
   if (cause instanceof Error) return cause.message;
   return 'Something went wrong. Try again.';
+}
+
+/**
+ * fetch() reports a dead network as a TypeError whose message differs by
+ * platform: "Failed to fetch" (Chromium), "Load failed" (Safari), "Network
+ * request failed" (React Native). None of those belong on screen.
+ */
+function isNetworkFailure(cause: unknown): boolean {
+  if (!(cause instanceof Error)) return false;
+  return /failed to fetch|load failed|network request failed|networkerror/i.test(cause.message);
 }
 
 function isCancellation(cause: unknown): boolean {

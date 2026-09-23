@@ -43,6 +43,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
   },
 
+  web: {
+    // One index.html and client-side routing: what a PWA wants, and what the
+    // Netlify redirect in netlify.toml assumes.
+    output: 'single',
+    bundler: 'metro',
+    favicon: './public/icons/icon-192.png',
+  },
+
   plugins: [
     'expo-router',
     'expo-secure-store',

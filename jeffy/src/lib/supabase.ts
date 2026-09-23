@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import type { Database } from '@/types/database.generated';
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
 
 import { env } from './env';
 import { secureSessionStorage } from './secure-session';
@@ -21,9 +21,11 @@ export const supabase: SupabaseClient<Database> = createClient<Database>(
     storage: secureSessionStorage,
     autoRefreshToken: true,
     persistSession: true,
-    // There is no URL to parse a session out of in a native app, and leaving
-    // this on makes the client wait on a browser API that never resolves.
-    detectSessionInUrl: false,
+    // On the web, OAuth and password-recovery redirects land with tokens in
+    // the URL fragment and this is what consumes them. On native there is no
+    // URL, and leaving it on makes the client wait on a browser API that
+    // never resolves.
+    detectSessionInUrl: Platform.OS === 'web',
   },
   global: {
     headers: { 'x-client-info': 'jeffy-ios' },

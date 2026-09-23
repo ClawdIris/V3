@@ -126,10 +126,46 @@ makes one real request every three days. Give it two repository secrets:
 | `JEFFY_SUPABASE_URL` | `https://<ref>.supabase.co` |
 | `JEFFY_SUPABASE_ANON_KEY` | the anon key |
 
-### 5. Run it
+### 5. Run it — on the web (primary)
 
-**Expo Go will not work.** Jeffy uses the camera, barcode scanning,
-biometrics, and Sign in with Apple, all of which need a development build:
+Jeffy ships as a **PWA**. No Apple Developer account, no Mac, no TestFlight:
+
+```bash
+npm run web            # dev server in your browser
+npm run build:web      # static export to dist/
+```
+
+Deploy `dist/` anywhere static — `netlify.toml` is included, so on Netlify
+set the base directory to `jeffy` and it builds itself. Add the two
+`EXPO_PUBLIC_*` variables under Site settings → Environment variables.
+
+On your phone, open the URL in Safari → Share → **Add to Home Screen**. From
+then on it launches full-screen like an app, works offline for browsing the
+closet, and (iOS 16.4+) can receive push notifications.
+
+The service worker (`public/sw.js`) caches only the app shell and hashed
+build assets. Supabase responses are never cached by it: they are per-user
+and RLS-scoped, and caching them would be a privacy bug. Closet data is
+cached by the app itself through the TanStack persister.
+
+**What's different on the web** — be aware before you pick this path:
+
+| | Native | Web |
+|---|---|---|
+| Biometric lock | Face ID on launch and after a timeout | Not available; the phone's own lock screen is the lock |
+| Session storage | iOS keychain | `localStorage` — bounded by short-lived tokens |
+| Calendar context | reads today's events | no web API exists; weather + occasion still work |
+| Sign in with Apple | native sheet | OAuth redirect through Supabase |
+| Camera | in-app | opens the real camera, or the photo library |
+
+The native target still builds, and is the way back if the lock or calendar
+matter to you.
+
+### 5b. Run it — native (optional)
+
+**Expo Go will not work.** The native build uses the camera, barcode
+scanning, biometrics, and Sign in with Apple, all of which need a
+development build:
 
 ```bash
 npx eas login
@@ -140,7 +176,7 @@ npx expo start --dev-client
 
 Install the resulting build on your device, then the dev server drives it. Use
 `--profile simulator` for a simulator build (no Apple account needed, but no
-Apple Sign-In or push).
+Apple Sign-In or push). A device build needs a paid Apple Developer account.
 
 ---
 
@@ -224,8 +260,13 @@ supabase/test/       RLS suite + local bootstrap
 
 - `src/types/database.ts` is hand-maintained until a Supabase project exists;
   `npm run verify:schema` fails the build if it drifts from the migrations.
-- Sign in with Apple is implemented but untested — it cannot run without a paid
-  Apple Developer account.
+- Sign in with Apple is implemented on both targets but untested: native needs
+  a paid Apple Developer account, and the web OAuth path needs the Apple
+  provider configured in Supabase.
+- The web build has been smoke-tested headlessly (renders, routes, manifest,
+  service worker, error states) but not yet on a real iPhone.
+- The PWA icons are the 1024px source icon at every declared size; real 192
+  and 512 px renders are a follow-up.
 - `seasonForDate()` assumes the northern hemisphere.
 - Apparel UPC coverage in product databases is poor, so the AI tag-reading
   fallback (feature 7c) is the primary scan path, not the backup.

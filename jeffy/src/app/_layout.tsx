@@ -31,6 +31,7 @@ export default function RootLayout(): React.JSX.Element {
                   <Stack.Screen name="(tabs)" />
                   <Stack.Screen name="(auth)" />
                   <Stack.Screen name="onboarding" />
+                  <Stack.Screen name="reset-password" />
                   <Stack.Screen name="join" options={{ presentation: 'modal' }} />
                   <Stack.Screen name="capture" options={{ presentation: 'fullScreenModal' }} />
                   <Stack.Screen name="item/[id]" />

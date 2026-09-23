@@ -65,7 +65,8 @@
     "verify:schema": "node ./scripts/verify-schema.js",
     "typecheck": "tsc --noEmit",
     "gen:types": "supabase gen types typescript --project-id \"$SUPABASE_PROJECT_ID\" --schema public > src/types/database.ts",
-    "verify": "npm run typecheck && npm run verify:schema && npm test && npm run db:test"
+    "verify": "npm run typecheck && npm run verify:schema && npm test && npm run db:test",
+    "build:web": "expo export --platform web --output-dir dist"
   },
   "private": true,
   "jest": {
