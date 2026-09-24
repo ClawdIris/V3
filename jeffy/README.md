@@ -135,9 +135,27 @@ npm run web            # dev server in your browser
 npm run build:web      # static export to dist/
 ```
 
-Deploy `dist/` anywhere static — `netlify.toml` is included, so on Netlify
-set the base directory to `jeffy` and it builds itself. Add the two
-`EXPO_PUBLIC_*` variables under Site settings → Environment variables.
+**Hosting: Cloudflare Pages.** Free, no idle pausing, and a faster CDN than
+the alternatives. Connect the repo in the Cloudflare dashboard (Workers &
+Pages → Create → Pages → Connect to Git):
+
+| Setting | Value |
+|---|---|
+| Production branch | the branch you deploy from |
+| Root directory | `jeffy` |
+| Build command | `npm run build:web` |
+| Build output directory | `dist` |
+| Environment variables | `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` |
+
+`public/_redirects` and `public/_headers` ride along into `dist/` and give
+Pages the SPA rewrite, no-cache on the service worker, and immutable caching
+on hashed assets. `.node-version` pins Node 22 for the build. From a laptop,
+`npx wrangler pages deploy` works too. (`netlify.toml` is kept as a fallback
+host; both read the same `dist/`.)
+
+Then tell Supabase where the app lives — Authentication → URL Configuration:
+Site URL = your Pages URL, and add `https://<your-site>.pages.dev/**` to the
+redirect allow-list, or password resets and Apple sign-in cannot return.
 
 On your phone, open the URL in Safari → Share → **Add to Home Screen**. From
 then on it launches full-screen like an app, works offline for browsing the

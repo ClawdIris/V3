@@ -1,0 +1,5 @@
+# Cloudflare Pages. The Git integration reads build settings from the
+# dashboard; this file is for `npx wrangler pages deploy` from a laptop.
+name = "jeffy"
+compatibility_date = "2026-09-01"
+pages_build_output_dir = "dist"
